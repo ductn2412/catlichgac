@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Đăng Ký & Duyệt Đổi Ca - ĐỘI 3 Trung Đoàn</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<!-- TOP GREEN BAR -->
+<header class="top-navbar">
+  <div class="brand-group">
+    <span class="brand-logo">ĐỘI 3</span>
+    <span class="brand-title">TRUNG ĐOÀN — HỆ THỐNG TRỰC BAN</span>
+  </div>
+  <form class="search-box" onsubmit="executeGlobalSearch(event)">
+    <span>🔍</span>
+    <input type="text" id="globalSearchInput" placeholder="Tìm chiến sĩ (VD: Bùi Văn Hùng, CS01) hoặc ca gác (VD: Ca 1)...">
+    <button type="submit">Tìm kiếm</button>
+  </form>
+  <div class="top-actions">
+    <button class="icon-btn-top" onclick="window.location.href='so-truc.html'" title="Yêu cầu đổi ca">
+      🔔 Đổi ca <span id="pendingSwapCount" class="notif-badge">0</span>
+    </button>
+    <button class="icon-btn-top" id="btnChangePassTop" onclick="openPasswordModal()" title="Đổi mật khẩu Chỉ huy">🔑 Mật khẩu</button>
+    <span id="roleBadge" class="role-pill"></span>
+    <button class="btn-top-logout" onclick="window.location.href='index.html'">Đăng xuất</button>
+  </div>
+</header>
+
+<!-- SUB HEADER BAR -->
+<div class="sub-navbar">
+  <div class="sub-nav-left">
+    <div class="widget-tag"><span class="plus">+</span> ĐỘI 3</div>
+    <div class="active-module-title">ĐĂNG KÝ ĐỀ XUẤT ĐỔI CA & PHÊ DUYỆT ĐỔI CA TỰ ĐỘNG</div>
+  </div>
+  <div></div>
+</div>
+
+<!-- MODAL ĐỔI MẬT KHẨU CHỈ HUY -->
+<div id="passwordModal" class="modal-backdrop">
+  <div class="modal-card">
+    <div class="modal-head">
+      <h3>🔑 Đổi mật khẩu tài khoản Chỉ huy</h3>
+      <button class="sec" onclick="closePasswordModal()">✕</button>
+    </div>
+    <form onsubmit="saveNewCommanderPassword(event)">
+      <div class="form-group">
+        <label>Tài khoản Chỉ huy cần đổi (chihuy / truongban / admin)</label>
+        <input type="text" id="cpUser" value="chihuy" required>
+      </div>
+      <div class="form-group">
+        <label>Mật khẩu hiện tại</label>
+        <input type="password" id="cpOld" required>
+      </div>
+      <div class="form-group">
+        <label>Mật khẩu mới</label>
+        <input type="password" id="cpNew" required>
+      </div>
+      <div class="login-actions">
+        <button type="button" class="sec" onclick="closePasswordModal()">Hủy</button>
+        <button type="submit" class="pri">Lưu mật khẩu mới</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="app-shell">
+  <aside class="left-sidebar">
+    <a href="dashboard.html" class="side-link" id="navDash"><span class="side-icon">📊</span><span>Màn hình Dashboard</span></a>
+    <a href="quan-ly-tai-khoan.html" class="side-link" id="navAccounts"><span class="side-icon">👥</span><span>Quản lý Tài khoản Quân nhân</span></a>
+    <a href="quan-ly-lich.html" class="side-link" id="navManage"><span class="side-icon">📋</span><span>Quản lý lập lịch</span></a>
+    <a href="lich-gac.html" class="side-link" id="navView"><span class="side-icon">📄</span><span>Trang hiển thị lịch gác</span></a>
+    <a href="cham-cong.html" class="side-link" id="navMonthly"><span class="side-icon">🗓️</span><span>Bảng chấm công tháng</span></a>
+    <a href="so-truc.html" class="side-link active" id="navLog"><span class="side-icon">🔄</span><span>Đăng ký & Duyệt đổi ca</span></a>
+    <a href="tim-kiem.html" class="side-link" id="navSearch"><span class="side-icon">🔍</span><span>Tra cứu Chiến sĩ & Ca gác</span></a>
+  </aside>
+
+  <main class="main-workspace">
+    <div class="two">
+      <!-- KHỐI 1: BIỂU MẪU GỬI ĐỀ XUẤT ĐỔI CA -->
+      <section class="card">
+        <h2>🔄 Đăng ký Đề xuất Đổi ca gác (Chiến sĩ & Sĩ quan)</h2>
+        <p class="sub">Quân nhân có lịch gác đột xuất bận công việc có thể gửi đề xuất đổi ca với đồng đội cùng chức danh để Chỉ huy phê duyệt.</p>
+        <form onsubmit="submitSwapRequest(event)">
+          <div class="form-group">
+            <label>Ngày muốn đổi ca</label>
+            <input type="date" id="swapDate" required>
+          </div>
+          <div class="form-group">
+            <label>Người đề xuất đổi (Đang có lịch trong ngày)</label>
+            <input type="text" id="swapFrom" list="dlAllSwap" placeholder="Chọn tên người xin đổi..." required>
+          </div>
+          <div class="form-group">
+            <label>Đồng đội nhận đổi thay</label>
+            <input type="text" id="swapTo" list="dlAllSwap" placeholder="Chọn tên đồng đội đổi cùng..." required>
+          </div>
+          <div class="form-group">
+            <label>Lý do xin đổi ca</label>
+            <input type="text" id="swapReason" placeholder="VD: Bận việc đơn vị đột xuất / Trực thay..." required>
+          </div>
+          <button type="submit" class="pri">📤 Gửi đề xuất đổi ca lên Chỉ huy</button>
+        </form>
+        <datalist id="dlAllSwap"></datalist>
+      </section>
+
+      <!-- KHỐI 2: DANH SÁCH YÊU CẦU ĐỔI CA & DUYỆT TỰ ĐỘNG -->
+      <section class="card">
+        <h2>📋 Danh sách Yêu cầu Đổi ca & Phê duyệt của Chỉ huy</h2>
+        <p class="sub">Khi Chỉ huy bấm <b>"Duyệt đổi tự động"</b>, hệ thống sẽ tự động hoán đổi tên hai quân nhân trong bảng lịch gác của ngày tương ứng.</p>
+        <div id="swapRequestsList"></div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/storage.js"></script>
+<script>
+  function initSoTrucPage() {
+    loadStorage();
+    updateTopBarShared();
+    const todayStr = fmtDate(new Date());
+    document.getElementById("swapDate").value = todayStr;
+
+    const all = [...parseNames(S.officers), ...parseNames(S.soldiers)];
+    const dl = document.getElementById("dlAllSwap");
+    dl.innerHTML = "";
+    all.forEach(n => {
+      const o = document.createElement("option");
+      o.value = n;
+      dl.appendChild(o);
+    });
+
+    renderSwapsList();
+  }
+
+  function submitSwapRequest(ev) {
+    ev.preventDefault();
+    const dStr = document.getElementById("swapDate").value;
+    const fromP = document.getElementById("swapFrom").value.trim();
+    const toP = document.getElementById("swapTo").value.trim();
+    const reason = document.getElementById("swapReason").value.trim();
+
+    if (cleanName(fromP) === cleanName(toP)) {
+      alert("Người xin đổi và người nhận đổi không được trùng nhau!");
+      return;
+    }
+
+    S.swapRequests.unshift({
+      id: Date.now(),
+      date: dStr,
+      fromPerson: fromP,
+      toPerson: toP,
+      reason: reason,
+      status: "pending"
+    });
+    saveStorage();
+    updateTopBarShared();
+    renderSwapsList();
+    document.getElementById("swapReason").value = "";
+    alert("✅ Đã gửi đề xuất đổi ca! Chỉ huy Đội 3 sẽ kiểm tra và phê duyệt.");
+  }
+
+  function approveSwapRequest(reqId, approve) {
+    if (getCurrentRole() !== "commander") {
+      alert("Chỉ có Chỉ huy / Trưởng ban mới có quyền duyệt đổi ca!");
+      return;
+    }
+    const req = S.swapRequests.find(r => r.id === reqId);
+    if (!req) return;
+
+    if (approve) {
+      const day = getDayData(req.date);
+      const cFrom = cleanName(req.fromPerson);
+      const cTo = cleanName(req.toPerson);
+      let swappedCount = 0;
+
+      for (let k = 0; k < 60; k++) {
+        const cellVal = (day.cells[k] || "").trim();
+        if (cleanName(cellVal) === cFrom) {
+          day.cells[k] = req.toPerson;
+          swappedCount++;
+        } else if (cleanName(cellVal) === cTo) {
+          day.cells[k] = req.fromPerson;
+          swappedCount++;
+        }
+      }
+      req.status = "approved";
+      saveStorage();
+      alert(`✅ Đã duyệt và tự động hoán đổi vị trí trong bảng lịch ngày ${vnFormat(req.date)} (${swappedCount} khung giờ)!`);
+    } else {
+      req.status = "rejected";
+      saveStorage();
+    }
+    updateTopBarShared();
+    renderSwapsList();
+  }
+
+  function renderSwapsList() {
+    const isCommander = (getCurrentRole() === "commander");
+    const swapEl = document.getElementById("swapRequestsList");
+    if (!S.swapRequests.length) {
+      swapEl.innerHTML = `<p class="empty">Chưa có yêu cầu đổi ca nào.</p>`;
+    } else {
+      swapEl.innerHTML = S.swapRequests.map(r => {
+        let badge = `<span style="color:#e65100;font-weight:bold;">⏳ Chờ Chỉ huy duyệt</span>`;
+        if (r.status === "approved") badge = `<span style="color:var(--primary-green);font-weight:bold;">✅ Đã duyệt & Đổi lịch</span>`;
+        if (r.status === "rejected") badge = `<span style="color:var(--bad);font-weight:bold;">❌ Đã từ chối</span>`;
+
+        let btns = "";
+        if (isCommander && r.status === "pending") {
+          btns = `<div style="margin-top:6px;display:flex;gap:6px;">
+            <button class="pri" onclick="approveSwapRequest(${r.id}, true)">✓ Duyệt đổi tự động</button>
+            <button class="sec" onclick="approveSwapRequest(${r.id}, false)">✕ Từ chối</button>
+          </div>`;
+        }
+        return `<div class="stat-card" style="display:block;margin-bottom:8px;">
+          <div style="display:flex;justify-content:space-between;"><b>Ngày ${vnFormat(r.date)}</b> ${badge}</div>
+          <div style="margin-top:4px;"><b>${r.fromPerson}</b> ⇄ muốn đổi với <b>${r.toPerson}</b></div>
+          <div style="color:var(--muted);font-size:12px;margin-top:2px;">Lý do: ${r.reason}</div>
+          ${btns}
+        </div>`;
+      }).join("");
+    }
+  }
+
+  window.onload = initSoTrucPage;
+</script>
+</body>
+</html>

@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Bảng Chấm Công Tháng - ĐỘI 3 Trung Đoàn</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<!-- TOP GREEN BAR -->
+<header class="top-navbar">
+  <div class="brand-group">
+    <span class="brand-logo">ĐỘI 3</span>
+    <span class="brand-title">TRUNG ĐOÀN — HỆ THỐNG TRỰC BAN</span>
+  </div>
+  <form class="search-box" onsubmit="executeGlobalSearch(event)">
+    <span>🔍</span>
+    <input type="text" id="globalSearchInput" placeholder="Tìm chiến sĩ (VD: Bùi Văn Hùng, CS01) hoặc ca gác (VD: Ca 1)...">
+    <button type="submit">Tìm kiếm</button>
+  </form>
+  <div class="top-actions">
+    <button class="icon-btn-top" onclick="window.location.href='so-truc.html'" title="Yêu cầu đổi ca">
+      🔔 Đổi ca <span id="pendingSwapCount" class="notif-badge">0</span>
+    </button>
+    <button class="icon-btn-top" id="btnChangePassTop" onclick="openPasswordModal()" title="Đổi mật khẩu Chỉ huy">🔑 Mật khẩu</button>
+    <span id="roleBadge" class="role-pill"></span>
+    <button class="btn-top-logout" onclick="window.location.href='index.html'">Đăng xuất</button>
+  </div>
+</header>
+
+<!-- SUB HEADER BAR -->
+<div class="sub-navbar">
+  <div class="sub-nav-left">
+    <div class="widget-tag"><span class="plus">+</span> ĐỘI 3</div>
+    <div class="active-module-title">BẢNG CHẤM CÔNG THÁNG (TÍNH CÔNG 1.0 & 0.5 CÔNG, THỐNG KÊ CA ĐÊM & CUỐI TUẦN)</div>
+  </div>
+  <div></div>
+</div>
+
+<!-- MODAL ĐỔI MẬT KHẨU CHỈ HUY -->
+<div id="passwordModal" class="modal-backdrop">
+  <div class="modal-card">
+    <div class="modal-head">
+      <h3>🔑 Đổi mật khẩu tài khoản Chỉ huy</h3>
+      <button class="sec" onclick="closePasswordModal()">✕</button>
+    </div>
+    <form onsubmit="saveNewCommanderPassword(event)">
+      <div class="form-group">
+        <label>Tài khoản Chỉ huy cần đổi (chihuy / truongban / admin)</label>
+        <input type="text" id="cpUser" value="chihuy" required>
+      </div>
+      <div class="form-group">
+        <label>Mật khẩu hiện tại</label>
+        <input type="password" id="cpOld" required>
+      </div>
+      <div class="form-group">
+        <label>Mật khẩu mới</label>
+        <input type="password" id="cpNew" required>
+      </div>
+      <div class="login-actions">
+        <button type="button" class="sec" onclick="closePasswordModal()">Hủy</button>
+        <button type="submit" class="pri">Lưu mật khẩu mới</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="app-shell">
+  <aside class="left-sidebar">
+    <a href="dashboard.html" class="side-link" id="navDash"><span class="side-icon">📊</span><span>Màn hình Dashboard</span></a>
+    <a href="quan-ly-tai-khoan.html" class="side-link" id="navAccounts"><span class="side-icon">👥</span><span>Quản lý Tài khoản Quân nhân</span></a>
+    <a href="quan-ly-lich.html" class="side-link" id="navManage"><span class="side-icon">📋</span><span>Quản lý lập lịch</span></a>
+    <a href="lich-gac.html" class="side-link" id="navView"><span class="side-icon">📄</span><span>Trang hiển thị lịch gác</span></a>
+    <a href="cham-cong.html" class="side-link active" id="navMonthly"><span class="side-icon">🗓️</span><span>Bảng chấm công tháng</span></a>
+    <a href="so-truc.html" class="side-link" id="navLog"><span class="side-icon">📓</span><span>Đăng ký & Duyệt đổi ca</span></a>
+    <a href="tim-kiem.html" class="side-link" id="navSearch"><span class="side-icon">🔍</span><span>Tra cứu Chiến sĩ & Ca gác</span></a>
+  </aside>
+
+  <main class="main-workspace">
+    <div class="card">
+      <div class="bar">
+        <h2 style="margin:0;margin-right:auto;">📊 Bảng Chấm Công Tháng & Thống Kê Công Bằng</h2>
+        <label for="monthPicker"><b>Chọn tháng:</b></label>
+        <input type="month" id="monthPicker" onchange="renderStandaloneMonthly()">
+        <button class="pri" onclick="window.print()">🖨 In Bảng Chấm Công</button>
+      </div>
+      <p class="sub">
+        📌 <b>Quy tắc tính công:</b> Làm đủ 3 ca/ngày = <b>X (1,0 công)</b> · Chiến sĩ làm <b>2 ca ngày</b> hoặc <b>1 ca đêm (22h–06h sáng hôm sau)</b> = <b>0,5 công</b>.<br>
+        📌 <b>Ký hiệu nghỉ/vắng:</b> <b>H</b> (Học tập), <b>CT</b> (Công tác), <b>O</b> (Ốm), <b>OV</b> (Ốm viện), <b>P</b> (Nghỉ phép), <b>NB</b> (Nghỉ bù), <b>K</b> (Khác). Có thể gõ trực tiếp <code>X</code>, <code>0.5</code>, <code>P</code>, <code>CT</code>, <code>O</code>, <code>OV</code>, <code>H</code>, <code>NB</code>.
+      </p>
+      <div class="scroll">
+        <table id="monthlyTable" class="monthly-tbl">
+          <thead id="monthlyHead"></thead>
+          <tbody id="monthlyBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/storage.js"></script>
+<script>
+  function initMonthlyPage() {
+    loadStorage();
+    updateTopBarShared();
+    const todayStr = fmtDate(new Date());
+    document.getElementById("monthPicker").value = todayStr.substring(0, 7);
+    renderStandaloneMonthly();
+  }
+
+  function renderStandaloneMonthly() {
+    const monthVal = document.getElementById("monthPicker").value || fmtDate(new Date()).substring(0, 7);
+    const [year, month] = monthVal.split('-').map(Number);
+    const daysInMonth = new Date(year, month, 0).getDate();
+
+    const off = parseNames(S.officers);
+    const sol = parseNames(S.soldiers);
+    const allPeople = [...off, ...sol];
+    const isCommander = (getCurrentRole() === "commander");
+
+    let headHtml = `<tr><th>Họ và tên</th><th>Chức danh</th>`;
+    for (let d = 1; d <= daysInMonth; d++) {
+      headHtml += `<th>${d}</th>`;
+    }
+    headHtml += `<th>Tổng công</th><th>Ca đêm (22h-6h)</th><th>Ca T7/CN</th><th>Ngày nghỉ</th></tr>`;
+    document.getElementById("monthlyHead").innerHTML = headHtml;
+
+    let bodyHtml = "";
+    allPeople.forEach(name => {
+      const isOfficer = off.includes(name);
+      bodyHtml += `<tr><td style="text-align:left;white-space:nowrap;">${renderPersonHoverLinkHTML(name)}</td><td>${isOfficer ? 'Sĩ quan' : 'Chiến sĩ'}</td>`;
+
+      let totalWorkCredits = 0;
+      let totalNightShifts = 0;
+      let totalWeekendDays = 0;
+      let totalLeaveDays = 0;
+
+      for (let d = 1; d <= daysInMonth; d++) {
+        const dateStr = `${year}-${pad(month)}-${pad(d)}`;
+        const details = getPersonDayWorkDetails(dateStr, name);
+        const dow = parseDate(dateStr).getDay();
+        const isWeekend = (dow === 0 || dow === 6);
+
+        let status = "";
+        let classTag = "";
+
+        if (details.isAbsent) {
+          status = details.absentCode;
+          classTag = "tag-" + details.absentCode;
+          totalLeaveDays++;
+        } else if (details.credit > 0) {
+          totalWorkCredits += details.credit;
+          totalNightShifts += details.nightShifts;
+          if (isWeekend) totalWeekendDays++;
+          if (details.credit === 0.5) {
+            status = "0,5";
+            classTag = "tag-HALF";
+          } else {
+            status = "X";
+            classTag = "tag-X";
+          }
+        }
+
+        bodyHtml += `<td class="${classTag}">
+          <input type="text" value="${status}" ${!isCommander ? 'disabled' : ''} style="width:32px;text-align:center;border:none;background:transparent;font-weight:bold;font-size:11px;" 
+            onchange="updateMonthlyCellSmart('${dateStr}', '${name}', this.value)" title="Nhập X (1 công), 0.5 (0,5 công), H, CT, O, OV, P, NB, K">
+        </td>`;
+      }
+      bodyHtml += `<td><b style="color:var(--primary-green);">${totalWorkCredits.toString().replace('.', ',')}</b></td>`;
+      bodyHtml += `<td><b>${totalNightShifts}</b></td>`;
+      bodyHtml += `<td><b>${totalWeekendDays}</b></td>`;
+      bodyHtml += `<td><b>${totalLeaveDays}</b></td></tr>`;
+    });
+
+    document.getElementById("monthlyBody").innerHTML = bodyHtml;
+  }
+
+  function updateMonthlyCellSmart(dateStr, name, val) {
+    if (getCurrentRole() !== 'commander') {
+      alert("Chỉ có Chỉ huy mới có quyền sửa bảng chấm công!");
+      renderStandaloneMonthly();
+      return;
+    }
+
+    const dayData = getDayData(dateStr);
+    const cName = cleanName(name);
+    val = val.trim().toUpperCase().replace(',', '.');
+
+    CATS.forEach(c => {
+      let list = parseNames(dayData.absent[c[0]]);
+      list = list.filter(n => cleanName(n) !== cName);
+      dayData.absent[c[0]] = list.join(", ");
+    });
+    delete dayData.manualCredits[cName];
+
+    const off = parseNames(S.officers);
+    const isOfficer = off.some(n => cleanName(n) === cName);
+
+    if (!val || val === '-') {
+      dayData.cells = dayData.cells.map(c => cleanName(c) === cName ? "" : c);
+    } else if (val === 'X' || val === '1' || val === '0.5') {
+      dayData.cells = dayData.cells.map(c => cleanName(c) === cName ? "" : c);
+      const targetCols = isOfficer ? [0] : [1, 2, 3, 4];
+      let placedCa = -1;
+      let placedCol = -1;
+
+      for (let ca = 0; ca < 4 && placedCa === -1; ca++) {
+        for (const col of targetCols) {
+          if (!(dayData.cells[(ca * 3) * 5 + col] || "").trim()) {
+            placedCa = ca;
+            placedCol = col;
+            break;
+          }
+        }
+      }
+
+      if (placedCa >= 0) {
+        if (val === '0.5') {
+          dayData.cells[(placedCa * 3 + 0) * 5 + placedCol] = name;
+          dayData.cells[(placedCa * 3 + 1) * 5 + placedCol] = name;
+          dayData.manualCredits[cName] = 0.5;
+        } else {
+          for (let s = 0; s < 3; s++) {
+            dayData.cells[(placedCa * 3 + s) * 5 + placedCol] = name;
+          }
+          dayData.manualCredits[cName] = 1.0;
+        }
+      } else {
+        dayData.manualCredits[cName] = (val === '0.5') ? 0.5 : 1.0;
+      }
+    } else {
+      let catKey = 'khac';
+      if (val === 'H') catKey = 'hoctap';
+      else if (val === 'CT') catKey = 'congtac';
+      else if (val === 'O') catKey = 'om';
+      else if (val === 'OV') catKey = 'om_tai_vien';
+      else if (val === 'P') catKey = 'phep';
+      else if (val === 'NB') catKey = 'nghibu';
+
+      let list = parseNames(dayData.absent[catKey]);
+      if (!list.some(n => cleanName(n) === cName)) list.push(name);
+      dayData.absent[catKey] = list.join(", ");
+      dayData.cells = dayData.cells.map(c => cleanName(c) === cName ? "" : c);
+    }
+
+    saveStorage();
+    renderStandaloneMonthly();
+  }
+
+  window.onload = initMonthlyPage;
+</script>
+</body>
+</html>

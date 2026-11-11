@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>ĐỘI 3 Trung Đoàn 375 - Đăng nhập Hệ thống</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="auth-overlay">
+  <div class="auth-box">
+    <div class="unit-badge">CÔNG AN NHÂN DÂN</div>
+    <h1 class="auth-title">ĐỘI 3 Trung Đoàn 375</h1>
+    <p class="auth-sub">Hệ thống Quản lý Quân số, Tài khoản Quân nhân, Dashboard Chỉ huy & Lịch gác</p>
+
+    <div id="role-buttons" class="auth-btn-group">
+      <button class="auth-btn cmd-btn" onclick="showCommanderLogin()">
+        <span class="auth-icon">⭐</span>
+        <span class="auth-label">Chỉ huy / Trưởng ban</span>
+        <span class="auth-desc">Toàn quyền quản lý Dashboard, thêm tài khoản Sĩ quan/Chiến sĩ, cắt lịch & chấm công</span>
+      </button>
+      <button class="auth-btn sol-btn" onclick="showSoldierLogin()">
+        <span class="auth-icon">👤</span>
+        <span class="auth-label">Chiến sĩ / Quân nhân</span>
+        <span class="auth-desc">Đăng nhập bằng Tên kèm mã số quân nhân (mật khẩu mặc định: 1) do Chỉ huy cấp</span>
+      </button>
+    </div>
+
+    <!-- FORM ĐĂNG NHẬP CHỈ HUY -->
+    <form id="cmd-login-form" class="login-form" onsubmit="handleCommanderLogin(event)" style="display:none;">
+      <h3>⭐ Đăng nhập Chỉ huy / Trưởng ban</h3>
+      <div class="form-group">
+        <label for="cmdUser">Tài khoản Chỉ huy</label>
+        <input type="text" id="cmdUser" placeholder="Nhập tài khoản (Mặc định: chihuy)" required value="chihuy">
+      </div>
+      <div class="form-group">
+        <label for="cmdPass">Mật khẩu</label>
+        <input type="password" id="cmdPass" placeholder="Nhập mật khẩu (Mặc định: doi3)" required value="doi3">
+      </div>
+      <div id="loginError" class="login-error"></div>
+      <div class="login-actions">
+        <button type="button" class="sec" onclick="backToRoleSelect()">← Quay lại</button>
+        <button type="submit" class="pri">Đăng nhập Chỉ huy →</button>
+      </div>
+      <p class="login-hint">💡 <i>Tài khoản mặc định: <b>chihuy</b> | Mật khẩu: <b>doi3</b></i></p>
+    </form>
+
+    <!-- FORM ĐĂNG NHẬP CHIẾN SĨ (CHỈ ĐĂNG NHẬP ĐƯỢC KHI ĐƯỢC CHỈ HUY THÊM VÀO HỆ THỐNG) -->
+    <form id="sol-login-form" class="login-form" onsubmit="handleSoldierLogin(event)" style="display:none;">
+      <h3>👤 Đăng nhập Chiến sĩ / Quân nhân</h3>
+      <div class="form-group">
+        <label for="solUser">Tên tài khoản (Họ tên kèm mã số quân nhân)</label>
+        <input type="text" id="solUser" list="dlRegisteredSoldiers" placeholder="VD: Bùi Văn Hùng (CS01)" required autocomplete="off">
+        <datalist id="dlRegisteredSoldiers"></datalist>
+      </div>
+      <div class="form-group">
+        <label for="solPass">Mật khẩu (Mặc định là <b>1</b>)</label>
+        <input type="password" id="solPass" placeholder="Nhập mật khẩu (Mặc định: 1)" required value="1">
+      </div>
+      <div id="solLoginError" class="login-error"></div>
+      <div class="login-actions">
+        <button type="button" class="sec" onclick="backToRoleSelect()">← Quay lại</button>
+        <button type="submit" class="pri">Đăng nhập Chiến sĩ →</button>
+      </div>
+      <p class="login-hint">
+        🔒 <i>Lưu ý: Chỉ những tài khoản Sĩ quan / Chiến sĩ đã được <b>Chỉ huy thêm vào hệ thống</b> mới có thể đăng nhập. Tên tài khoản là <b>Họ tên (Mã số)</b>, mật khẩu mặc định là <b>1</b>.</i>
+      </p>
+    </form>
+  </div>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/storage.js"></script>
+<script>
+  loadStorage();
+
+  function populateSoldierSuggestions() {
+    const dl = document.getElementById("dlRegisteredSoldiers");
+    dl.innerHTML = "";
+    (S.personnelAccounts || []).forEach(acc => {
+      const opt = document.createElement("option");
+      opt.value = formatFullAccountName(acc.fullName, acc.code);
+      opt.label = acc.position || (acc.roleType === "officer" ? "Sĩ quan" : "Chiến sĩ");
+      dl.appendChild(opt);
+    });
+  }
+
+  function showCommanderLogin() {
+    document.getElementById("role-buttons").style.display = "none";
+    document.getElementById("sol-login-form").style.display = "none";
+    document.getElementById("cmd-login-form").style.display = "block";
+    document.getElementById("loginError").textContent = "";
+    document.getElementById("cmdUser").focus();
+  }
+
+  function showSoldierLogin() {
+    populateSoldierSuggestions();
+    document.getElementById("role-buttons").style.display = "none";
+    document.getElementById("cmd-login-form").style.display = "none";
+    document.getElementById("sol-login-form").style.display = "block";
+    document.getElementById("solLoginError").textContent = "";
+    document.getElementById("solUser").focus();
+  }
+
+  function backToRoleSelect() {
+    document.getElementById("cmd-login-form").style.display = "none";
+    document.getElementById("sol-login-form").style.display = "none";
+    document.getElementById("role-buttons").style.display = "grid";
+  }
+
+  function handleCommanderLogin(ev) {
+    ev.preventDefault();
+    const u = (document.getElementById("cmdUser").value || "").trim().toLowerCase();
+    const p = (document.getElementById("cmdPass").value || "").trim();
+    const accs = S.accounts || DEFAULT_COMMANDER_ACCOUNTS;
+    if (accs[u] && accs[u] === p) {
+      setCurrentRole("commander");
+      setCurrentUserLabel(u.toUpperCase());
+      window.location.href = "dashboard.html";
+    } else {
+      document.getElementById("loginError").textContent = "❌ Sai tài khoản hoặc mật khẩu Chỉ huy!";
+    }
+  }
+
+  function handleSoldierLogin(ev) {
+    ev.preventDefault();
+    const u = (document.getElementById("solUser").value || "").trim();
+    const p = (document.getElementById("solPass").value || "").trim();
+
+    const matchedAcc = authenticateSoldierLogin(u, p);
+    if (matchedAcc) {
+      const fullLabel = formatFullAccountName(matchedAcc.fullName, matchedAcc.code);
+      setCurrentRole("staff");
+      setCurrentUserLabel(`${fullLabel} - ${matchedAcc.position || "Chiến sĩ"}`);
+      window.location.href = "lich-gac.html";
+    } else {
+      document.getElementById("solLoginError").textContent =
+        "❌ Tài khoản chưa được Chỉ huy thêm vào hệ thống hoặc sai tên kèm mã số / mật khẩu (Mật khẩu mặc định là 1)!";
+    }
+  }
+</script>
+</body>
+</html>

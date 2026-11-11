@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Quản lý Lập Lịch - ĐỘI 3 Trung Đoàn</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<!-- TOP GREEN BAR -->
+<header class="top-navbar">
+  <div class="brand-group">
+    <span class="brand-logo">ĐỘI 3</span>
+    <span class="brand-title">TRUNG ĐOÀN — HỆ THỐNG TRỰC BAN</span>
+  </div>
+  <form class="search-box" onsubmit="executeGlobalSearch(event)">
+    <span>🔍</span>
+    <input type="text" id="globalSearchInput" placeholder="Tìm chiến sĩ (VD: Bùi Văn Hùng, CS01) hoặc ca gác (VD: Ca 1)...">
+    <button type="submit">Tìm kiếm</button>
+  </form>
+  <div class="top-actions">
+    <button class="icon-btn-top" onclick="window.location.href='so-truc.html'" title="Yêu cầu đổi ca">
+      🔔 Đổi ca <span id="pendingSwapCount" class="notif-badge">0</span>
+    </button>
+    <button class="icon-btn-top" id="btnChangePassTop" onclick="openPasswordModal()" title="Đổi mật khẩu Chỉ huy">🔑 Mật khẩu</button>
+    <span id="roleBadge" class="role-pill"></span>
+    <button class="btn-top-logout" onclick="window.location.href='index.html'">Đăng xuất</button>
+  </div>
+</header>
+
+<!-- SUB HEADER BAR -->
+<div class="sub-navbar">
+  <div class="sub-nav-left">
+    <div class="widget-tag"><span class="plus">+</span> ĐỘI 3</div>
+    <div class="active-module-title">QUẢN LÝ QUÂN SỐ, ĐĂNG KÝ VẮNG DÀI NGÀY & CẮT LỊCH GÁC TỰ ĐỘNG</div>
+  </div>
+  <div><button class="sec" onclick="backupJSONData()">💾 Sao lưu dữ liệu (.json)</button><label class="btn-file" style="margin-left:6px;">📂 Khôi phục (.json)<input type="file" accept=".json" onchange="restoreJSONData(event)"></label></div>
+</div>
+
+<!-- MODAL ĐỔI MẬT KHẨU CHỈ HUY -->
+<div id="passwordModal" class="modal-backdrop">
+  <div class="modal-card">
+    <div class="modal-head">
+      <h3>🔑 Đổi mật khẩu tài khoản Chỉ huy</h3>
+      <button class="sec" onclick="closePasswordModal()">✕</button>
+    </div>
+    <form onsubmit="saveNewCommanderPassword(event)">
+      <div class="form-group">
+        <label>Tài khoản Chỉ huy cần đổi (chihuy / truongban / admin)</label>
+        <input type="text" id="cpUser" value="chihuy" required>
+      </div>
+      <div class="form-group">
+        <label>Mật khẩu hiện tại</label>
+        <input type="password" id="cpOld" required>
+      </div>
+      <div class="form-group">
+        <label>Mật khẩu mới</label>
+        <input type="password" id="cpNew" required>
+      </div>
+      <div class="login-actions">
+        <button type="button" class="sec" onclick="closePasswordModal()">Hủy</button>
+        <button type="submit" class="pri">Lưu mật khẩu mới</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="app-shell">
+  <aside class="left-sidebar">
+    <a href="dashboard.html" class="side-link" id="navDash"><span class="side-icon">📊</span><span>Màn hình Dashboard</span></a>
+    <a href="quan-ly-tai-khoan.html" class="side-link" id="navAccounts"><span class="side-icon">👥</span><span>Quản lý Tài khoản Quân nhân</span></a>
+    <a href="quan-ly-lich.html" class="side-link active" id="navManage"><span class="side-icon">📋</span><span>Quản lý lập lịch</span></a>
+    <a href="lich-gac.html" class="side-link" id="navView"><span class="side-icon">📄</span><span>Trang hiển thị lịch gác</span></a>
+    <a href="cham-cong.html" class="side-link" id="navMonthly"><span class="side-icon">🗓️</span><span>Bảng chấm công tháng</span></a>
+    <a href="so-truc.html" class="side-link" id="navLog"><span class="side-icon">📓</span><span>Đăng ký & Duyệt đổi ca</span></a>
+    <a href="tim-kiem.html" class="side-link" id="navSearch"><span class="side-icon">🔍</span><span>Tra cứu Chiến sĩ & Ca gác</span></a>
+  </aside>
+
+  <main class="main-workspace">
+    <!-- PHẦN 1: NHẬP DANH SÁCH QUÂN SỐ -->
+    <section class="card roster">
+      <h2>Phần 1: Nhập danh sách quân số & Mã số (Định dạng: Tên (Mã số))</h2>
+      <div class="import-bar" id="importBarDiv">
+        <label class="btn-file">
+          📂 Nhập từ Excel/Word (Sĩ quan)
+          <input type="file" id="fileOff" accept=".xlsx, .xls, .docx, .doc" onchange="importFile(event, 'offT')">
+        </label>
+        <label class="btn-file">
+          📂 Nhập từ Excel/Word (Chiến sĩ)
+          <input type="file" id="fileSol" accept=".xlsx, .xls, .docx, .doc" onchange="importFile(event, 'solT')">
+        </label>
+      </div>
+      <div class="two">
+        <div>
+          <label for="offT"><b>Sĩ quan</b> — <i>Chỉ xếp vào cột Đốc gác 1</i> (VD: Đại úy Nguyễn Văn An (SQ01))</label>
+          <textarea id="offT" rows="4" placeholder="Nhập tên và mã số sĩ quan"></textarea>
+        </div>
+        <div>
+          <label for="solT"><b>Chiến sĩ nghĩa vụ</b> — <i>Chỉ xếp vào Vọng gác x9, x10, x11, x12</i> (VD: Bùi Văn Hùng (CS01))</label>
+          <textarea id="solT" rows="4" placeholder="Nhập tên và mã số chiến sĩ nghĩa vụ"></textarea>
+        </div>
+      </div>
+      <div class="rrow"><span id="rmsg"></span></div>
+    </section>
+
+    <!-- ĐĂNG KÝ VẮNG DÀI NGÀY (TỪ NGÀY - ĐẾN NGÀY) -->
+    <section class="card roster" id="multiDayLeaveCard">
+      <h2>📌 Đăng ký Vắng mặt Dài ngày (Từ ngày – Đến ngày)</h2>
+      <div class="bar">
+        <input type="text" id="leavePerson" list="dlAll" placeholder="Chọn hoặc nhập tên quân nhân..." style="min-width:220px;">
+        <select id="leaveType">
+          <option value="phep">Nghỉ phép (P)</option>
+          <option value="congtac">Công tác (CT)</option>
+          <option value="om">Ốm tại nhà (O)</option>
+          <option value="om_tai_vien">Ốm tại viện (OV)</option>
+          <option value="nghibu">Nghỉ bù (NB)</option>
+          <option value="hoctap">Học tập (H)</option>
+          <option value="khac">Công việc khác (K)</option>
+        </select>
+        <label style="font-size:13px;">Từ ngày:</label>
+        <input type="date" id="leaveStart">
+        <label style="font-size:13px;">Đến ngày:</label>
+        <input type="date" id="leaveEnd">
+        <button class="pri" onclick="applyMultiDayAbsence()">+ Áp dụng vắng dài ngày</button>
+      </div>
+      <datalist id="dlAll"></datalist>
+    </section>
+
+    <!-- THANH CÔNG CỤ CẮT LỊCH -->
+    <div class="bar">
+      <button id="prev" aria-label="Ngày trước">‹ Ngày trước</button>
+      <input type="date" id="date">
+      <button id="next" aria-label="Ngày sau">Ngày sau ›</button>
+      <span class="dow" id="dow"></span>
+      <button id="today">Hôm nay</button>
+      
+      <select id="historySelect">
+        <option value="">-- Lịch sử ngày đã cắt gác --</option>
+      </select>
+
+      <button class="pri" id="gen" onclick="generateSchedule()">Cắt lịch ngày mai →</button>
+      <button class="warn-btn" id="genWeek" onclick="generateWeekSchedule()">⚡ Cắt lịch cả tuần (7 ngày)</button>
+      <button class="sec" onclick="exportToExcel(curDate)">Xuất Excel</button>
+      <button class="sec" onclick="exportToPDF(curDate)">Xuất PDF</button>
+      <button onclick="window.print()">🖨 In lịch chuẩn Quân đội</button>
+      <span class="now" id="now"></span>
+    </div>
+
+    <div id="print-area">
+      <!-- TIÊU ĐỀ BẢN IN CHUẨN QUÂN ĐỘI -->
+      <div class="military-print-header">
+        <div>
+          <b>TRUNG ĐOÀN ...</b><br>
+          <b>ĐỘI 3</b><br>
+          <span>***</span>
+        </div>
+        <div>
+          <b>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</b><br>
+          <b>Độc lập - Tự do - Hạnh phúc</b><br>
+          <span>-----------------</span>
+        </div>
+      </div>
+
+      <div class="scroll" id="tbl">
+        <table>
+          <thead>
+            <tr>
+              <th>Ca & Thời gian</th>
+              <th>Khung giờ</th>
+              <th><b>Đốc gác 1</b>Chỉ lấy từ Sĩ quan</th>
+              <th><b>Vọng gác x9</b>Chiến sĩ nghĩa vụ</th>
+              <th><b>Vọng gác x10</b>Chiến sĩ nghĩa vụ</th>
+              <th><b>Vọng gác x11</b>Chiến sĩ nghĩa vụ</th>
+              <th><b>Vọng gác x12</b>Chiến sĩ nghĩa vụ</th>
+            </tr>
+          </thead>
+          <tbody id="body"></tbody>
+        </table>
+      </div>
+      <datalist id="dlO"></datalist>
+      <datalist id="dlS"></datalist>
+
+      <section class="card" style="margin-top:18px">
+        <h2>Phần 2: Tổng quân số đơn vị, Trực cơ động & Ghi chú vắng mặt</h2>
+        
+        <div class="unit-summary-box">
+          <div class="unit-total-header">
+            <span>* TỔNG QUÂN SỐ TOÀN ĐƠN VỊ (ĐỘI 3): <strong id="totalUnit">0</strong> đồng chí</span>
+            <span id="unitBreakdownSub" class="unit-sub"></span>
+          </div>
+          <div id="detailedStatGrid" class="stat-grid"></div>
+        </div>
+
+        <div class="rest">
+          <b>Trực cơ động tại đơn vị (Quân số nghỉ gác tại đơn vị)</b>
+          <div class="part">
+            <div class="ph">Sĩ quan <span id="cntO"></span></div>
+            <div class="chips" id="listO"></div>
+          </div>
+          <div class="part">
+            <div class="ph">Chiến sĩ nghĩa vụ (Vọng gác x9, x10, x11, x12) <span id="cntS"></span></div>
+            <div class="chips" id="listS"></div>
+          </div>
+        </div>
+        
+        <div id="cats"></div>
+        <div class="warn" id="warn"></div>
+      </section>
+
+      <!-- CHỮ KÝ CHỈ HUY KHI IN -->
+      <div class="military-print-footer">
+        <div>
+          <b>TRỰC BAN NỘI VỤ</b><br>
+          <i>(Ký, ghi rõ họ tên)</i><br><br><br><br>
+        </div>
+        <div>
+          <i>Hà Nội, ngày ..... tháng ..... năm 20...</i><br>
+          <b>CHỈ HUY ĐỘI 3 DUYỆT</b><br>
+          <i>(Ký tên, đóng dấu)</i><br><br><br><br>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="js/config.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/export.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
