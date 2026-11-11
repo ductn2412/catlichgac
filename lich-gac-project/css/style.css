@@ -611,6 +611,13 @@ input.sup {
 
 .item { display: grid; grid-template-columns: 170px 1fr; gap: 10px; align-items: start; margin-bottom: 10px; font-size: 13.5px; }
 .warn { font-size: 13px; color: var(--bad); margin-top: 8px; font-weight: bold; }
+.warn div.note-warn { color: #b45309; }
+.warn div.note-info { color: #0b57d0; }
+td input.nm.borrowed:not(.bad) {
+  border-color: #ff9800 !important;
+  background: #fff6e9 !important;
+  box-shadow: inset 3px 0 0 #ff9800;
+}
 
 /* MILITARY PRINT HEADER & FOOTER */
 .military-print-header, .military-print-footer { display: none; }

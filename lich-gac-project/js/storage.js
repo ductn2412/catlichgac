@@ -7,8 +7,34 @@ let S = {
   accounts: { ...DEFAULT_COMMANDER_ACCOUNTS },
   personnelAccounts: [],
   // Danh sách đồng chí chỉ làm ca đêm (VD: đang học tập buổi sáng)
-  nightOnly: ""
+  nightOnly: "",
+  // Chế độ cảnh báo & mượn quân số tạm thời giữa các Tổ
+  borrowRules: { enabled: true, maxAbsentSoldiers: 3, maxConsecutiveDays: 5 }
 };
+
+const DEFAULT_BORROW_RULES = { enabled: true, maxAbsentSoldiers: 3, maxConsecutiveDays: 5 };
+
+function clampInt(v, min, max, dflt) {
+  const n = parseInt(v, 10);
+  if (!Number.isFinite(n)) return dflt;
+  return Math.max(min, Math.min(max, n));
+}
+
+// Chuẩn hóa cấu hình cảnh báo / mượn quân số (luôn có đủ 3 trường)
+function normalizeBorrowRules() {
+  const r = S.borrowRules || {};
+  S.borrowRules = {
+    enabled: r.enabled !== false,
+    maxAbsentSoldiers: clampInt(r.maxAbsentSoldiers, 0, 30, DEFAULT_BORROW_RULES.maxAbsentSoldiers),
+    maxConsecutiveDays: clampInt(r.maxConsecutiveDays, 1, 60, DEFAULT_BORROW_RULES.maxConsecutiveDays)
+  };
+  return S.borrowRules;
+}
+
+function getBorrowRules() {
+  if (!S.borrowRules) normalizeBorrowRules();
+  return normalizeBorrowRules();
+}
 
 function pad(n) { return (n < 10 ? "0" : "") + n; }
 function fmtDate(d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
@@ -258,6 +284,7 @@ function loadStorage() {
       if (!S.accounts) S.accounts = { ...DEFAULT_COMMANDER_ACCOUNTS };
       if (!S.personnelAccounts) S.personnelAccounts = [];
       if (typeof S.nightOnly !== "string") S.nightOnly = "";
+      normalizeBorrowRules();
       if (!S.teams || S.teams.length < 4) S.teams = JSON.parse(JSON.stringify(DEFAULT_TEAMS));
     }
   } catch (e) {
@@ -293,6 +320,11 @@ function getDayData(d) {
   }
   if (!S.days[d].streaks) S.days[d].streaks = {};
   if (!S.days[d].manualCredits) S.days[d].manualCredits = {};
+  // Thông tin mượn quân số tạm thời / thay người do làm quá số ngày
+  if (!Array.isArray(S.days[d].borrowed)) S.days[d].borrowed = [];
+  if (!Array.isArray(S.days[d].overworkSwaps)) S.days[d].overworkSwaps = [];
+  if (!Array.isArray(S.days[d].overworkKept)) S.days[d].overworkKept = [];
+  if (!S.days[d].borrowMarks || typeof S.days[d].borrowMarks !== "object") S.days[d].borrowMarks = {};
   if (!S.days[d].teamInCa) S.days[d].teamInCa = detectTeamsInCa(S.days[d]);
   return S.days[d];
 }
@@ -302,6 +334,11 @@ function detectTeamsInCa(day) {
   const res = [1, 2, 3, 4];
   if (!day || !day.cells) return res;
   const used = {};
+  // Bỏ qua người được mượn từ Tổ khác để không nhận diện nhầm Tổ đang trực
+  const borrowedSet = {};
+  (day.borrowed || []).forEach(b => {
+    if (b && b.person) borrowedSet[cleanName(b.person).toLowerCase()] = 1;
+  });
   for (let ca = 0; ca < 4; ca++) {
     let foundTeam = null;
     // Dò cả 3 khung giờ để vẫn nhận diện đúng Tổ khi khung ban ngày trống
@@ -309,6 +346,7 @@ function detectTeamsInCa(day) {
     for (let slot = 0; slot < 3 && !foundTeam; slot++) {
       for (let col = 0; col < 5; col++) {
         const p = (day.cells[(ca * 3 + slot) * 5 + col] || "").trim();
+        if (p && borrowedSet[cleanName(p).toLowerCase()]) continue;
         if (p) {
           const tid = getPersonTeamId(p);
           if (tid) { foundTeam = tid; break; }
@@ -496,6 +534,7 @@ function restoreJSONData(event) {
         S = parsed;
         if (!S.teams || S.teams.length < 4) S.teams = JSON.parse(JSON.stringify(DEFAULT_TEAMS));
         if (typeof S.nightOnly !== "string") S.nightOnly = "";
+        normalizeBorrowRules();
         syncFromTeamsToRosterAndAccounts();
         saveStorage();
         alert("✅ Đã khôi phục dữ liệu hệ thống thành công!");

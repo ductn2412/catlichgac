@@ -267,12 +267,18 @@ function applyRolePermissions() {
   const leaveCard = document.getElementById("multiDayLeaveCard");
   const nightOnlyCard = document.getElementById("nightOnlyCard");
   const nightOnlyList = document.getElementById("nightOnlyList");
+  const borrowCard = document.getElementById("borrowCard");
+  const borrowEnabled = document.getElementById("borrowEnabled");
+  const borrowMaxAbsent = document.getElementById("borrowMaxAbsent");
+  const borrowMaxDays = document.getElementById("borrowMaxDays");
 
   if (genBtn) genBtn.style.display = isCommander ? "inline-block" : "none";
   if (genWeekBtn) genWeekBtn.style.display = isCommander ? "inline-block" : "none";
   if (leaveCard) leaveCard.style.display = isCommander ? "block" : "none";
   if (nightOnlyCard) nightOnlyCard.style.display = isCommander ? "block" : "none";
   if (nightOnlyList) nightOnlyList.disabled = !isCommander;
+  if (borrowCard) borrowCard.style.display = isCommander ? "block" : "none";
+  [borrowEnabled, borrowMaxAbsent, borrowMaxDays].forEach(el => { if (el) el.disabled = !isCommander; });
 
   for (let t = 1; t <= 4; t++) {
     const oEl = document.getElementById(`team${t}Off`);
@@ -371,7 +377,7 @@ function pickOfficerForTeam(team, teamId, prevDay, ab, dateStr) {
   return "";
 }
 
-function pickSoldiersForTeam(team, ab, dateStr) {
+function pickSoldiersForTeam(team, ab, dateStr, excludeFn) {
   const list = (team.soldiers || []).filter(Boolean);
   const need = 4;
   if (!list.length) return [];
@@ -382,9 +388,89 @@ function pickSoldiersForTeam(team, ab, dateStr) {
   const picked = [];
   for (let i = 0; i < list.length && picked.length < need; i++) {
     const cand = list[(start + i) % list.length];
+    if (excludeFn && excludeFn(cand)) continue;
     if (!isPersonAbsentIn(ab, cand) && !picked.includes(cand)) picked.push(cand);
   }
   return picked;
+}
+
+// ===== CẢNH BÁO & MƯỢN QUÂN SỐ TẠM THỜI GIỮA CÁC TỔ =====
+// Đếm số chiến sĩ của 1 Tổ đang vắng mặt trong ngày
+function countAbsentSoldiersOfTeam(teamId, dateStr) {
+  const team = S.teams && S.teams[teamId - 1];
+  if (!team) return 0;
+  const ab = absSet(getDayData(dateStr).absent || {});
+  return (team.soldiers || []).filter(n => n && isPersonAbsentIn(ab, n)).length;
+}
+
+// Số ngày liên tiếp đã làm gác tính đến hết ngày TRƯỚC dateStr
+// (dùng để biết nếu xếp thêm hôm nay thì có vượt ngưỡng hay không)
+function consecutiveDutyDays(person, dateStr) {
+  const cName = cleanName(person);
+  if (!cName) return 0;
+  let d = addDay(dateStr, -1);
+  let c = 0;
+  while (c < 90) {
+    const day = S.days && S.days[d];
+    if (!day || !Array.isArray(day.cells)) break;
+    const worked = day.cells.some(x => cleanName(x) === cName);
+    if (!worked) break;
+    c++;
+    d = addDay(d, -1);
+  }
+  return c;
+}
+
+// Số ngày đã gác trong 7 ngày gần nhất (ưu tiên người ít ngày khi mượn)
+function dutyDaysInRecent(person, dateStr, days) {
+  const cName = cleanName(person);
+  if (!cName) return 0;
+  let c = 0;
+  for (let i = 1; i <= days; i++) {
+    const day = S.days && S.days[addDay(dateStr, -i)];
+    if (day && Array.isArray(day.cells) && day.cells.some(x => cleanName(x) === cName)) c++;
+  }
+  return c;
+}
+
+// Chọn 1 chiến sĩ từ Tổ khác để mượn tạm thời.
+// Ưu tiên Tổ còn quân dư, người ít ngày gác liên tiếp và ít ngày gác gần đây.
+// caIdx/col: vị trí sẽ xếp, dùng để tránh trùng ca sát giờ với ngày hôm trước/hôm sau.
+function pickBorrowedSoldier(dateStr, targetTeamId, dayUsed, ab, nightSet, caIdx, col) {
+  const cands = [];
+  for (let t = 1; t <= 4; t++) {
+    if (t === targetTeamId) continue;
+    const team = S.teams && S.teams[t - 1];
+    if (!team) continue;
+    const avail = (team.soldiers || []).filter(n =>
+      n && !isPersonAbsentIn(ab, n) && !isNightOnlyInSet(nightSet, n)
+    );
+    const surplus = avail.length - 4; // > 0: Tổ còn người dư có thể cho mượn
+    avail.forEach(n => {
+      const key = cleanName(n).toLowerCase();
+      if (!key || dayUsed.has(key)) return;
+      if (typeof caIdx === "number" && typeof col === "number") {
+        const k0 = (caIdx * 3 + 0) * 5 + col;
+        const k2 = (caIdx * 3 + 2) * 5 + col;
+        if (hasCrossDayConsecutiveError(dateStr, n, k0)) return;
+        if (hasCrossDayConsecutiveError(dateStr, n, k2)) return;
+      }
+      cands.push({
+        name: n,
+        teamId: t,
+        surplus,
+        streak: consecutiveDutyDays(n, dateStr),
+        recent: dutyDaysInRecent(n, dateStr, 7)
+      });
+    });
+  }
+  cands.sort((a, b) =>
+    (b.surplus - a.surplus) ||
+    (a.streak - b.streak) ||
+    (a.recent - b.recent) ||
+    (a.teamId - b.teamId)
+  );
+  return cands[0] || null;
 }
 
 // Danh sách đồng chí chỉ làm ca đêm (đang học tập buổi sáng)
@@ -405,7 +491,7 @@ function isNightOnlyInSet(nightSet, person) {
 }
 
 // Chọn người cùng Tổ (không phải người chỉ làm ca đêm) để trực khung ban ngày
-function pickDayReplacement(pool, usedSet, ab, nightSet, dateStr) {
+function pickDayReplacement(pool, usedSet, ab, nightSet, dateStr, excludeSet) {
   const list = (pool || []).filter(Boolean);
   if (!list.length) return "";
   const ord = dayOrdinal(dateStr);
@@ -416,6 +502,7 @@ function pickDayReplacement(pool, usedSet, ab, nightSet, dateStr) {
     if (isNightOnlyInSet(nightSet, cand)) continue;
     const key = cleanName(cand).toLowerCase();
     if (usedSet.has(key)) continue;
+    if (excludeSet && excludeSet.has(key)) continue;
     usedSet.add(key);
     return cand;
   }
@@ -433,8 +520,16 @@ function buildGeneratedDay(dateStr, teamMap, prevDay) {
   const day = getDayData(dateStr);
   const ab = absSet(day.absent || {});
   const nightSet = getNightOnlySet();
+  const rules = getBorrowRules();
   const cells = Array(60).fill("");
   let unfilled = 0;
+
+  // Người đã được xếp trong ngày (mọi ca) để không mượn trùng
+  const dayUsed = new Set();
+  const borrowed = [];
+  const overworkSwaps = [];
+  const overworkKept = [];
+  const borrowMarks = {};
 
   for (let ca = 0; ca < 4; ca++) {
     const teamId = teamMap[ca] || (ca + 1);
@@ -445,37 +540,169 @@ function buildGeneratedDay(dateStr, teamMap, prevDay) {
 
     // --- Đốc gác (Sĩ quan) ---
     const officer = pickOfficerForTeam(team, teamId, prevDay, ab, dateStr);
-    if (officer) used.add(cleanName(officer).toLowerCase());
+    if (officer) {
+      used.add(cleanName(officer).toLowerCase());
+      dayUsed.add(cleanName(officer).toLowerCase());
+    }
 
     let officerDay = officer;
     let officerNight = officer;
     if (officer && isNightOnlyInSet(nightSet, officer)) {
       officerNight = officer;
-      officerDay = pickDayReplacement(team.officers || [], used, ab, nightSet, dateStr);
+      officerDay = pickDayReplacement(team.officers || [], used, ab, nightSet, dateStr, dayUsed);
       if (!officerDay) unfilled++;
+      else dayUsed.add(cleanName(officerDay).toLowerCase());
     }
     fillGeneratedPosition(cells, ca, 0, officerDay, officerNight);
 
     // --- Chiến sĩ Vọng gác ---
-    const soldiers = pickSoldiersForTeam(team, ab, dateStr);
-    soldiers.forEach(s => { if (s) used.add(cleanName(s).toLowerCase()); });
+    const absentCount = countAbsentSoldiersOfTeam(teamId, dateStr);
+    const teamShort = absentCount > rules.maxAbsentSoldiers;
 
+    // Người trực ca đêm cuối ngày hôm trước không xếp vào Ca 1 sáng hôm sau
+    const conflictAt = (n) =>
+      hasCrossDayConsecutiveError(dateStr, n, (ca * 3 + 0) * 5 + 1) ||
+      hasCrossDayConsecutiveError(dateStr, n, (ca * 3 + 1) * 5 + 1) ||
+      hasCrossDayConsecutiveError(dateStr, n, (ca * 3 + 2) * 5 + 1);
+
+    const rotated = pickSoldiersForTeam(team, ab, dateStr, n =>
+      dayUsed.has(cleanName(n).toLowerCase()) || conflictAt(n)
+    );
+
+    const finalList = [];   // { name, type, fromTeam?, out?, reason? }
+    const overworked = [];  // người đã làm tới ngưỡng, nên nghỉ
+    const idle = [];        // người cùng Tổ đang nghỉ, có thể thay
+
+    rotated.forEach(s => {
+      if (!s) return;
+      const over = rules.enabled &&
+        !isNightOnlyInSet(nightSet, s) &&
+        consecutiveDutyDays(s, dateStr) >= rules.maxConsecutiveDays;
+      if (over) overworked.push(s);
+      else finalList.push({ name: s, type: "team" });
+    });
+
+    (team.soldiers || []).forEach(n => {
+      if (!n) return;
+      if (finalList.some(e => e.name === n) || overworked.includes(n)) return;
+      if (isPersonAbsentIn(ab, n)) return;
+      if (isNightOnlyInSet(nightSet, n)) return;
+      idle.push(n);
+    });
+
+    // 1) Thay người làm quá số ngày bằng người cùng Tổ đang nghỉ
+    let overIdx = 0;
+    while (finalList.length < 4 && idle.length) {
+      const inP = idle.shift();
+      const outP = overworked[overIdx] || "";
+      if (outP) {
+        overIdx++;
+        overworkSwaps.push({
+          out: outP,
+          in: inP,
+          outStreak: consecutiveDutyDays(outP, dateStr) + 1,
+          ca: ca + 1,
+          borrowed: false
+        });
+      }
+      finalList.push({ name: inP, type: outP ? "idle" : "team" });
+    }
+
+    // 2) Vẫn thiếu (Tổ vắng quá ngưỡng hoặc không còn người cùng Tổ) → mượn Tổ khác
+    while (rules.enabled && finalList.length < 4) {
+      const b = pickBorrowedSoldier(dateStr, teamId, dayUsed, ab, nightSet, ca, finalList.length + 1);
+      if (!b) break;
+
+      const outP = overworked[overIdx] || "";
+      const reasons = [];
+      if (outP) {
+        overIdx++;
+        const outStreak = consecutiveDutyDays(outP, dateStr) + 1;
+        reasons.push(`thay ${cleanName(outP)} (đã làm ${outStreak} ngày liên tiếp)`);
+        overworkSwaps.push({
+          out: outP,
+          in: b.name,
+          outStreak,
+          ca: ca + 1,
+          borrowed: true,
+          fromTeam: b.teamId
+        });
+      }
+      if (teamShort) reasons.push(`Tổ ${teamId} vắng ${absentCount} chiến sĩ (ngưỡng ${rules.maxAbsentSoldiers})`);
+
+      dayUsed.add(cleanName(b.name).toLowerCase());
+      finalList.push({
+        name: b.name,
+        type: "borrow",
+        fromTeam: b.teamId,
+        out: outP,
+        reason: reasons.join("; ") || "mượn tạm thời giữa các Tổ"
+      });
+    }
+
+    // 3) Không còn ai thay → đành dùng lại người đã vượt ngưỡng (có cảnh báo)
+    while (finalList.length < 4 && overIdx < overworked.length) {
+      const p = overworked[overIdx++];
+      finalList.push({ name: p, type: "overworked" });
+      overworkKept.push({
+        person: p,
+        days: consecutiveDutyDays(p, dateStr) + 1,
+        ca: ca + 1
+      });
+    }
+
+    // Đánh dấu toàn bộ người của ca là "đã dùng" trước khi chọn người thay
+    // để người thay khung ban ngày không trùng với người đã có trong ca.
+    finalList.forEach(e => {
+      if (!e || !e.name) return;
+      used.add(cleanName(e.name).toLowerCase());
+      dayUsed.add(cleanName(e.name).toLowerCase());
+    });
+
+    // Người đang vượt ngưỡng ngày công không được chọn làm người thay ban ngày
+    const avoidDaySet = new Set(dayUsed);
+    overworked.forEach(n => avoidDaySet.add(cleanName(n).toLowerCase()));
+
+    // Xếp vào 4 vị trí vọng gác
     for (let idx = 0; idx < 4; idx++) {
-      const soldier = soldiers[idx];
-      if (!soldier) {
+      const entry = finalList[idx];
+      if (!entry) {
         fillGeneratedPosition(cells, ca, idx + 1, "", "");
         unfilled++;
         continue;
       }
 
+      const soldier = entry.name;
+      used.add(cleanName(soldier).toLowerCase());
+      dayUsed.add(cleanName(soldier).toLowerCase());
+
       let dayPerson = soldier;
       let nightPerson = soldier;
       if (isNightOnlyInSet(nightSet, soldier)) {
         nightPerson = soldier;
-        dayPerson = pickDayReplacement(team.soldiers || [], used, ab, nightSet, dateStr);
+        dayPerson = pickDayReplacement(team.soldiers || [], used, ab, nightSet, dateStr, avoidDaySet);
         if (!dayPerson) unfilled++;
+        else dayUsed.add(cleanName(dayPerson).toLowerCase());
       }
       fillGeneratedPosition(cells, ca, idx + 1, dayPerson, nightPerson);
+
+      if (entry.type === "borrow") {
+        borrowed.push({
+          person: soldier,
+          fromTeam: entry.fromTeam,
+          toTeam: teamId,
+          ca: ca + 1,
+          col: idx + 1,
+          reason: entry.reason,
+          replacementFor: entry.out || ""
+        });
+        for (let slot = 0; slot < 3; slot++) {
+          borrowMarks[(ca * 3 + slot) * 5 + (idx + 1)] = {
+            fromTeam: entry.fromTeam,
+            reason: entry.reason
+          };
+        }
+      }
     }
   }
 
@@ -483,7 +710,11 @@ function buildGeneratedDay(dateStr, teamMap, prevDay) {
   day.teamInCa = teamMap.slice();
   day.streaks = {};
   if (!day.manualCredits) day.manualCredits = {};
-  return { day, unfilled };
+  day.borrowed = borrowed;
+  day.overworkSwaps = overworkSwaps;
+  day.overworkKept = overworkKept;
+  day.borrowMarks = borrowMarks;
+  return { day, unfilled, borrowed, overworkSwaps, overworkKept };
 }
 
 function dayHasSchedule(dateStr) {
@@ -513,6 +744,13 @@ function generateSchedule() {
   render();
 
   let msg = `✅ Đã cắt lịch ngày ${vnFormat(targetDate)} (${DOW[parseDate(targetDate).getDay()]}) thành công!`;
+  if (built.borrowed.length) {
+    msg += `\n🔁 Đã mượn tạm thời ${built.borrowed.length} lượt quân số từ Tổ khác: ` +
+      built.borrowed.map(b => `${cleanName(b.person)} (Tổ ${b.fromTeam} → Tổ ${b.toTeam})`).join(", ");
+  }
+  if (built.overworkSwaps.length) {
+    msg += `\n🔄 Đã đổi ${built.overworkSwaps.length} lượt người làm quá ${getBorrowRules().maxConsecutiveDays} ngày liên tiếp.`;
+  }
   if (built.unfilled > 0) {
     msg += `\n⚠️ Có ${built.unfilled} khung giờ ban ngày chưa bố trí được người thay (thiếu quân số không học buổi sáng).`;
   }
@@ -537,10 +775,14 @@ function generateWeekSchedule() {
   let prevDay = getDayData(curDate);
   let teamMap = nextTeamMap(detectTeamsInCa(prevDay));
   let totalUnfilled = 0;
+  let totalBorrowed = 0;
+  let totalSwaps = 0;
 
   dates.forEach(dStr => {
     const built = buildGeneratedDay(dStr, teamMap, prevDay);
     totalUnfilled += built.unfilled;
+    totalBorrowed += built.borrowed.length;
+    totalSwaps += built.overworkSwaps.length;
     prevDay = built.day;
     teamMap = nextTeamMap(teamMap);
   });
@@ -552,6 +794,12 @@ function generateWeekSchedule() {
   render();
 
   let msg = `✅ Đã cắt lịch 7 ngày (từ ${vnFormat(startDate)} đến ${vnFormat(dates[6])}) thành công!`;
+  if (totalBorrowed > 0) {
+    msg += `\n🔁 Đã mượn tạm thời ${totalBorrowed} lượt quân số từ Tổ khác trong 7 ngày.`;
+  }
+  if (totalSwaps > 0) {
+    msg += `\n🔄 Đã đổi ${totalSwaps} lượt người làm quá ${getBorrowRules().maxConsecutiveDays} ngày liên tiếp.`;
+  }
   if (totalUnfilled > 0) {
     msg += `\n⚠️ Có ${totalUnfilled} khung giờ ban ngày chưa bố trí được người thay (thiếu quân số không học buổi sáng).`;
   }
@@ -597,6 +845,45 @@ function saveNightOnlyList() {
   S.nightOnly = el.value;
   saveStorage();
   updateNightOnlyMsg();
+}
+
+// ===== GIAO DIỆN CẢNH BÁO & MƯỢN QUÂN SỐ =====
+function populateBorrowRules() {
+  const r = getBorrowRules();
+  const en = document.getElementById("borrowEnabled");
+  const ma = document.getElementById("borrowMaxAbsent");
+  const md = document.getElementById("borrowMaxDays");
+  if (en) en.checked = !!r.enabled;
+  if (ma) ma.value = r.maxAbsentSoldiers;
+  if (md) md.value = r.maxConsecutiveDays;
+  updateBorrowRulesMsg();
+}
+
+function updateBorrowRulesMsg() {
+  const msg = document.getElementById("borrowMsg");
+  if (!msg) return;
+  const r = getBorrowRules();
+  msg.textContent = r.enabled
+    ? `✅ Đang bật: Tổ vắng quá ${r.maxAbsentSoldiers} chiến sĩ hoặc có người làm liên tiếp quá ${r.maxConsecutiveDays} ngày sẽ được cảnh báo và tự mượn quân số tạm thời từ Tổ khác.`
+    : "⏸️ Đang tắt chế độ cảnh báo & mượn quân số tạm thời.";
+}
+
+function saveBorrowRules() {
+  if (getCurrentRole() !== "commander") {
+    populateBorrowRules();
+    return;
+  }
+  const en = document.getElementById("borrowEnabled");
+  const ma = document.getElementById("borrowMaxAbsent");
+  const md = document.getElementById("borrowMaxDays");
+  S.borrowRules = {
+    enabled: !!(en && en.checked),
+    maxAbsentSoldiers: clampInt(ma && ma.value, 0, 30, DEFAULT_BORROW_RULES.maxAbsentSoldiers),
+    maxConsecutiveDays: clampInt(md && md.value, 1, 60, DEFAULT_BORROW_RULES.maxConsecutiveDays)
+  };
+  saveStorage();
+  populateBorrowRules();
+  refresh();
 }
 
 function saveTeamsFromTextareas() {
@@ -687,6 +974,7 @@ function initUI() {
 
   populateTeamTextareas();
   populateNightOnlyTextarea();
+  populateBorrowRules();
   for (let t = 1; t <= 4; t++) {
     ["team" + t + "Off", "team" + t + "Sol"].forEach(id => {
       const el = document.getElementById(id);
@@ -796,6 +1084,31 @@ function refresh() {
   const absIn = [], wrong = [], consecutiveErrors = [], crossTeamErrors = [];
   const workingOfficers = {}, workingSoldiers = {}, allWorking = {};
 
+  // ===== Thông tin cảnh báo & mượn quân số của ngày đang xem =====
+  const borrowRules = getBorrowRules();
+  const nightSet = getNightOnlySet();
+  const dayBorrowed = Array.isArray(day.borrowed) ? day.borrowed : [];
+  const borrowedKey = {};
+  dayBorrowed.forEach(b => {
+    if (!b || !b.person) return;
+    borrowedKey[cleanName(b.person).toLowerCase()] = true;
+  });
+  // Tổ nào đang vắng quá ngưỡng chiến sĩ
+  const shortTeamCa = {};
+  for (let ca = 0; ca < 4; ca++) {
+    const tid = detectedTeams[ca] || (ca + 1);
+    shortTeamCa[ca] = countAbsentSoldiersOfTeam(tid, curDate) > borrowRules.maxAbsentSoldiers;
+  }
+  const isBorrowAllowed = (n, caIdx) => {
+    if (!n) return false;
+    if (shortTeamCa[caIdx]) return true;
+    const cName = cleanName(n).toLowerCase();
+    return dayBorrowed.some(b =>
+      b && b.person && b.ca === caIdx + 1 &&
+      cleanName(b.person).toLowerCase() === cName
+    );
+  };
+
   for (let k = 0; k < 60; k++) {
     const n = (day.cells[k] || "").trim();
     const cName = cleanName(n);
@@ -826,8 +1139,12 @@ function refresh() {
 
       const personTeamId = getPersonTeamId(n);
       if (personTeamId && expectedTeamId && personTeamId !== expectedTeamId) {
-        isWrongTeam = true;
-        crossTeamErrors.push(`${n} thuộc Tổ ${personTeamId} nhưng đang xếp vào Ca ${caIdx + 1} của Tổ ${expectedTeamId}`);
+        if (col > 0 && isBorrowAllowed(n, caIdx)) {
+          // Chiến sĩ được mượn tạm thời từ Tổ khác: không tính là lỗi đỏ
+        } else {
+          isWrongTeam = true;
+          crossTeamErrors.push(`${n} thuộc Tổ ${personTeamId} nhưng đang xếp vào Ca ${caIdx + 1} của Tổ ${expectedTeamId}`);
+        }
       }
 
       if (hasConsecutiveShift(day, n, k)) {
@@ -837,7 +1154,16 @@ function refresh() {
     }
 
     const isBad = !!(n && (ab[cName] || ab[n] || wg || isCon || isWrongTeam));
-    if (IN[k]) IN[k].classList.toggle("bad", isBad);
+    if (IN[k]) {
+      IN[k].classList.toggle("bad", isBad);
+      const mark = day.borrowMarks && day.borrowMarks[k];
+      IN[k].classList.toggle("borrowed", !!mark);
+      if (mark) {
+        IN[k].title = `Mượn từ Tổ ${mark.fromTeam}${mark.reason ? " — " + mark.reason : ""}`;
+      } else if (IN[k].title && IN[k].title.indexOf("Mượn từ Tổ") === 0) {
+        IN[k].title = "";
+      }
+    }
 
     if (SUP[k]) {
       SUP[k].style.visibility = n ? "visible" : "hidden";
@@ -910,7 +1236,9 @@ function refresh() {
       hasCriticalError = true;
     }
     if (personTeamId && expectedTeamId && personTeamId !== expectedTeamId) {
-      hasCriticalError = true;
+      if (!(col > 0 && isBorrowAllowed(n, caIdx))) {
+        hasCriticalError = true;
+      }
     }
   }
 
@@ -922,6 +1250,81 @@ function refresh() {
   warnings.forEach(w => {
     const div = document.createElement("div");
     div.textContent = w;
+    warnEl.appendChild(div);
+  });
+
+  // ===== Cảnh báo & thông tin mượn quân số tạm thời =====
+  const notes = [];
+  if (borrowRules.enabled) {
+    // 1) Tổ vắng quá ngưỡng
+    for (let ca = 0; ca < 4; ca++) {
+      const tid = detectedTeams[ca] || (ca + 1);
+      const absentCount = countAbsentSoldiersOfTeam(tid, curDate);
+      if (absentCount > borrowRules.maxAbsentSoldiers) {
+        const borrowsOfTeam = dayBorrowed.filter(b => b && b.toTeam === tid);
+        const borrowText = borrowsOfTeam.length
+          ? "đã mượn: " + borrowsOfTeam.map(b => `${cleanName(b.person)} (Tổ ${b.fromTeam})`).join(", ")
+          : "chưa bố trí đủ người thay";
+        notes.push({
+          level: "warn",
+          text: `⚠️ CẢNH BÁO: Tổ ${tid} (Ca ${ca + 1}) vắng ${absentCount} chiến sĩ — vượt ngưỡng ${borrowRules.maxAbsentSoldiers}; ${borrowText}.`
+        });
+      }
+    }
+
+    // 2) Chiến sĩ làm quá số ngày liên tiếp mà vẫn đang gác
+    const overNames = {};
+    for (let k = 0; k < 60; k++) {
+      const n = (day.cells[k] || "").trim();
+      if (!n) continue;
+      if (isNightOnlyInSet(nightSet, n)) continue;
+      const key = cleanName(n).toLowerCase();
+      if (overNames[key]) continue;
+      const streak = calculateStreak(n, curDate);
+      if (streak > borrowRules.maxConsecutiveDays) {
+        overNames[key] = { name: n, streak };
+      }
+    }
+    Object.keys(overNames).forEach(key => {
+      const o = overNames[key];
+      notes.push({
+        level: "warn",
+        text: `⚠️ CẢNH BÁO: ${o.name} đã làm ${o.streak} ngày liên tiếp (ngưỡng ${borrowRules.maxConsecutiveDays}) — cần nghỉ hoặc mượn người thay.`
+      });
+    });
+
+    // 3) Thông tin mượn quân số trong ngày
+    dayBorrowed.forEach(b => {
+      if (!b || !b.person) return;
+      notes.push({
+        level: "info",
+        text: `🔁 MƯỢN QUÂN SỐ: ${cleanName(b.person)} (Tổ ${b.fromTeam}) → Ca ${b.ca} của Tổ ${b.toTeam}${b.reason ? " — " + b.reason : ""}.`
+      });
+    });
+
+    // 4) Đổi người do làm quá số ngày
+    (day.overworkSwaps || []).forEach(s => {
+      if (!s || !s.out || !s.in) return;
+      notes.push({
+        level: "info",
+        text: `🔄 ĐỔI NGƯỜI: ${cleanName(s.out)} đã làm ${s.outStreak} ngày liên tiếp → nghỉ; thay bằng ${cleanName(s.in)}${s.borrowed ? ` (mượn Tổ ${s.fromTeam})` : " (cùng Tổ)"} ở Ca ${s.ca}.`
+      });
+    });
+
+    // 5) Trường hợp không còn ai thay, buộc phải giữ người quá ngày
+    (day.overworkKept || []).forEach(o => {
+      if (!o || !o.person) return;
+      notes.push({
+        level: "warn",
+        text: `⚠️ CẢNH BÁO: Không còn người thay, ${cleanName(o.person)} vẫn phải gác Ca ${o.ca} dù đã làm ${o.days} ngày liên tiếp.`
+      });
+    });
+  }
+
+  notes.forEach(n => {
+    const div = document.createElement("div");
+    div.className = n.level === "warn" ? "note-warn" : "note-info";
+    div.textContent = n.text;
     warnEl.appendChild(div);
   });
 
