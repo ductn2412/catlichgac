@@ -85,7 +85,7 @@
         <button class="pri" onclick="window.print()">🖨 In Bảng Chấm Công</button>
       </div>
       <p class="sub">
-        📌 <b>Quy tắc tính công:</b> Làm đủ 3 ca/ngày = <b>X (1,0 công)</b> · Chiến sĩ làm <b>2 ca ngày</b> hoặc <b>1 ca đêm (22h–06h sáng hôm sau)</b> = <b>0,5 công</b>.<br>
+        📌 <b>Quy tắc tính công:</b> Làm đủ 3 ca/ngày = <b>X (1,0 công)</b> · Chiến sĩ làm <b>2 ca ngày</b> hoặc <b>1 ca đêm (22h–06h sáng hôm sau)</b> = <b>0,5 công</b>. Đồng chí học tập buổi sáng chỉ làm ca đêm <b>18h–06h</b> nên các khung 18h–22h cũng tính là ca đêm.<br>
         📌 <b>Ký hiệu nghỉ/vắng:</b> <b>H</b> (Học tập), <b>CT</b> (Công tác), <b>O</b> (Ốm), <b>OV</b> (Ốm viện), <b>P</b> (Nghỉ phép), <b>NB</b> (Nghỉ bù), <b>K</b> (Khác). Có thể gõ trực tiếp <code>X</code>, <code>0.5</code>, <code>P</code>, <code>CT</code>, <code>O</code>, <code>OV</code>, <code>H</code>, <code>NB</code>.
       </p>
       <div class="scroll">
@@ -123,7 +123,7 @@
     for (let d = 1; d <= daysInMonth; d++) {
       headHtml += `<th>${d}</th>`;
     }
-    headHtml += `<th>Tổng công</th><th>Ca đêm (22h-6h)</th><th>Ca T7/CN</th><th>Ngày nghỉ</th></tr>`;
+    headHtml += `<th>Tổng công</th><th>Ca đêm</th><th>Ca T7/CN</th><th>Ngày nghỉ</th></tr>`;
     document.getElementById("monthlyHead").innerHTML = headHtml;
 
     let bodyHtml = "";

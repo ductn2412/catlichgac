@@ -274,7 +274,7 @@
       </div>`;
     } else if (todayDetails.totalSlots > 0) {
       const creditText = todayDetails.credit === 0.5
-        ? "0,5 công (Do chỉ làm 2 ca ngày hoặc 1 ca đêm 22h-06h)"
+        ? "0,5 công (Do chỉ làm 2 khung giờ hoặc 1 ca đêm)"
         : "1,0 công (Làm đủ ca tiêu chuẩn)";
       todayStatusBanner = `<div class="unit-summary-box">
         <div class="unit-total-header">
@@ -298,7 +298,7 @@
                   <td>${idx + 1}</td>
                   <td><b>Ca ${sh.ca}</b></td>
                   <td><b>${sh.time}</b></td>
-                  <td>${sh.isNight ? '<span style="color:#e65100;font-weight:bold;">🌙 Ca đêm (22h–06h sáng)</span>' : '<span style="color:var(--primary-green);font-weight:bold;">☀️ Ca ngày</span>'}</td>
+                  <td>${sh.isNight ? `<span style="color:#e65100;font-weight:bold;">🌙 Ca đêm (${sh.isNightOnly ? "18h–06h" : "22h–06h"} sáng)</span>` : '<span style="color:var(--primary-green);font-weight:bold;">☀️ Ca ngày</span>'}</td>
                   <td><b>${sh.position}</b></td>
                 </tr>
               `).join("")}
@@ -422,7 +422,7 @@
         <div class="stat-grid" style="margin-top:12px;">
           <div class="stat-card"><span>🗓️ Tổng ngày đi gác (Tháng ${month}/${year})</span><b>${monthWorkDaysCount} ngày (${monthFullCreditDays} đủ, ${monthHalfCreditDays} nửa công)</b></div>
           <div class="stat-card"><span>⭐ Tổng điểm công tháng</span><b>${monthTotalCredits.toString().replace('.', ',')} công</b></div>
-          <div class="stat-card"><span>🌙 Số ca đêm (22h–06h)</span><b>${monthNightShiftsCount} ca đêm</b></div>
+          <div class="stat-card"><span>🌙 Số ca đêm</span><b>${monthNightShiftsCount} ca đêm</b></div>
           <div class="stat-card"><span>📌 Số ngày vắng / Trực cơ động</span><b>${monthLeaveDaysCount} vắng · ${monthRestUnitDays} cơ động</b></div>
         </div>
       </section>

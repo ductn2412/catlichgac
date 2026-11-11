@@ -490,6 +490,23 @@ function isNightOnlyInSet(nightSet, person) {
   return !!(nightSet[cleanName(n).toLowerCase()] || nightSet[n.toLowerCase()]);
 }
 
+// Ca đêm 18:00 – 06:00: khung giờ bắt đầu từ 18:00 hoặc trước 06:00
+function isTimeInNightWindow(timeStr) {
+  const start = parseInt(String(timeStr || "").slice(0, 2), 10);
+  if (!Number.isFinite(start)) return false;
+  return start >= 18 || start < 6;
+}
+
+// Các khung giờ (slot) trong 1 ca mà người học tập buổi sáng được xếp.
+// Ca 1, Ca 2: 22:00–24:00 và 00:00–02:00; Ca 3, Ca 4: thêm 18:00–20:00 và 20:00–22:00.
+function nightWindowSlotsForCa(caIdx) {
+  const slots = [];
+  for (let s = 0; s < 3; s++) {
+    if (isTimeInNightWindow((CA[caIdx] || [])[s])) slots.push(s);
+  }
+  return slots.length ? slots : [2];
+}
+
 // Chọn người cùng Tổ (không phải người chỉ làm ca đêm) để trực khung ban ngày
 function pickDayReplacement(pool, usedSet, ab, nightSet, dateStr, excludeSet) {
   const list = (pool || []).filter(Boolean);
@@ -509,11 +526,12 @@ function pickDayReplacement(pool, usedSet, ab, nightSet, dateStr, excludeSet) {
   return "";
 }
 
-function fillGeneratedPosition(cells, caIdx, col, dayPerson, nightPerson) {
+function fillGeneratedPosition(cells, caIdx, col, dayPerson, nightPerson, nightSlots) {
   const base = caIdx * 3;
-  cells[(base + 0) * 5 + col] = dayPerson || "";
-  cells[(base + 1) * 5 + col] = dayPerson || "";
-  cells[(base + 2) * 5 + col] = nightPerson || "";
+  const slots = (Array.isArray(nightSlots) && nightSlots.length) ? nightSlots : [2];
+  for (let s = 0; s < 3; s++) {
+    cells[(base + s) * 5 + col] = slots.indexOf(s) >= 0 ? (nightPerson || "") : (dayPerson || "");
+  }
 }
 
 function buildGeneratedDay(dateStr, teamMap, prevDay) {
@@ -537,6 +555,8 @@ function buildGeneratedDay(dateStr, teamMap, prevDay) {
     if (!team) continue;
 
     const used = new Set();
+    // Người học tập buổi sáng chỉ trực các khung giờ trong ca đêm 18:00 – 06:00
+    const nightSlots = nightWindowSlotsForCa(ca);
 
     // --- Đốc gác (Sĩ quan) ---
     const officer = pickOfficerForTeam(team, teamId, prevDay, ab, dateStr);
@@ -553,7 +573,7 @@ function buildGeneratedDay(dateStr, teamMap, prevDay) {
       if (!officerDay) unfilled++;
       else dayUsed.add(cleanName(officerDay).toLowerCase());
     }
-    fillGeneratedPosition(cells, ca, 0, officerDay, officerNight);
+    fillGeneratedPosition(cells, ca, 0, officerDay, officerNight, nightSlots);
 
     // --- Chiến sĩ Vọng gác ---
     const absentCount = countAbsentSoldiersOfTeam(teamId, dateStr);
@@ -667,7 +687,7 @@ function buildGeneratedDay(dateStr, teamMap, prevDay) {
     for (let idx = 0; idx < 4; idx++) {
       const entry = finalList[idx];
       if (!entry) {
-        fillGeneratedPosition(cells, ca, idx + 1, "", "");
+        fillGeneratedPosition(cells, ca, idx + 1, "", "", nightSlots);
         unfilled++;
         continue;
       }
@@ -684,7 +704,7 @@ function buildGeneratedDay(dateStr, teamMap, prevDay) {
         if (!dayPerson) unfilled++;
         else dayUsed.add(cleanName(dayPerson).toLowerCase());
       }
-      fillGeneratedPosition(cells, ca, idx + 1, dayPerson, nightPerson);
+      fillGeneratedPosition(cells, ca, idx + 1, dayPerson, nightPerson, nightSlots);
 
       if (entry.type === "borrow") {
         borrowed.push({
@@ -831,8 +851,8 @@ function updateNightOnlyMsg() {
   if (!msg) return;
   const list = parseNames(S.nightOnly || "");
   msg.textContent = list.length
-    ? `✅ Đang áp dụng cho ${list.length} đồng chí chỉ làm ca đêm: ${list.join(", ")}`
-    : "Chưa có đồng chí nào được đánh dấu chỉ làm ca đêm.";
+    ? `✅ Đang áp dụng cho ${list.length} đồng chí chỉ làm ca đêm (18:00 – 06:00): ${list.join(", ")}`
+    : "Chưa có đồng chí nào được đánh dấu chỉ làm ca đêm (18:00 – 06:00).";
 }
 
 function saveNightOnlyList() {

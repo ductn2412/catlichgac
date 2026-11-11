@@ -402,6 +402,23 @@ function authenticateSoldierLogin(inputUsername, inputPassword) {
   return null;
 }
 
+// Người đi học tập buổi sáng: chỉ làm ca đêm 18:00 – 06:00
+function isNightOnlyPerson(personName) {
+  const cName = cleanName(personName).toLowerCase();
+  if (!cName) return false;
+  return parseNames(S.nightOnly || "").some(n => cleanName(n).toLowerCase() === cName);
+}
+
+// Khung giờ được tính là ca đêm của từng người:
+// - Người bình thường: khung đêm 22:00 – 06:00 (slot 2 của mỗi ca).
+// - Người học tập buổi sáng: thêm các khung bắt đầu từ 18:00 (18–20, 20–22).
+function isNightShiftForPerson(caIdx, slotIdx, personName) {
+  if (slotIdx === 2) return true;
+  if (!isNightOnlyPerson(personName)) return false;
+  const start = parseInt(String((CA[caIdx] || [])[slotIdx] || "").slice(0, 2), 10);
+  return Number.isFinite(start) && start >= 18;
+}
+
 function getPersonDayWorkDetails(dateStr, personName) {
   const cName = cleanName(personName);
   const dayData = S.days[dateStr];
@@ -436,13 +453,15 @@ function getPersonDayWorkDetails(dateStr, personName) {
           const val = (dayData.cells[row * 5 + col] || "").trim();
           if (val && cleanName(val) === cName) {
             result.totalSlots++;
-            if (slot === 2) result.nightShifts++;
+            const isNightShift = isNightShiftForPerson(ca, slot, val);
+            if (isNightShift) result.nightShifts++;
             else result.dayShifts++;
             result.shiftsDetail.push({
               ca: ca + 1,
               slot: slot + 1,
               time: CA[ca][slot],
-              isNight: slot === 2,
+              isNight: isNightShift,
+              isNightOnly: isNightOnlyPerson(val),
               position: posNames[col],
               col: col
             });
