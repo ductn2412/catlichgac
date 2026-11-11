@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Quản lý Tài khoản Quân nhân - ĐỘI 3 Trung Đoàn</title>
+  <title>Quản lý Tài khoản Chiến Sĩ - ĐỘI 3 </title>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -11,7 +11,7 @@
 <header class="top-navbar">
   <div class="brand-group">
     <span class="brand-logo">ĐỘI 3</span>
-    <span class="brand-title">TRUNG ĐOÀN — HỆ THỐNG TRỰC BAN</span>
+    <span class="brand-title"> HỆ THỐNG LẬP LỊCH </span>
   </div>
   <form class="search-box" onsubmit="executeGlobalSearch(event)">
     <span>🔍</span>
@@ -32,9 +32,9 @@
 <div class="sub-navbar">
   <div class="sub-nav-left">
     <div class="widget-tag"><span class="plus">+</span> ĐỘI 3</div>
-    <div class="active-module-title">QUẢN LÝ, THÊM MỚI & CHỈNH SỬA HỒ SƠ TÀI KHOẢN QUÂN NHÂN (CHỈ HUY QUẢN LÝ)</div>
+    <div class="active-module-title">QUẢN LÝ, THÊM MỚI & CHỈNH SỬA HỒ SƠ TÀI KHOẢN CHIẾN SĨ (CHỈ HUY QUẢN LÝ)</div>
   </div>
-  <div><button class="sec" onclick="downloadSampleAccountExcel()">📥 Tải file Excel mẫu nhập hồ sơ quân nhân</button></div>
+  <div><button class="sec" onclick="downloadSampleAccountExcel()">📥 Tải file Excel mẫu nhập hồ sơ Chiến Sĩ</button></div>
 </div>
 
 <!-- MODAL ĐỔI MẬT KHẨU CHỈ HUY -->
@@ -65,22 +65,22 @@
   </div>
 </div>
 
-<!-- MODAL CHỈNH SỬA ĐẦY ĐỦ THÔNG TIN QUÂN NHÂN -->
+<!-- MODAL CHỈNH SỬA ĐẦY ĐỦ THÔNG TIN Chiến Sĩ -->
 <div id="editAccountModal" class="modal-backdrop">
   <div class="modal-card" style="max-width:650px;">
     <div class="modal-head">
-      <h3>✏️ Chỉnh sửa Hồ sơ & Tài khoản Quân nhân (Chỉ huy)</h3>
+      <h3>✏️ Chỉnh sửa Hồ sơ & Tài khoản Chiến Sĩ (Chỉ huy)</h3>
       <button class="sec" onclick="closeEditAccountModal()">✕</button>
     </div>
     <form onsubmit="handleSaveEditedAccount(event)">
       <input type="hidden" id="editAccId">
       <div class="two">
         <div class="form-group">
-          <label>Họ và tên quân nhân <span style="color:var(--bad);">(*) Bắt buộc</span></label>
+          <label>Họ và tên Chiến Sĩ <span style="color:var(--bad);">(*) Bắt buộc</span></label>
           <input type="text" id="editFullName" required oninput="updateEditPreviewUsername()">
         </div>
         <div class="form-group">
-          <label>Mã số quân nhân <span style="color:var(--bad);">(*) Bắt buộc</span></label>
+          <label>Mã số Chiến Sĩ <span style="color:var(--bad);">(*) Bắt buộc</span></label>
           <input type="text" id="editCode" required oninput="updateEditPreviewUsername()">
         </div>
       </div>
@@ -127,7 +127,7 @@
       </div>
       <div class="login-actions">
         <button type="button" class="sec" onclick="closeEditAccountModal()">Hủy</button>
-        <button type="submit" class="pri">💾 Lưu cập nhật thông tin quân nhân</button>
+        <button type="submit" class="pri">💾 Lưu cập nhật thông tin Chiến Sĩ</button>
       </div>
     </form>
   </div>
@@ -136,7 +136,7 @@
 <div class="app-shell">
   <aside class="left-sidebar">
     <a href="dashboard.html" class="side-link" id="navDash"><span class="side-icon">📊</span><span>Màn hình Dashboard</span></a>
-    <a href="quan-ly-tai-khoan.html" class="side-link active" id="navAccounts"><span class="side-icon">👥</span><span>Quản lý Tài khoản Quân nhân</span></a>
+    <a href="quan-ly-tai-khoan.html" class="side-link active" id="navAccounts"><span class="side-icon">👥</span><span>Quản lý Tài khoản Chiến Sĩ</span></a>
     <a href="quan-ly-lich.html" class="side-link" id="navManage"><span class="side-icon">📋</span><span>Quản lý lập lịch</span></a>
     <a href="lich-gac.html" class="side-link" id="navView"><span class="side-icon">📄</span><span>Trang hiển thị lịch gác</span></a>
     <a href="cham-cong.html" class="side-link" id="navMonthly"><span class="side-icon">🗓️</span><span>Bảng chấm công tháng</span></a>
@@ -148,16 +148,16 @@
     <div class="two">
       <!-- KHỐI 1: THÊM TÀI KHOẢN & HỒ SƠ THỦ CÔNG (DO CHỈ HUY NHẬP) -->
       <section class="card">
-        <h2>➕ Thêm Hồ sơ & Tài khoản Quân nhân (Chỉ huy nhập)</h2>
-        <p class="sub">Tất cả thông tin đều do Chỉ huy nhập và quản lý. Trường <b>Họ và tên (*)</b> và <b>Mã số quân nhân (*)</b> là bắt buộc.</p>
+        <h2>➕ Thêm Hồ sơ & Tài khoản Chiến Sĩ (Chỉ huy nhập)</h2>
+        <p class="sub">Tất cả thông tin đều do Chỉ huy nhập và quản lý. Trường <b>Họ và tên (*)</b> và <b>Mã số Chiến Sĩ (*)</b> là bắt buộc.</p>
         <form onsubmit="handleAddAccount(event)">
           <div class="two">
             <div class="form-group">
-              <label>Họ và tên quân nhân <span style="color:var(--bad);">(*) Bắt buộc</span></label>
+              <label>Họ và tên Chiến Sĩ <span style="color:var(--bad);">(*) Bắt buộc</span></label>
               <input type="text" id="accFullName" placeholder="VD: Nguyễn Văn Hải" required oninput="updatePreviewUsername()">
             </div>
             <div class="form-group">
-              <label>Mã số quân nhân <span style="color:var(--bad);">(*) Bắt buộc</span></label>
+              <label>Mã số Chiến Sĩ <span style="color:var(--bad);">(*) Bắt buộc</span></label>
               <input type="text" id="accCode" placeholder="VD: CS25 hoặc SQ07" required oninput="updatePreviewUsername()">
             </div>
           </div>
@@ -238,10 +238,10 @@
       </section>
     </div>
 
-    <!-- DANH SÁCH TÀI KHOẢN QUÂN NHÂN TRONG HỆ THỐNG -->
+    <!-- DANH SÁCH TÀI KHOẢN Chiến Sĩ TRONG HỆ THỐNG -->
     <section class="card">
       <div class="bar">
-        <h2 style="margin:0;margin-right:auto;">📋 Danh sách Hồ sơ & Tài khoản Quân nhân (<span id="totalAccCount">0</span> đồng chí) — <i>Trỏ chuột vào tên để xem nhanh, bấm vào tên hoặc nút "✏️ Sửa" để thao tác</i></h2>
+        <h2 style="margin:0;margin-right:auto;">📋 Danh sách Hồ sơ & Tài khoản Chiến Sĩ (<span id="totalAccCount">0</span> đồng chí) — <i>Trỏ chuột vào tên để xem nhanh, bấm vào tên hoặc nút "✏️ Sửa" để thao tác</i></h2>
         <input type="text" id="filterAccInput" placeholder="🔍 Lọc theo tên, mã số, quê quán, chức vụ..." oninput="renderAccountsTable()" style="min-width:250px;">
         <select id="filterAccRole" onchange="renderAccountsTable()">
           <option value="all">Tất cả (Sĩ quan & Chiến sĩ)</option>
@@ -358,7 +358,7 @@
     const fn = document.getElementById("accFullName").value.trim();
     const cd = document.getElementById("accCode").value.trim();
     if (!fn || !cd) {
-      alert("⚠️ Họ và tên và Mã số quân nhân là bắt buộc!");
+      alert("⚠️ Họ và tên và Mã số Chiến Sĩ là bắt buộc!");
       return;
     }
     const rt = document.getElementById("accRoleType").value;
@@ -378,11 +378,11 @@
       document.getElementById("accHometown").value = "";
       document.getElementById("accPassword").value = "1";
       updatePreviewUsername();
-      alert(`✅ Đã thêm quân nhân "${formatFullAccountName(fn, cd)}" vào hệ thống!`);
+      alert(`✅ Đã thêm Chiến Sĩ "${formatFullAccountName(fn, cd)}" vào hệ thống!`);
     }
   }
 
-  // CHỨC NĂNG CHỈNH SỬA ĐẦY ĐỦ THÔNG TIN QUÂN NHÂN
+  // CHỨC NĂNG CHỈNH SỬA ĐẦY ĐỦ THÔNG TIN Chiến Sĩ
   function openEditAccountModal(id) {
     const acc = (S.personnelAccounts || []).find(a => a.id === id);
     if (!acc) return;
@@ -420,7 +420,7 @@
     const newFn = cleanName(document.getElementById("editFullName").value);
     const newCd = (document.getElementById("editCode").value || "").trim();
     if (!newFn || !newCd) {
-      alert("⚠️ Họ và tên và Mã số quân nhân là bắt buộc!");
+      alert("⚠️ Họ và tên và Mã số Chiến Sĩ là bắt buộc!");
       return;
     }
 
@@ -444,7 +444,7 @@
     saveStorage();
     closeEditAccountModal();
     renderAccountsTable();
-    alert(`✅ Đã cập nhật thành công thông tin cho quân nhân: ${newLabel}`);
+    alert(`✅ Đã cập nhật thành công thông tin cho Chiến Sĩ: ${newLabel}`);
   }
 
   function detectRoleTypeFromText(text, forcedMode) {
@@ -525,8 +525,8 @@
         syncRosterStringsFromAccounts();
         saveStorage();
         renderAccountsTable();
-        document.getElementById("importAccStatus").textContent = `✅ Đã nhập thành công ${addedCount} hồ sơ quân nhân từ file Excel "${file.name}"!`;
-        alert(`✅ Đã nhập và cấp tài khoản cho ${addedCount} quân nhân!`);
+        document.getElementById("importAccStatus").textContent = `✅ Đã nhập thành công ${addedCount} hồ sơ Chiến Sĩ từ file Excel "${file.name}"!`;
+        alert(`✅ Đã nhập và cấp tài khoản cho ${addedCount} Chiến Sĩ!`);
       };
       reader.readAsArrayBuffer(file);
     } else if (ext === "docx" || ext === "doc") {
@@ -543,8 +543,8 @@
           syncRosterStringsFromAccounts();
           saveStorage();
           renderAccountsTable();
-          document.getElementById("importAccStatus").textContent = `✅ Đã nhập thành công ${addedCount} hồ sơ quân nhân từ file Word "${file.name}"!`;
-          alert(`✅ Đã nhập và cấp tài khoản cho ${addedCount} quân nhân từ file Word!`);
+          document.getElementById("importAccStatus").textContent = `✅ Đã nhập thành công ${addedCount} hồ sơ Chiến Sĩ từ file Word "${file.name}"!`;
+          alert(`✅ Đã nhập và cấp tài khoản cho ${addedCount} Chiến Sĩ từ file Word!`);
         });
       };
       reader.readAsArrayBuffer(file);
@@ -594,7 +594,7 @@
 
     const tbody = document.getElementById("accountsTableBody");
     if (!filtered.length) {
-      tbody.innerHTML = `<tr><td colspan="10" class="empty">Không tìm thấy hồ sơ quân nhân nào.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="10" class="empty">Không tìm thấy hồ sơ Chiến Sĩ nào.</td></tr>`;
       return;
     }
 

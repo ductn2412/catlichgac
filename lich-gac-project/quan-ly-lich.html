@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Quản lý Lập Lịch - ĐỘI 3 Trung Đoàn</title>
+  <title>Quản lý Lập Lịch - Đội 3</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -11,11 +11,11 @@
 <header class="top-navbar">
   <div class="brand-group">
     <span class="brand-logo">ĐỘI 3</span>
-    <span class="brand-title">TRUNG ĐOÀN — HỆ THỐNG TRỰC BAN</span>
+    <span class="brand-title">HỆ THỐNG LẬP LỊCH</span>
   </div>
   <form class="search-box" onsubmit="executeGlobalSearch(event)">
     <span>🔍</span>
-    <input type="text" id="globalSearchInput" placeholder="Tìm chiến sĩ (VD: Bùi Văn Hùng, CS01) hoặc ca gác (VD: Ca 1)...">
+    <input type="text" id="globalSearchInput" placeholder="Tìm chiến sĩ (VD: Trần Văn Hiệp, CS01) hoặc ca gác (VD: Ca 1)...">
     <button type="submit">Tìm kiếm</button>
   </form>
   <div class="top-actions">
@@ -31,10 +31,13 @@
 <!-- SUB HEADER BAR -->
 <div class="sub-navbar">
   <div class="sub-nav-left">
-    <div class="widget-tag"><span class="plus">+</span> ĐỘI 3</div>
-    <div class="active-module-title">QUẢN LÝ QUÂN SỐ, ĐĂNG KÝ VẮNG DÀI NGÀY & CẮT LỊCH GÁC TỰ ĐỘNG</div>
+    <div class="widget-tag"><span class="plus">+</span> ĐỘI 3 - E375</div>
+    <div class="active-module-title">QUẢN LÝ LẬP LỊCH</div>
   </div>
-  <div><button class="sec" onclick="backupJSONData()">💾 Sao lưu dữ liệu (.json)</button><label class="btn-file" style="margin-left:6px;">📂 Khôi phục (.json)<input type="file" accept=".json" onchange="restoreJSONData(event)"></label></div>
+  <div>
+    <button class="sec" onclick="backupJSONData()">💾 Sao lưu dữ liệu (.json)</button>
+    <label class="btn-file" style="margin-left:6px;">📂 Khôi phục (.json)<input type="file" accept=".json" onchange="restoreJSONData(event)"></label>
+  </div>
 </div>
 
 <!-- MODAL ĐỔI MẬT KHẨU CHỈ HUY -->
@@ -68,11 +71,11 @@
 <div class="app-shell">
   <aside class="left-sidebar">
     <a href="dashboard.html" class="side-link" id="navDash"><span class="side-icon">📊</span><span>Màn hình Dashboard</span></a>
-    <a href="quan-ly-tai-khoan.html" class="side-link" id="navAccounts"><span class="side-icon">👥</span><span>Quản lý Tài khoản Quân nhân</span></a>
+    <a href="quan-ly-tai-khoan.html" class="side-link" id="navAccounts"><span class="side-icon">👥</span><span>Quản lý Tài khoản Chiến sĩ</span></a>
     <a href="quan-ly-lich.html" class="side-link active" id="navManage"><span class="side-icon">📋</span><span>Quản lý lập lịch</span></a>
     <a href="lich-gac.html" class="side-link" id="navView"><span class="side-icon">📄</span><span>Trang hiển thị lịch gác</span></a>
     <a href="cham-cong.html" class="side-link" id="navMonthly"><span class="side-icon">🗓️</span><span>Bảng chấm công tháng</span></a>
-    <a href="so-truc.html" class="side-link" id="navLog"><span class="side-icon">📓</span><span>Đăng ký & Duyệt đổi ca</span></a>
+    <a href="so-truc.html" class="side-link" id="navLog"><span class="side-icon">🔄</span><span>Đăng ký & Duyệt đổi ca</span></a>
     <a href="tim-kiem.html" class="side-link" id="navSearch"><span class="side-icon">🔍</span><span>Tra cứu Chiến sĩ & Ca gác</span></a>
   </aside>
 
@@ -80,17 +83,16 @@
     <!-- PHẦN 1: DANH SÁCH BIÊN CHẾ 4 TỔ CỐ ĐỊNH THEO TOUR -->
     <section class="card roster">
       <div class="bar" style="justify-content:space-between;margin-bottom:8px;">
-        <h2 style="margin:0;">Phần 1: Biên chế 4 Tổ Gác Cố Định Theo Tour (Đốc gác & Chiến sĩ thay thế nội bộ trong từng Tổ)</h2>
+        <h2 style="margin:0;">Phần 1: Trung đội 5 — Đội 3, Trung đoàn 375</h2>
         <div class="import-bar" id="importBarDiv" style="margin:0;">
           <button type="button" class="sec" onclick="resetDefaultTourTeams()">🔄 Nạp danh sách 4 Tổ mặc định chuẩn</button>
         </div>
       </div>
       <p class="sub">
         📌 <b>Quy tắc Tour cố định:</b> Mỗi Tổ (Tổ 1, Tổ 2, Tổ 3, Tổ 4) đi liền với nhau và lùi ca mỗi ngày (<b>Ca 1 → Ca 4 → Ca 3 → Ca 2 → Ca 1</b>).<br>
-        📌 <b>Luân phiên nội bộ từng Tổ:</b> 3 Đốc gác trong Tổ luân phiên 1 ngày/người; 7 Chiến sĩ trong Tổ xoay vòng thay thế nhau tại 4 vọng <code>x9, x10, x11, x12</code>. Khi có đồng chí vắng (phép, ốm, công tác...), các đồng chí còn lại <b>trong cùng Tổ</b> tự động gánh ca cho đến khi đồng chí đó trở lại.
+        📌 <b>Hiển thị gộp thông minh:</b> Nếu cả 3 khung giờ của 1 ca đều do 1 chiến sĩ đảm nhiệm, bảng lịch chỉ hiển thị <b>1 ô duy nhất</b>. Nếu có phát sinh người làm thay ở khung giờ nào, bấm nút <b>"⇄ Thay ca lẻ"</b> tại ô đó để hiển thị riêng khung giờ cần thay thế.
       </p>
       <div class="two" id="teamsRosterGrid">
-        <!-- Tổ 1 -->
         <div class="unit-summary-box" style="margin-bottom:0;">
           <div style="font-weight:800;color:var(--primary-green);margin-bottom:6px;font-size:14.5px;">🛡️ TỔ 1 (3 Đốc gác + 7 Chiến sĩ)</div>
           <label style="font-size:12px;font-weight:700;">Đốc gác Tổ 1 (Sĩ quan - Luân phiên 1 ngày/người):</label>
@@ -98,7 +100,6 @@
           <label style="font-size:12px;font-weight:700;">Chiến sĩ nghĩa vụ Tổ 1 (Xoay vòng x9, x10, x11, x12):</label>
           <textarea id="team1Sol" rows="4"></textarea>
         </div>
-        <!-- Tổ 2 -->
         <div class="unit-summary-box" style="margin-bottom:0;">
           <div style="font-weight:800;color:var(--primary-green);margin-bottom:6px;font-size:14.5px;">🛡️ TỔ 2 (3 Đốc gác + 7 Chiến sĩ)</div>
           <label style="font-size:12px;font-weight:700;">Đốc gác Tổ 2 (Sĩ quan - Luân phiên 1 ngày/người):</label>
@@ -106,7 +107,6 @@
           <label style="font-size:12px;font-weight:700;">Chiến sĩ nghĩa vụ Tổ 2 (Xoay vòng x9, x10, x11, x12):</label>
           <textarea id="team2Sol" rows="4"></textarea>
         </div>
-        <!-- Tổ 3 -->
         <div class="unit-summary-box" style="margin-bottom:0;">
           <div style="font-weight:800;color:var(--primary-green);margin-bottom:6px;font-size:14.5px;">🛡️ TỔ 3 (3 Đốc gác + 7 Chiến sĩ)</div>
           <label style="font-size:12px;font-weight:700;">Đốc gác Tổ 3 (Sĩ quan - Luân phiên 1 ngày/người):</label>
@@ -114,7 +114,6 @@
           <label style="font-size:12px;font-weight:700;">Chiến sĩ nghĩa vụ Tổ 3 (Xoay vòng x9, x10, x11, x12):</label>
           <textarea id="team3Sol" rows="4"></textarea>
         </div>
-        <!-- Tổ 4 -->
         <div class="unit-summary-box" style="margin-bottom:0;">
           <div style="font-weight:800;color:var(--primary-green);margin-bottom:6px;font-size:14.5px;">🛡️ TỔ 4 (3 Đốc gác + 7 Chiến sĩ)</div>
           <label style="font-size:12px;font-weight:700;">Đốc gác Tổ 4 (Sĩ quan - Luân phiên 1 ngày/người):</label>
@@ -123,33 +122,9 @@
           <textarea id="team4Sol" rows="4"></textarea>
         </div>
       </div>
-      <!-- Hidden legacy textareas for compatibility -->
       <textarea id="offT" style="display:none;"></textarea>
       <textarea id="solT" style="display:none;"></textarea>
       <div class="rrow" style="margin-top:8px;"><span id="rmsg" style="font-weight:700;color:var(--primary-green);"></span></div>
-    </section>
-
-    <!-- ĐĂNG KÝ VẮNG DÀI NGÀY (TỪ NGÀY - ĐẾN NGÀY) -->
-    <section class="card roster" id="multiDayLeaveCard">
-      <h2>📌 Đăng ký Vắng mặt Dài ngày (Từ ngày – Đến ngày)</h2>
-      <div class="bar">
-        <input type="text" id="leavePerson" list="dlAll" placeholder="Chọn hoặc nhập tên quân nhân..." style="min-width:220px;">
-        <select id="leaveType">
-          <option value="phep">Nghỉ phép (P)</option>
-          <option value="congtac">Công tác (CT)</option>
-          <option value="om">Ốm tại nhà (O)</option>
-          <option value="om_tai_vien">Ốm tại viện (OV)</option>
-          <option value="nghibu">Nghỉ bù (NB)</option>
-          <option value="hoctap">Học tập (H)</option>
-          <option value="khac">Công việc khác (K)</option>
-        </select>
-        <label style="font-size:13px;">Từ ngày:</label>
-        <input type="date" id="leaveStart">
-        <label style="font-size:13px;">Đến ngày:</label>
-        <input type="date" id="leaveEnd">
-        <button class="pri" onclick="applyMultiDayAbsence()">+ Áp dụng vắng dài ngày</button>
-      </div>
-      <datalist id="dlAll"></datalist>
     </section>
 
     <!-- THANH CÔNG CỤ CẮT LỊCH -->
@@ -168,16 +143,16 @@
       <button class="warn-btn" id="genWeek" onclick="generateWeekSchedule()">⚡ Cắt lịch cả tuần (7 ngày)</button>
       <button class="sec" onclick="exportToExcel(curDate)">Xuất Excel</button>
       <button class="sec" onclick="exportToPDF(curDate)">Xuất PDF</button>
-      <button onclick="window.print()">🖨 In lịch chuẩn Quân đội</button>
+      <button onclick="window.print()">🖨 In lịch</button>
       <span class="now" id="now"></span>
     </div>
 
     <div id="print-area">
-      <!-- TIÊU ĐỀ BẢN IN CHUẨN QUÂN ĐỘI -->
+      <!-- TIÊU ĐỀ BẢN IN CHUẨN BỘ TƯ LỆNH CẢNH VỆ - BỘ CÔNG AN -->
       <div class="military-print-header">
         <div>
-          <b>TRUNG ĐOÀN ...</b><br>
-          <b>ĐỘI 3</b><br>
+          <b>BỘ TƯ LỆNH CẢNH VỆ</b><br>
+          <b>TRUNG ĐOÀN 375 — ĐỘI 3</b><br>
           <span>***</span>
         </div>
         <div>
@@ -191,9 +166,9 @@
         <table>
           <thead>
             <tr>
-              <th>Ca & Thời gian</th>
-              <th>Khung giờ</th>
-              <th><b>Đốc gác 1</b>Chỉ lấy từ Sĩ quan</th>
+              <th>Ca & Tổ trực</th>
+              <th>Khung giờ trong ngày</th>
+              <th><b>Đốc gác 1</b>Sĩ quan</th>
               <th><b>Vọng gác x9</b>Chiến sĩ nghĩa vụ</th>
               <th><b>Vọng gác x10</b>Chiến sĩ nghĩa vụ</th>
               <th><b>Vọng gác x11</b>Chiến sĩ nghĩa vụ</th>
@@ -206,27 +181,53 @@
       <datalist id="dlO"></datalist>
       <datalist id="dlS"></datalist>
 
+      <!-- PHẦN 2: TỔNG QUÂN SỐ, TRỰC CƠ ĐỘNG & ĐĂNG KÝ VẮNG MẶT DÀI NGÀY -->
       <section class="card" style="margin-top:18px">
         <h2>Phần 2: Tổng quân số đơn vị, Trực cơ động & Ghi chú vắng mặt</h2>
         
         <div class="unit-summary-box">
           <div class="unit-total-header">
-            <span>* TỔNG QUÂN SỐ TOÀN ĐƠN VỊ (ĐỘI 3): <strong id="totalUnit">0</strong> đồng chí</span>
+            <span>* TỔNG QUÂN SỐ TOÀN ĐƠN VỊ (ĐỘI 3 - TRUNG ĐOÀN 375): <strong id="totalUnit">0</strong> đồng chí</span>
             <span id="unitBreakdownSub" class="unit-sub"></span>
           </div>
           <div id="detailedStatGrid" class="stat-grid"></div>
         </div>
 
         <div class="rest">
-          <b>Trực cơ động tại đơn vị (Quân số nghỉ gác tại đơn vị)</b>
+          <b>Trực cơ động tại đơn vị (Chiến sĩ nghỉ gác tại đơn vị)</b>
           <div class="part">
-            <div class="ph">Sĩ quan <span id="cntO"></span></div>
+            <div class="ph">Sĩ quan Đốc gác <span id="cntO"></span></div>
             <div class="chips" id="listO"></div>
           </div>
           <div class="part">
             <div class="ph">Chiến sĩ nghĩa vụ (Vọng gác x9, x10, x11, x12) <span id="cntS"></span></div>
             <div class="chips" id="listS"></div>
           </div>
+        </div>
+
+        <!-- ĐĂNG KÝ VẮNG MẶT DÀI NGÀY ĐƯỢC CHUYỂN XUỐNG PHẦN 2 -->
+        <div class="unit-summary-box no-print" id="multiDayLeaveCard" style="margin-top:12px;margin-bottom:14px;">
+          <div style="font-weight:700;color:var(--primary-green);margin-bottom:8px;font-size:14px;">
+            📌 Đăng ký Vắng mặt Dài ngày (Từ ngày – Đến ngày)
+          </div>
+          <div class="bar" style="margin-bottom:0;">
+            <input type="text" id="leavePerson" list="dlAll" placeholder="Chọn hoặc nhập tên chiến sĩ..." style="min-width:220px;">
+            <select id="leaveType">
+              <option value="phep">Nghỉ phép (P)</option>
+              <option value="congtac">Công tác (CT)</option>
+              <option value="om">Ốm tại nhà (O)</option>
+              <option value="om_tai_vien">Ốm tại viện (OV)</option>
+              <option value="nghibu">Nghỉ bù (NB)</option>
+              <option value="hoctap">Học tập (H)</option>
+              <option value="khac">Công việc khác (K)</option>
+            </select>
+            <label style="font-size:13px;">Từ ngày:</label>
+            <input type="date" id="leaveStart">
+            <label style="font-size:13px;">Đến ngày:</label>
+            <input type="date" id="leaveEnd">
+            <button class="pri" onclick="applyMultiDayAbsence()">+ Áp dụng vắng dài ngày</button>
+          </div>
+          <datalist id="dlAll"></datalist>
         </div>
         
         <div id="cats"></div>
@@ -236,7 +237,7 @@
       <!-- CHỮ KÝ CHỈ HUY KHI IN -->
       <div class="military-print-footer">
         <div>
-          <b>TRỰC BAN NỘI VỤ</b><br>
+          <b>ĐỘI 3</b><br>
           <i>(Ký, ghi rõ họ tên)</i><br><br><br><br>
         </div>
         <div>

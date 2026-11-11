@@ -1,0 +1,32 @@
+CẮT LỊCH GÁC
+Các tính năng chính:
+
+Nhập từ file Excel / Word: Cho phép chọn tệp .xlsx, .xls, .docx, .doc để tải danh sách sĩ quan và chiến sĩ tự động.
+
+Cảnh báo đỏ chống trùng lịch nghỉ: Nếu người nằm trong danh sách vắng/nghỉ (ốm, phép, học tập...) được điền vào bảng gác, hệ thống sẽ báo đỏ ngay lập tức và cảnh báo.
+
+Cắt ca thông minh theo số mũ: Khi người nghỉ ít, hệ thống sẽ ưu tiên thay thế những người có số ngày đi làm liên tục cao nhất (số mũ cao nhất) trước.
+
+Chia 3 ô nhỏ mỗi ca: Mỗi ca 2 tiếng chia thành 3 khung giờ riêng biệt, cho phép sửa từng khung giờ. Nếu không sửa, mặc định người đầu ca sẽ đi làm.
+
+Xoay ca & xoay vọng tự động: Khi không có người nghỉ, tự động đẩy người đi làm xoay ca (Ca 4 -> 3 -> 2 -> 1) và xoay vị trí vọng gác (x9 -> x10 -> x11 -> x12).
+
+Trang hiển thị lịch cắt gác hoàn chỉnh: Tab riêng giúp xem và in ấn bảng lịch rõ ràng.
+
+Bảng chấm công tháng tương tác: Tự động tổng hợp 30/31 ngày trong tháng với các mã ký hiệu:
+
+X: Đi làm / Đi gác
+
+H: Học tập
+
+CT: Công tác
+
+O: Nghỉ ốm
+
+P: Nghỉ phép
+
+NB: Nghỉ bù
+
+K: Công việc khác
+
+Cột cuối bảng tự động đếm Tổng số ngày đi làm (X) và cho phép chỉnh sửa trực tiếp từng ô.

@@ -1,0 +1,3 @@
+Đăng ký Vắng mặt Dài ngày sẽ chuyển xuống phần 2
+nếu cả 3 khung giờ của 1 ca đều là 1 người gác thì khi hiển thị lịch chỉ cần hiển thị 1 ô với tên một người đó, nếu có phát sinh thêm người khác làm thay ca hoặc chuyển từ khung giờ này sang khung giờ khác thì mới hiển thị thêm ô tương ứng với khung giờ cần thay thế
+tất cả từ ngữ liên quan đến quân đội đều bỏ, đơn vị ở đây là Đội 3 trung đoàn 375, bộ tư lệnh cảnh vệ, bộ công an. tất cả các từ quân nhân chuyển thành chiến sĩ

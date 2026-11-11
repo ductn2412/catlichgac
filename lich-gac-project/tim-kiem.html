@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Tra cứu Chiến sĩ & Ca gác - ĐỘI 3 Trung Đoàn</title>
+  <title>Tra cứu Chiến sĩ & Ca gác - ĐỘI 3 </title>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -11,7 +11,7 @@
 <header class="top-navbar">
   <div class="brand-group">
     <span class="brand-logo">ĐỘI 3</span>
-    <span class="brand-title">TRUNG ĐOÀN — HỆ THỐNG TRỰC BAN</span>
+    <span class="brand-title"> HỆ THỐNG LẬP LỊCH</span>
   </div>
   <form class="search-box" onsubmit="executeGlobalSearch(event)">
     <span>🔍</span>
@@ -68,7 +68,7 @@
 <div class="app-shell">
   <aside class="left-sidebar">
     <a href="dashboard.html" class="side-link" id="navDash"><span class="side-icon">📊</span><span>Màn hình Dashboard</span></a>
-    <a href="quan-ly-tai-khoan.html" class="side-link" id="navAccounts"><span class="side-icon">👥</span><span>Quản lý Tài khoản Quân nhân</span></a>
+    <a href="quan-ly-tai-khoan.html" class="side-link" id="navAccounts"><span class="side-icon">👥</span><span>Quản lý Tài khoản Chiến Sĩ</span></a>
     <a href="quan-ly-lich.html" class="side-link" id="navManage"><span class="side-icon">📋</span><span>Quản lý lập lịch</span></a>
     <a href="lich-gac.html" class="side-link" id="navView"><span class="side-icon">📄</span><span>Trang hiển thị lịch gác</span></a>
     <a href="cham-cong.html" class="side-link" id="navMonthly"><span class="side-icon">🗓️</span><span>Bảng chấm công tháng</span></a>
@@ -244,7 +244,7 @@
     document.getElementById("searchResultsContainer").innerHTML = buildSoldierProfileHTML(person, dStr, mStr);
   }
 
-  // 2. HIỂN THỊ ĐẦY ĐỦ TRANG HỒ SƠ THÔNG TIN QUÂN NHÂN & LỊCH THÁNG KHI TÌM KIẾM / CLICK VÀO TÊN
+  // 2. HIỂN THỊ ĐẦY ĐỦ TRANG HỒ SƠ THÔNG TIN Chiến Sĩ & LỊCH THÁNG KHI TÌM KIẾM / CLICK VÀO TÊN
   function buildSoldierProfileHTML(personFull, dStr, mStr) {
     const off = parseNames(S.officers);
     const acc = findPersonnelAccount(personFull);
@@ -381,14 +381,14 @@
     }
 
     const editBtnHtml = isCommander
-      ? `<button class="pri" onclick="window.location.href='quan-ly-tai-khoan.html'">✏️ Chỉnh sửa thông tin quân nhân (Chỉ huy)</button>`
+      ? `<button class="pri" onclick="window.location.href='quan-ly-tai-khoan.html'">✏️ Chỉnh sửa thông tin Chiến Sĩ (Chỉ huy)</button>`
       : `<span style="font-size:12px;color:var(--muted);">🔒 Thông tin hồ sơ do Chỉ huy Đội 3 nhập và quản lý</span>`;
 
     return `
-      <!-- PHẦN A: TRANG HIỂN THỊ ĐẦY ĐỦ THÔNG TIN HỒ SƠ QUÂN NHÂN -->
+      <!-- PHẦN A: TRANG HIỂN THỊ ĐẦY ĐỦ THÔNG TIN HỒ SƠ Chiến Sĩ -->
       <section class="card">
         <div class="bar" style="justify-content:space-between;">
-          <h2 style="margin:0;">1️⃣ Trang Hồ Sơ Chi Tiết Quân Nhân — ${cName} (${code})</h2>
+          <h2 style="margin:0;">1️⃣ Trang Hồ Sơ Chi Tiết Chiến Sĩ — ${cName} (${code})</h2>
           ${editBtnHtml}
         </div>
         <div class="scroll">
@@ -396,7 +396,7 @@
             <thead>
               <tr>
                 <th>Họ và tên (*)</th>
-                <th>Mã số quân nhân (*)</th>
+                <th>Mã số Chiến Sĩ (*)</th>
                 <th>Chức vụ</th>
                 <th>Nhóm cắt gác</th>
                 <th>Tên tài khoản đăng nhập</th>

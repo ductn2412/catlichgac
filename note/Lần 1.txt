@@ -1,0 +1,19 @@
+Lần 1 :
+
+Giao diện & Cấu trúc ca gác:
+
+Chia mỗi ngày thành 4 ca (mỗi ca kéo dài 2 tiếng).
+
+Mỗi ca gồm 5 vị trí: 1 Đốc gác (quản lý) và 4 Vọng gác (vọng gác x9, x10, x11, x12).
+
+Hỗ trợ lưu trữ dữ liệu bằng localStorage của trình duyệt, cho phép nhập danh sách sĩ quan và chiến sĩ nghĩa vụ riêng biệt.
+
+Tính năng tự động hóa và thông minh:
+
+Cắt lịch ngày mai (gen): Tự động xoay ca và vị trí vọng gác từ ngày hôm trước sang ngày hôm sau (theo quy luật dịch chuyển ca 4→3→2→1→4 và xoay vị trí vọng gác), đồng thời ưu tiên đưa những người đang nghỉ (chưa gác) lên thay thế những người đã gác liên tục nhiều ngày.
+
+Kiểm tra lỗi (Validation): Cảnh báo trực quan ngay trên giao diện nếu có sự trùng lặp nhân sự trong bảng gác, người đang vắng mặt (nghỉ phép, ốm, học tập, công tác...) nhưng vẫn bị xếp lịch gác, hoặc xếp sai vị trí (sĩ quan nhầm vào vọng gác và ngược lại).
+
+Theo dõi liên tục: Tự động tính số ngày làm việc liên tục (số mũ cạnh tên) và hiển thị trực quan ca gác hiện tại theo thời gian thực (được bôi đậm/đổi màu nếu là ngày hôm nay).
+
+Tiện ích khác: Cho phép in lịch trực tiếp (window.print()), quản lý danh sách người vắng mặt theo nhiều trạng thái (phép, công tác, ốm, nghỉ bù, học tập, khác) và hiển thị danh sách quân số trực cơ động tại đơn vị.

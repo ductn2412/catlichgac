@@ -711,3 +711,83 @@ input.sup {
 .pop-row:last-child { border-bottom: none; }
 .pop-label { color: var(--muted); font-weight: 600; }
 .pop-val { font-weight: 700; color: var(--text); text-align: right; max-width: 195px; }
+/* ==================== SMART MERGED CELL & SPLIT SLOTS ==================== */
+.single-ca-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.btn-split-slot {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--hl);
+  color: var(--primary-green);
+  border: 1px solid #c8e6c9;
+  cursor: pointer;
+  opacity: 0.75;
+  line-height: 1.2;
+}
+.btn-split-slot:hover {
+  opacity: 1;
+  background: var(--primary-green);
+  color: #fff;
+}
+.split-slots-container {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: #f8faf9;
+  padding: 4px;
+  border-radius: 6px;
+  border: 1px dashed var(--primary-green);
+}
+.split-slot-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.split-slot-time {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--muted);
+  width: 68px;
+  text-align: left;
+  flex-shrink: 0;
+}
+.btn-merge-slot {
+  font-size: 10.5px;
+  padding: 2px 6px;
+  background: #fff3e0;
+  color: #e65100;
+  border: 1px solid #ffb74d;
+  border-radius: 4px;
+  cursor: pointer;
+  align-self: flex-end;
+}
+.sub-shift-inline {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.sub-shift-item {
+  padding: 4px 6px;
+  border-bottom: 1px dashed var(--line);
+  font-size: 12.5px;
+}
+.sub-shift-item:last-child {
+  border-bottom: none;
+}
+.sub-shift-badge {
+  display: inline-block;
+  font-size: 10.5px;
+  color: var(--muted);
+  background: var(--bg);
+  padding: 1px 5px;
+  border-radius: 4px;
+  margin-right: 4px;
+}

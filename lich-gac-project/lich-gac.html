@@ -3,19 +3,18 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Trang Hiển Thị Lịch Gác - ĐỘI 3 Trung Đoàn</title>
+  <title>Trang Hiển Thị Lịch Gác - Đội 3 Trung đoàn 375</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-<!-- TOP GREEN BAR -->
 <header class="top-navbar">
   <div class="brand-group">
     <span class="brand-logo">ĐỘI 3</span>
-    <span class="brand-title">TRUNG ĐOÀN — HỆ THỐNG TRỰC BAN</span>
+    <span class="brand-title">HỆ THỐNG LẬP LỊCH</span>
   </div>
   <form class="search-box" onsubmit="executeGlobalSearch(event)">
     <span>🔍</span>
-    <input type="text" id="globalSearchInput" placeholder="Tìm chiến sĩ (VD: Bùi Văn Hùng, CS01) hoặc ca gác (VD: Ca 1)...">
+    <input type="text" id="globalSearchInput" placeholder="Tìm chiến sĩ (VD: Trần Văn Hiệp, CS01) hoặc ca gác (VD: Ca 1)...">
     <button type="submit">Tìm kiếm</button>
   </form>
   <div class="top-actions">
@@ -28,16 +27,14 @@
   </div>
 </header>
 
-<!-- SUB HEADER BAR -->
 <div class="sub-navbar">
   <div class="sub-nav-left">
-    <div class="widget-tag"><span class="plus">+</span> ĐỘI 3</div>
+    <div class="widget-tag"><span class="plus">+</span> ĐỘI 3 - E375</div>
     <div class="active-module-title">BẢNG LỊCH GÁC HOÀN CHỈNH THEO NGÀY</div>
   </div>
   <div><button class="warn-btn" onclick="window.location.href='so-truc.html'">🔄 Đăng ký & Duyệt đổi ca</button></div>
 </div>
 
-<!-- MODAL ĐỔI MẬT KHẨU CHỈ HUY -->
 <div id="passwordModal" class="modal-backdrop">
   <div class="modal-card">
     <div class="modal-head">
@@ -68,28 +65,28 @@
 <div class="app-shell">
   <aside class="left-sidebar">
     <a href="dashboard.html" class="side-link" id="navDash"><span class="side-icon">📊</span><span>Màn hình Dashboard</span></a>
-    <a href="quan-ly-tai-khoan.html" class="side-link" id="navAccounts"><span class="side-icon">👥</span><span>Quản lý Tài khoản Quân nhân</span></a>
+    <a href="quan-ly-tai-khoan.html" class="side-link" id="navAccounts"><span class="side-icon">👥</span><span>Quản lý Tài khoản Chiến sĩ</span></a>
     <a href="quan-ly-lich.html" class="side-link" id="navManage"><span class="side-icon">📋</span><span>Quản lý lập lịch</span></a>
     <a href="lich-gac.html" class="side-link active" id="navView"><span class="side-icon">📄</span><span>Trang hiển thị lịch gác</span></a>
     <a href="cham-cong.html" class="side-link" id="navMonthly"><span class="side-icon">🗓️</span><span>Bảng chấm công tháng</span></a>
-    <a href="so-truc.html" class="side-link" id="navLog"><span class="side-icon">📓</span><span>Đăng ký & Duyệt đổi ca</span></a>
+    <a href="so-truc.html" class="side-link" id="navLog"><span class="side-icon">🔄</span><span>Đăng ký & Duyệt đổi ca</span></a>
     <a href="tim-kiem.html" class="side-link" id="navSearch"><span class="side-icon">🔍</span><span>Tra cứu Chiến sĩ & Ca gác</span></a>
   </aside>
 
   <main class="main-workspace">
     <div class="card">
       <div class="bar">
-        <h2 style="margin:0;margin-right:auto;">📄 Bảng Lịch Gác Hoàn Chỉnh — ĐỘI 3 Trung Đoàn</h2>
+        <h2 style="margin:0;margin-right:auto;">📄 Bảng Lịch Gác — Đội 3</h2>
         <label for="viewDateSelect"><b>Chọn ngày xem lịch:</b></label>
         <input type="date" id="viewDateSelect" onchange="renderStandaloneScheduleView()">
         <button class="sec" onclick="exportToExcel(document.getElementById('viewDateSelect').value)">Xuất Excel</button>
-        <button class="pri" onclick="window.print()">🖨 In Bảng Lịch Chuẩn Quân Đội</button>
+        <button class="pri" onclick="window.print()">🖨 In Bảng Lịch</button>
       </div>
       <div id="print-area">
         <div class="military-print-header">
           <div>
-            <b>TRUNG ĐOÀN ...</b><br>
-            <b>ĐỘI 3</b><br>
+            <b>BỘ TƯ LỆNH CẢNH VỆ</b><br>
+            <b>TRUNG ĐOÀN 375 — ĐỘI 3</b><br>
             <span>***</span>
           </div>
           <div>
@@ -103,11 +100,11 @@
 
         <div class="military-print-footer">
           <div>
-            <b>TRỰC BAN NỘI VỤ</b><br>
+            <b>ĐỘI 3</b><br>
             <i>(Ký, ghi rõ họ tên)</i><br><br><br><br>
           </div>
           <div>
-            <i>Ngày ..... tháng ..... năm 20...</i><br>
+            <i>Hà Nội, ngày ..... tháng ..... năm 20...</i><br>
             <b>CHỈ HUY ĐỘI 3 DUYỆT</b><br>
             <i>(Ký tên, đóng dấu)</i><br><br><br><br>
           </div>
@@ -133,25 +130,62 @@
   function renderStandaloneScheduleView() {
     const dStr = document.getElementById("viewDateSelect").value || fmtDate(new Date());
     const day = getDayData(dStr);
+    const detectedTeams = detectTeamsInCa(day);
+
     let html = `<div style="padding:12px;"><h3 style="margin-top:0;color:var(--primary-green);text-align:center;">BẢNG PHÂN CÔNG LỊCH GÁC NGÀY ${vnFormat(dStr)} (${DOW[parseDate(dStr).getDay()]})</h3>`;
-    html += `<table><thead><tr><th>Ca gác</th><th>Thời gian</th><th>Đốc gác 1 (Sĩ quan)</th><th>Vọng x9 (CS)</th><th>Vọng x10 (CS)</th><th>Vọng x11 (CS)</th><th>Vọng x12 (CS)</th></tr></thead><tbody>`;
+    html += `<table><thead><tr><th>Ca gác & Tổ</th><th>Thời gian trong ngày</th><th>Đốc gác 1 (Sĩ quan)</th><th>Vọng x9 (Chiến sĩ)</th><th>Vọng x10 (Chiến sĩ)</th><th>Vọng x11 (Chiến sĩ)</th><th>Vọng x12 (Chiến sĩ)</th></tr></thead><tbody>`;
 
     CA.forEach((slots, caIdx) => {
-      slots.forEach((timeStr, slotIdx) => {
-        const rowIdx = caIdx * 3 + slotIdx;
+      const teamId = detectedTeams[caIdx] || (caIdx + 1);
+      // Kiểm tra xem trong Ca này có vị trí nào phát sinh người thay thế khác nhau giữa 3 khung giờ không
+      let caHasAnySplit = false;
+      for (let c = 0; c < 5; c++) {
+        const p0 = (day.cells[(caIdx * 3 + 0) * 5 + c] || "").trim();
+        const p1 = (day.cells[(caIdx * 3 + 1) * 5 + c] || "").trim();
+        const p2 = (day.cells[(caIdx * 3 + 2) * 5 + c] || "").trim();
+        if (cleanName(p0) !== cleanName(p1) || cleanName(p0) !== cleanName(p2)) {
+          caHasAnySplit = true;
+          break;
+        }
+      }
+
+      if (!caHasAnySplit) {
+        // Cả 5 vị trí đều chỉ có 1 người làm xuyên suốt 3 khung giờ -> Chỉ hiển thị 1 dòng gọn gàng cho cả Ca
         html += `<tr>`;
-        if (slotIdx === 0) html += `<td rowspan="3" class="ca-title"><a href="tim-kiem.html?q=Ca+${caIdx+1}" style="color:var(--primary-green);text-decoration:none;">Ca ${caIdx + 1}</a></td>`;
-        html += `<td class="slot-time">${timeStr}</td>`;
+        html += `<td class="ca-title"><a href="tim-kiem.html?q=Ca+${caIdx+1}" style="color:var(--primary-green);text-decoration:none;">Ca ${caIdx + 1}</a><div style="font-size:11px;color:var(--muted);">Tổ ${teamId}</div></td>`;
+        html += `<td class="slot-time" style="line-height:1.6;">${slots.join("<br>")}</td>`;
         for (let c = 0; c < 5; c++) {
-          const person = day.cells[rowIdx * 5 + c] || "-";
-          if (person !== "-") {
-            html += `<td>${renderPersonHoverLinkHTML(person)}</td>`;
-          } else {
-            html += `<td>-</td>`;
-          }
+          const person = (day.cells[(caIdx * 3) * 5 + c] || "").trim() || "-";
+          html += `<td>${person !== "-" ? renderPersonHoverLinkHTML(person) : "-"}</td>`;
         }
         html += `</tr>`;
-      });
+      } else {
+        // Có vị trí phát sinh người thay thế theo khung giờ -> Vị trí nào 1 người thì gộp 1 ô (rowspan="3"), vị trí nào đổi người thì hiển thị 3 ô tương ứng khung giờ
+        slots.forEach((timeStr, slotIdx) => {
+          const rowIdx = caIdx * 3 + slotIdx;
+          html += `<tr>`;
+          if (slotIdx === 0) {
+            html += `<td rowspan="3" class="ca-title"><a href="tim-kiem.html?q=Ca+${caIdx+1}" style="color:var(--primary-green);text-decoration:none;">Ca ${caIdx + 1}</a><div style="font-size:11px;color:var(--muted);">Tổ ${teamId}</div></td>`;
+          }
+          html += `<td class="slot-time">${timeStr}</td>`;
+          for (let c = 0; c < 5; c++) {
+            const p0 = (day.cells[(caIdx * 3 + 0) * 5 + c] || "").trim();
+            const p1 = (day.cells[(caIdx * 3 + 1) * 5 + c] || "").trim();
+            const p2 = (day.cells[(caIdx * 3 + 2) * 5 + c] || "").trim();
+            const isSamePerson = (cleanName(p0) === cleanName(p1) && cleanName(p0) === cleanName(p2));
+
+            if (isSamePerson) {
+              if (slotIdx === 0) {
+                html += `<td rowspan="3">${p0 ? renderPersonHoverLinkHTML(p0) : "-"}</td>`;
+              }
+            } else {
+              const curP = (day.cells[rowIdx * 5 + c] || "").trim();
+              html += `<td style="background:#fffdf5;"><span class="sub-shift-badge">${timeStr}</span>${curP ? renderPersonHoverLinkHTML(curP) : "-"}</td>`;
+            }
+          }
+          html += `</tr>`;
+        });
+      }
     });
 
     html += `</tbody></table></div>`;

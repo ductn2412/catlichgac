@@ -1,0 +1,34 @@
+Lần 3:
+Nhập từ file Excel & Word (.xlsx, .xls, .docx, .doc):
+
+Đã tích hợp nút tải tệp trực tiếp ở Phần 1 để đọc danh sách Sĩ quan và Chiến sĩ nghĩa vụ tự động bằng thư viện SheetJS và Mammoth.js.
+
+Cảnh báo đỏ chống xếp lịch cho người nghỉ:
+
+Khi một người có tên trong các phần nghỉ phép, công tác, ốm, nghỉ bù, học tập... mà cố tình điền vào bảng gác, ô tên sẽ báo đỏ ngay lập tức kèm dòng cảnh báo đỏ phía dưới.
+
+Thay thế thông minh theo số mũ (ngày làm việc liên tục):
+
+Thuật toán cắt lịch tự động tính toán: Nếu số lượng người nghỉ ít, hệ thống sẽ ưu tiên thay thế những người đang có số mũ cao nhất (đã làm liên tục nhiều ngày nhất) trước.
+
+Chia 3 ô nhỏ trong mỗi ca:
+
+Mỗi ca gác được chia chi tiết thành 3 ô tương ứng với các khung giờ gác nhỏ.
+
+Bạn có thể sửa tên từng người trong 3 ô này. Nếu không sửa, hệ thống sẽ mặc định lấy tên của người được điền đầu tiên cho cả ca đó.
+
+Xoay ca & xoay vọng khi không có người nghỉ:
+
+Nếu quân số đi làm đầy đủ, hệ thống tự động đẩy người đi làm tiếp tục xoay ca (Ca 4 → Ca 3 → Ca 2 → Ca 1) và xoay vị trí vọng gác (x9 → x10 → x11 → x12).
+
+Trang hiển thị lịch sau khi cắt gác (Tab 2):
+
+Thêm thẻ "📄 Trang Hiển Thị Lịch Cắt Gác" mở ra một trang riêng biệt xem toàn bộ bảng lịch cắt gác hoàn chỉnh, phục vụ cho việc in ấn hoặc xem lại.
+
+Trang bảng chấm công tháng 30/31 ngày (Tab 3):
+
+Thêm thẻ "📊 Bảng Chấm Công Tháng (N/X)" tự động tạo bảng ma trận gồm 30/31 ngày trong tháng.
+
+Ngày nào nghỉ (phép, ốm, công tác...) ô sẽ hiển thị N (màu đỏ).
+
+Ngày nào đi làm/đi gác ô sẽ hiển thị X (màu xanh).
