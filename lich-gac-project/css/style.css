@@ -791,3 +791,179 @@ input.sup {
   border-radius: 4px;
   margin-right: 4px;
 }
+
+/* ==================== RESPONSIVE MOBILE / TABLET ==================== */
+@media screen and (max-width: 900px) {
+  html { -webkit-text-size-adjust: 100%; }
+  body { overflow-x: hidden; }
+
+  /* Thanh tiêu đề: cho phép xuống dòng, ô tìm kiếm chiếm trọn 1 hàng.
+     Bỏ dính (sticky) để trên điện thoại không chiếm mất màn hình khi cuộn. */
+  .top-navbar {
+    height: auto;
+    min-height: 54px;
+    flex-wrap: wrap;
+    padding: 8px 10px;
+    gap: 8px;
+    position: static;
+  }
+  .brand-group { flex: 0 1 auto; min-width: 0; }
+  .brand-title { font-size: 13px; line-height: 1.15; white-space: normal; }
+  .search-box {
+    order: 5;
+    flex: 1 1 100%;
+    width: 100%;
+    padding: 5px 6px 5px 10px;
+  }
+  .search-box input { font-size: 14px; }
+  .top-actions { flex: 1 1 auto; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+  .icon-btn-top, .btn-top-logout, .role-pill { font-size: 11.5px; padding: 5px 8px; }
+
+  /* Thanh phụ */
+  .sub-navbar { padding: 8px 10px; gap: 8px; }
+  .sub-nav-left { flex-wrap: wrap; gap: 8px; }
+  .active-module-title { border-left: 0; padding-left: 0; font-size: 12px; }
+  .sub-navbar > div:last-child:not(:empty) {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  /* Sidebar chuyển thành thanh menu ngang cuộn được */
+  .app-shell { flex-direction: column; min-height: 0; }
+  .left-sidebar {
+    width: 100%;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 8px 10px;
+    gap: 6px;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+  .side-link {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    padding: 7px 10px;
+    font-size: 12px;
+    border-radius: 999px;
+    background: var(--bg);
+  }
+  .side-icon { width: auto; font-size: 14px; }
+
+  .main-workspace { padding: 12px 10px 28px; }
+  .card { padding: 12px; }
+  h2 { font-size: 15px; }
+  p.sub { font-size: 12.5px; }
+
+  /* Các thanh công cụ không bị tràn ngang */
+  .bar { gap: 6px; }
+  .bar input[type="text"],
+  .bar select,
+  .bar input[type="date"],
+  .bar input[type="month"] {
+    min-width: 0 !important;
+    flex: 1 1 100%;
+    width: 100%;
+  }
+  .bar button { flex: 0 1 auto; }
+
+  .item { grid-template-columns: 1fr; gap: 4px; }
+  .unit-total-header { font-size: 13.5px; }
+  .unit-total-header strong { font-size: 17px; }
+  .stat-grid { grid-template-columns: 1fr; }
+
+  .modal-card { padding: 14px; }
+  .auth-box { padding: 24px 16px; }
+  .auth-title { font-size: 24px; }
+  .auth-icon { font-size: 28px; }
+  .login-actions { flex-wrap: wrap; }
+  .login-actions > * { flex: 1 1 auto; }
+  .personnel-hover-popover { width: min(340px, calc(100vw - 20px)); }
+
+  /* Bảng rộng: cuộn ngang trong khung, cột đầu dính lại để dễ nhìn */
+  .scroll { -webkit-overflow-scrolling: touch; }
+  .scroll table { min-width: 760px; }
+  .scroll table th:first-child,
+  .scroll table td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: #f8f9fa;
+    box-shadow: 1px 0 0 var(--line);
+  }
+  .scroll table thead th:first-child { z-index: 3; }
+  th, td { padding: 5px 6px; }
+  td input.nm { font-size: 12.5px; padding: 5px 20px 5px 5px; }
+  input.sup { width: 20px; font-size: 10px; }
+  .split-slot-time { width: 54px; font-size: 9.5px; }
+  .btn-split-slot { font-size: 9px; padding: 1px 3px; }
+  .btn-merge-slot { font-size: 9.5px; padding: 2px 4px; }
+}
+
+@media screen and (max-width: 600px) {
+  .brand-title { display: none; }
+  .brand-logo { font-size: 12px; padding: 4px 7px; }
+  .top-actions { flex: 1 1 auto; justify-content: flex-end; }
+  .top-navbar { padding: 6px 8px; gap: 6px; }
+  .search-box { padding: 3px 4px 3px 9px; }
+  .search-box input { font-size: 13px; }
+  .search-box button { padding: 4px 8px; font-size: 11.5px; }
+  .role-pill {
+    display: inline-block;
+    max-width: 132px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+
+  .main-workspace { padding: 10px 8px 24px; }
+  .card { padding: 10px; }
+  .unit-summary-box { padding: 12px; }
+  .stat-card { font-size: 12px; }
+  .chip { font-size: 12px; padding: 3px 8px; }
+
+  /* Thanh công cụ cắt lịch: nút quan trọng chiếm trọn hàng */
+  .schedule-toolbar #date,
+  .schedule-toolbar #historySelect,
+  .schedule-toolbar #gen,
+  .schedule-toolbar #genWeek,
+  .schedule-toolbar #now {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+  .schedule-toolbar #now { text-align: center; }
+  .schedule-toolbar #prev,
+  .schedule-toolbar #next,
+  .schedule-toolbar #today { flex: 1 1 30%; }
+  .schedule-toolbar button { font-size: 12px; padding: 7px 8px; }
+
+  .kpi-grid-6 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .kpi-card { padding: 12px 6px; }
+  .kpi-num { font-size: 21px; }
+  .kpi-label { font-size: 10px; }
+
+  .dash-panel-head { font-size: 12px; padding: 8px 10px; }
+  .dash-panel-body { padding: 10px; }
+  .duty-item { padding: 8px 10px; font-size: 12px; }
+  .duty-sub { font-size: 10.5px; }
+
+  .monthly-tbl { font-size: 10.5px; }
+  .monthly-tbl th, .monthly-tbl td { padding: 2px; min-width: 26px; }
+}
+
+@media screen and (max-width: 420px) {
+  .top-actions { gap: 4px; }
+  .icon-btn-top, .btn-top-logout, .role-pill { font-size: 10.5px; padding: 4px 6px; }
+  .role-pill { max-width: 110px; }
+  .bar button { font-size: 11.5px; padding: 6px 7px; }
+  .card { padding: 9px; }
+  h2 { font-size: 14px; }
+  .unit-total-header strong { font-size: 16px; }
+  .scroll table { min-width: 720px; }
+}

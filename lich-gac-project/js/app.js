@@ -265,10 +265,14 @@ function applyRolePermissions() {
   const genBtn = document.getElementById("gen");
   const genWeekBtn = document.getElementById("genWeek");
   const leaveCard = document.getElementById("multiDayLeaveCard");
+  const nightOnlyCard = document.getElementById("nightOnlyCard");
+  const nightOnlyList = document.getElementById("nightOnlyList");
 
   if (genBtn) genBtn.style.display = isCommander ? "inline-block" : "none";
   if (genWeekBtn) genWeekBtn.style.display = isCommander ? "inline-block" : "none";
   if (leaveCard) leaveCard.style.display = isCommander ? "block" : "none";
+  if (nightOnlyCard) nightOnlyCard.style.display = isCommander ? "block" : "none";
+  if (nightOnlyList) nightOnlyList.disabled = !isCommander;
 
   for (let t = 1; t <= 4; t++) {
     const oEl = document.getElementById(`team${t}Off`);
@@ -316,6 +320,244 @@ function resetDefaultTourTeams() {
   alert("✅ Đã nạp danh sách 4 Tổ cố định và khởi tạo lịch gốc thành công!");
 }
 
+// ===== CẮT LỊCH TỰ ĐỘNG =====
+// Quy tắc Tour cố định: mỗi ngày mỗi Tổ lùi 1 ca: Ca 1 -> Ca 4 -> Ca 3 -> Ca 2 -> Ca 1
+function nextTeamMap(teamMap) {
+  const m = (teamMap && teamMap.length === 4) ? teamMap : [1, 2, 3, 4];
+  return [m[1], m[2], m[3], m[0]];
+}
+
+function dayOrdinal(dateStr) {
+  return Math.floor(parseDate(dateStr).getTime() / 86400000);
+}
+
+function isPersonAbsentIn(ab, person) {
+  const n = (person || "").trim();
+  if (!n) return false;
+  return !!(ab[cleanName(n)] || ab[n]);
+}
+
+function findPreviousOfficerForTeam(prevDay, teamId) {
+  if (!prevDay || !prevDay.cells) return "";
+  // Ưu tiên khung đêm (slot 2) vì đây là người chính của ca;
+  // khung ban ngày có thể là người thay thế khi người chính chỉ làm ca đêm.
+  for (const slot of [2, 0, 1]) {
+    for (let ca = 0; ca < 4; ca++) {
+      const n = (prevDay.cells[(ca * 3 + slot) * 5] || "").trim();
+      if (n && getPersonTeamId(n) === teamId) return n;
+    }
+  }
+  return "";
+}
+
+function pickOfficerForTeam(team, teamId, prevDay, ab, dateStr) {
+  const list = (team.officers || []).filter(Boolean);
+  if (!list.length) return "";
+
+  const prev = findPreviousOfficerForTeam(prevDay, teamId);
+  let start = 0;
+  if (prev) {
+    const idx = list.findIndex(n => cleanName(n).toLowerCase() === cleanName(prev).toLowerCase());
+    if (idx >= 0) start = (idx + 1) % list.length;
+  } else {
+    const ord = dayOrdinal(dateStr);
+    start = ((ord % list.length) + list.length) % list.length;
+  }
+
+  for (let i = 0; i < list.length; i++) {
+    const cand = list[(start + i) % list.length];
+    if (!isPersonAbsentIn(ab, cand)) return cand;
+  }
+  return "";
+}
+
+function pickSoldiersForTeam(team, ab, dateStr) {
+  const list = (team.soldiers || []).filter(Boolean);
+  const need = 4;
+  if (!list.length) return [];
+
+  // Xoay vòng 4/7: mỗi ngày dịch 1 người, đủ 7 ngày thì quay lại.
+  const ord = dayOrdinal(dateStr);
+  const start = ((ord % list.length) + list.length) % list.length;
+  const picked = [];
+  for (let i = 0; i < list.length && picked.length < need; i++) {
+    const cand = list[(start + i) % list.length];
+    if (!isPersonAbsentIn(ab, cand) && !picked.includes(cand)) picked.push(cand);
+  }
+  return picked;
+}
+
+// Danh sách đồng chí chỉ làm ca đêm (đang học tập buổi sáng)
+function getNightOnlySet() {
+  const set = {};
+  parseNames(S.nightOnly || "").forEach(n => {
+    const c = cleanName(n).toLowerCase();
+    if (c) set[c] = true;
+    set[n.trim().toLowerCase()] = true;
+  });
+  return set;
+}
+
+function isNightOnlyInSet(nightSet, person) {
+  const n = (person || "").trim();
+  if (!n) return false;
+  return !!(nightSet[cleanName(n).toLowerCase()] || nightSet[n.toLowerCase()]);
+}
+
+// Chọn người cùng Tổ (không phải người chỉ làm ca đêm) để trực khung ban ngày
+function pickDayReplacement(pool, usedSet, ab, nightSet, dateStr) {
+  const list = (pool || []).filter(Boolean);
+  if (!list.length) return "";
+  const ord = dayOrdinal(dateStr);
+  const start = ((ord % list.length) + list.length) % list.length;
+  for (let i = 0; i < list.length; i++) {
+    const cand = list[(start + i) % list.length];
+    if (isPersonAbsentIn(ab, cand)) continue;
+    if (isNightOnlyInSet(nightSet, cand)) continue;
+    const key = cleanName(cand).toLowerCase();
+    if (usedSet.has(key)) continue;
+    usedSet.add(key);
+    return cand;
+  }
+  return "";
+}
+
+function fillGeneratedPosition(cells, caIdx, col, dayPerson, nightPerson) {
+  const base = caIdx * 3;
+  cells[(base + 0) * 5 + col] = dayPerson || "";
+  cells[(base + 1) * 5 + col] = dayPerson || "";
+  cells[(base + 2) * 5 + col] = nightPerson || "";
+}
+
+function buildGeneratedDay(dateStr, teamMap, prevDay) {
+  const day = getDayData(dateStr);
+  const ab = absSet(day.absent || {});
+  const nightSet = getNightOnlySet();
+  const cells = Array(60).fill("");
+  let unfilled = 0;
+
+  for (let ca = 0; ca < 4; ca++) {
+    const teamId = teamMap[ca] || (ca + 1);
+    const team = (S.teams && S.teams[teamId - 1]) || (S.teams && S.teams[ca]);
+    if (!team) continue;
+
+    const used = new Set();
+
+    // --- Đốc gác (Sĩ quan) ---
+    const officer = pickOfficerForTeam(team, teamId, prevDay, ab, dateStr);
+    if (officer) used.add(cleanName(officer).toLowerCase());
+
+    let officerDay = officer;
+    let officerNight = officer;
+    if (officer && isNightOnlyInSet(nightSet, officer)) {
+      officerNight = officer;
+      officerDay = pickDayReplacement(team.officers || [], used, ab, nightSet, dateStr);
+      if (!officerDay) unfilled++;
+    }
+    fillGeneratedPosition(cells, ca, 0, officerDay, officerNight);
+
+    // --- Chiến sĩ Vọng gác ---
+    const soldiers = pickSoldiersForTeam(team, ab, dateStr);
+    soldiers.forEach(s => { if (s) used.add(cleanName(s).toLowerCase()); });
+
+    for (let idx = 0; idx < 4; idx++) {
+      const soldier = soldiers[idx];
+      if (!soldier) {
+        fillGeneratedPosition(cells, ca, idx + 1, "", "");
+        unfilled++;
+        continue;
+      }
+
+      let dayPerson = soldier;
+      let nightPerson = soldier;
+      if (isNightOnlyInSet(nightSet, soldier)) {
+        nightPerson = soldier;
+        dayPerson = pickDayReplacement(team.soldiers || [], used, ab, nightSet, dateStr);
+        if (!dayPerson) unfilled++;
+      }
+      fillGeneratedPosition(cells, ca, idx + 1, dayPerson, nightPerson);
+    }
+  }
+
+  day.cells = cells;
+  day.teamInCa = teamMap.slice();
+  day.streaks = {};
+  if (!day.manualCredits) day.manualCredits = {};
+  return { day, unfilled };
+}
+
+function dayHasSchedule(dateStr) {
+  const day = S.days && S.days[dateStr];
+  return !!(day && Array.isArray(day.cells) && day.cells.some(c => (c || "").trim() !== ""));
+}
+
+function generateSchedule() {
+  if (getCurrentRole() !== "commander") {
+    alert("Chỉ có Chỉ huy / Trưởng ban mới được cắt lịch!");
+    return;
+  }
+
+  const targetDate = addDay(curDate, 1);
+  if (dayHasSchedule(targetDate) && !confirm(`Ngày ${vnFormat(targetDate)} đã có lịch. Cắt lại lịch cho ngày mai?`)) {
+    return;
+  }
+
+  const prevDay = getDayData(curDate);
+  const teamMap = nextTeamMap(detectTeamsInCa(prevDay));
+  const built = buildGeneratedDay(targetDate, teamMap, prevDay);
+
+  saveStorage();
+  curDate = targetDate;
+  expandedCells = {};
+  buildScheduleTableDOM();
+  render();
+
+  let msg = `✅ Đã cắt lịch ngày ${vnFormat(targetDate)} (${DOW[parseDate(targetDate).getDay()]}) thành công!`;
+  if (built.unfilled > 0) {
+    msg += `\n⚠️ Có ${built.unfilled} khung giờ ban ngày chưa bố trí được người thay (thiếu quân số không học buổi sáng).`;
+  }
+  alert(msg);
+}
+
+function generateWeekSchedule() {
+  if (getCurrentRole() !== "commander") {
+    alert("Chỉ có Chỉ huy / Trưởng ban mới được cắt lịch!");
+    return;
+  }
+
+  const startDate = addDay(curDate, 1);
+  const dates = [];
+  for (let i = 0; i < 7; i++) dates.push(addDay(startDate, i));
+
+  const existing = dates.filter(dayHasSchedule);
+  if (existing.length && !confirm(`Đã có lịch cho ${existing.length} ngày trong 7 ngày tới. Cắt lại toàn bộ 7 ngày?`)) {
+    return;
+  }
+
+  let prevDay = getDayData(curDate);
+  let teamMap = nextTeamMap(detectTeamsInCa(prevDay));
+  let totalUnfilled = 0;
+
+  dates.forEach(dStr => {
+    const built = buildGeneratedDay(dStr, teamMap, prevDay);
+    totalUnfilled += built.unfilled;
+    prevDay = built.day;
+    teamMap = nextTeamMap(teamMap);
+  });
+
+  saveStorage();
+  curDate = startDate;
+  expandedCells = {};
+  buildScheduleTableDOM();
+  render();
+
+  let msg = `✅ Đã cắt lịch 7 ngày (từ ${vnFormat(startDate)} đến ${vnFormat(dates[6])}) thành công!`;
+  if (totalUnfilled > 0) {
+    msg += `\n⚠️ Có ${totalUnfilled} khung giờ ban ngày chưa bố trí được người thay (thiếu quân số không học buổi sáng).`;
+  }
+  alert(msg);
+}
+
 function populateTeamTextareas() {
   if (!S.teams || S.teams.length < 4) S.teams = JSON.parse(JSON.stringify(DEFAULT_TEAMS));
   for (let i = 0; i < 4; i++) {
@@ -328,6 +570,33 @@ function populateTeamTextareas() {
   const solT = document.getElementById("solT");
   if (offT) offT.value = S.officers || "";
   if (solT) solT.value = S.soldiers || "";
+}
+
+function populateNightOnlyTextarea() {
+  const el = document.getElementById("nightOnlyList");
+  if (el) el.value = S.nightOnly || "";
+  updateNightOnlyMsg();
+}
+
+function updateNightOnlyMsg() {
+  const msg = document.getElementById("nightOnlyMsg");
+  if (!msg) return;
+  const list = parseNames(S.nightOnly || "");
+  msg.textContent = list.length
+    ? `✅ Đang áp dụng cho ${list.length} đồng chí chỉ làm ca đêm: ${list.join(", ")}`
+    : "Chưa có đồng chí nào được đánh dấu chỉ làm ca đêm.";
+}
+
+function saveNightOnlyList() {
+  const el = document.getElementById("nightOnlyList");
+  if (!el) return;
+  if (getCurrentRole() !== "commander") {
+    el.value = S.nightOnly || "";
+    return;
+  }
+  S.nightOnly = el.value;
+  saveStorage();
+  updateNightOnlyMsg();
 }
 
 function saveTeamsFromTextareas() {
@@ -417,6 +686,7 @@ function initUI() {
   });
 
   populateTeamTextareas();
+  populateNightOnlyTextarea();
   for (let t = 1; t <= 4; t++) {
     ["team" + t + "Off", "team" + t + "Sol"].forEach(id => {
       const el = document.getElementById(id);
@@ -655,10 +925,13 @@ function refresh() {
     warnEl.appendChild(div);
   });
 
+  // Nút cắt lịch luôn bấm được với Chỉ huy; các lỗi dữ liệu chỉ hiển thị cảnh báo đỏ,
+  // không khóa nút để tránh trường hợp lịch cũ bị lỗi khiến không thể cắt lịch mới.
   if (currentRole === 'commander') {
-    document.getElementById("gen").disabled = hasCriticalError;
-    const gw = document.getElementById("genWeek");
-    if (gw) gw.disabled = hasCriticalError;
+    const genBtn = document.getElementById("gen");
+    if (genBtn) genBtn.disabled = false;
+    const genWeekBtn = document.getElementById("genWeek");
+    if (genWeekBtn) genWeekBtn.disabled = false;
   }
 
   updateHistoryDropdown();
@@ -674,4 +947,11 @@ function render() {
   }
   CATS.forEach(c => { TA[c[0]].value = day.absent[c[0]] || ""; });
   refresh();
+}
+
+// Khởi động trang Quản lý lập lịch sau khi DOM sẵn sàng
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initUI);
+} else {
+  initUI();
 }

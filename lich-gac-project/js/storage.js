@@ -5,7 +5,9 @@ let S = {
   days: {},
   swapRequests: [],
   accounts: { ...DEFAULT_COMMANDER_ACCOUNTS },
-  personnelAccounts: []
+  personnelAccounts: [],
+  // Danh sách đồng chí chỉ làm ca đêm (VD: đang học tập buổi sáng)
+  nightOnly: ""
 };
 
 function pad(n) { return (n < 10 ? "0" : "") + n; }
@@ -255,6 +257,7 @@ function loadStorage() {
       if (!S.swapRequests) S.swapRequests = [];
       if (!S.accounts) S.accounts = { ...DEFAULT_COMMANDER_ACCOUNTS };
       if (!S.personnelAccounts) S.personnelAccounts = [];
+      if (typeof S.nightOnly !== "string") S.nightOnly = "";
       if (!S.teams || S.teams.length < 4) S.teams = JSON.parse(JSON.stringify(DEFAULT_TEAMS));
     }
   } catch (e) {
@@ -301,11 +304,15 @@ function detectTeamsInCa(day) {
   const used = {};
   for (let ca = 0; ca < 4; ca++) {
     let foundTeam = null;
-    for (let col = 0; col < 5; col++) {
-      const p = (day.cells[(ca * 3) * 5 + col] || "").trim();
-      if (p) {
-        const tid = getPersonTeamId(p);
-        if (tid) { foundTeam = tid; break; }
+    // Dò cả 3 khung giờ để vẫn nhận diện đúng Tổ khi khung ban ngày trống
+    // (trường hợp đồng chí chỉ làm ca đêm được xếp riêng ở khung đêm).
+    for (let slot = 0; slot < 3 && !foundTeam; slot++) {
+      for (let col = 0; col < 5; col++) {
+        const p = (day.cells[(ca * 3 + slot) * 5 + col] || "").trim();
+        if (p) {
+          const tid = getPersonTeamId(p);
+          if (tid) { foundTeam = tid; break; }
+        }
       }
     }
     if (foundTeam) {
@@ -488,6 +495,7 @@ function restoreJSONData(event) {
       if (parsed && parsed.days) {
         S = parsed;
         if (!S.teams || S.teams.length < 4) S.teams = JSON.parse(JSON.stringify(DEFAULT_TEAMS));
+        if (typeof S.nightOnly !== "string") S.nightOnly = "";
         syncFromTeamsToRosterAndAccounts();
         saveStorage();
         alert("✅ Đã khôi phục dữ liệu hệ thống thành công!");

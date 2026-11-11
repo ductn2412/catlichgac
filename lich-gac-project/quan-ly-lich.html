@@ -128,7 +128,7 @@
     </section>
 
     <!-- THANH CÔNG CỤ CẮT LỊCH -->
-    <div class="bar">
+    <div class="bar schedule-toolbar">
       <button id="prev" aria-label="Ngày trước">‹ Ngày trước</button>
       <input type="date" id="date">
       <button id="next" aria-label="Ngày sau">Ngày sau ›</button>
@@ -178,6 +178,20 @@
           <tbody id="body"></tbody>
         </table>
       </div>
+
+      <!-- CHỈ LÀM CA ĐÊM (ĐANG HỌC TẬP BUỔI SÁNG) -->
+      <section class="card no-print" id="nightOnlyCard" data-html2canvas-ignore="true" style="margin-top:12px;">
+        <h2>🌙 Danh sách chỉ làm ca đêm (đang học tập buổi sáng)</h2>
+        <p class="sub" style="margin-top:0;">
+          Nhập tên những đồng chí chỉ có thể làm ca đêm, cách nhau bằng dấu phẩy hoặc xuống dòng.
+          Khi cắt lịch, hệ thống chỉ xếp họ vào khung giờ đêm <b>(22:00 – 06:00)</b>;
+          các khung giờ ban ngày sẽ do đồng chí khác cùng Tổ đảm nhiệm.
+          <b>Lưu ý:</b> Không đánh dấu các đồng chí này vào mục vắng mặt cả ngày.
+        </p>
+        <textarea id="nightOnlyList" rows="2" placeholder="VD: Trần Văn Hiệp (CS01), Nguyễn Văn A (CS02)..." oninput="saveNightOnlyList()"></textarea>
+        <div id="nightOnlyMsg" style="font-size:12.5px;color:var(--primary-green);font-weight:700;margin-top:6px;"></div>
+      </section>
+
       <datalist id="dlO"></datalist>
       <datalist id="dlS"></datalist>
 
