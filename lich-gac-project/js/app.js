@@ -1,6 +1,6 @@
 let curDate = fmtDate(new Date());
 let currentRole = getCurrentRole();
-let IN = [], SUP = [], TA = {};
+let IN = [], SUP = [], TA = {}, CA_TEAM_BADGE = [];
 
 function idxOf(day, n) {
   const cName = cleanName(n);
@@ -46,7 +46,6 @@ function hasConsecutiveShift(day, person, cellIndex) {
       }
     }
   }
-  // Kiểm tra nối tiếp qua ranh giới ngày (Ca 4 04h-06h ngày D-1 với Ca 1 06h-08h ngày D)
   if (hasCrossDayConsecutiveError(curDate, person, cellIndex)) {
     return true;
   }
@@ -66,9 +65,15 @@ function applyRolePermissions() {
   if (genWeekBtn) genWeekBtn.style.display = isCommander ? "inline-block" : "none";
   if (leaveCard) leaveCard.style.display = isCommander ? "block" : "none";
 
-  document.getElementById("offT").disabled = !isCommander;
-  document.getElementById("solT").disabled = !isCommander;
-  document.getElementById("importBarDiv").style.display = isCommander ? "flex" : "none";
+  for (let t = 1; t <= 4; t++) {
+    const oEl = document.getElementById(`team${t}Off`);
+    const sEl = document.getElementById(`team${t}Sol`);
+    if (oEl) oEl.disabled = !isCommander;
+    if (sEl) sEl.disabled = !isCommander;
+  }
+
+  const impBar = document.getElementById("importBarDiv");
+  if (impBar) impBar.style.display = isCommander ? "flex" : "none";
 
   for (let k = 0; k < 60; k++) {
     if (IN[k]) IN[k].disabled = !isCommander;
@@ -81,7 +86,64 @@ function applyRolePermissions() {
   refresh();
 }
 
-// ĐĂNG KÝ VẮNG DÀI NGÀY (TỪ NGÀY – ĐẾN NGÀY)
+function resetDefaultTourTeams() {
+  if (getCurrentRole() !== "commander") return;
+  if (!confirm("Khôi phục danh sách biên chế 4 Tổ chuẩn theo file Tour gác và xếp lịch gốc cho ngày đang chọn?")) return;
+  S.teams = JSON.parse(JSON.stringify(DEFAULT_TEAMS));
+  syncFromTeamsToRosterAndAccounts();
+
+  const day = getDayData(curDate);
+  day.teamInCa = [1, 2, 3, 4];
+  for (let ca = 0; ca < 4; ca++) {
+    const team = S.teams[ca];
+    const docGac = team.officers[0] || "";
+    const vongs = team.soldiers.slice(0, 4);
+    for (let slot = 0; slot < 3; slot++) {
+      const row = ca * 3 + slot;
+      day.cells[row * 5 + 0] = docGac;
+      for (let c = 1; c < 5; c++) {
+        day.cells[row * 5 + c] = vongs[c - 1] || "";
+      }
+    }
+  }
+  saveStorage();
+  populateTeamTextareas();
+  render();
+  alert("✅ Đã nạp danh sách 4 Tổ cố định và khởi tạo lịch gốc thành công!");
+}
+
+function populateTeamTextareas() {
+  if (!S.teams || S.teams.length < 4) S.teams = JSON.parse(JSON.stringify(DEFAULT_TEAMS));
+  for (let i = 0; i < 4; i++) {
+    const oEl = document.getElementById(`team${i + 1}Off`);
+    const sEl = document.getElementById(`team${i + 1}Sol`);
+    if (oEl) oEl.value = (S.teams[i].officers || []).join("\n");
+    if (sEl) sEl.value = (S.teams[i].soldiers || []).join("\n");
+  }
+  const offT = document.getElementById("offT");
+  const solT = document.getElementById("solT");
+  if (offT) offT.value = S.officers || "";
+  if (solT) solT.value = S.soldiers || "";
+}
+
+function saveTeamsFromTextareas() {
+  for (let i = 0; i < 4; i++) {
+    const oEl = document.getElementById(`team${i + 1}Off`);
+    const sEl = document.getElementById(`team${i + 1}Sol`);
+    if (oEl && sEl) {
+      S.teams[i].officers = parseNames(oEl.value);
+      S.teams[i].soldiers = parseNames(sEl.value);
+    }
+  }
+  syncFromTeamsToRosterAndAccounts();
+  saveStorage();
+  const rmsg = document.getElementById("rmsg");
+  if (rmsg) {
+    rmsg.textContent = `✅ Đã đồng bộ 4 Tổ cố định: Tổng ${parseNames(S.officers).length} Đốc gác (Sĩ quan) & ${parseNames(S.soldiers).length} Chiến sĩ nghĩa vụ.`;
+  }
+  refresh();
+}
+
 function applyMultiDayAbsence() {
   if (getCurrentRole() !== "commander") {
     alert("Chỉ có Chỉ huy mới được đăng ký vắng dài ngày!");
@@ -107,19 +169,16 @@ function applyMultiDayAbsence() {
 
   while (d <= endStr && countDays < 120) {
     const dayData = getDayData(d);
-    // Xóa khỏi các danh mục vắng khác trong ngày đó
     CATS.forEach(c => {
       let list = parseNames(dayData.absent[c[0]]);
       list = list.filter(n => cleanName(n) !== cName);
       dayData.absent[c[0]] = list.join(", ");
     });
-    // Thêm vào danh mục đã chọn
     let targetList = parseNames(dayData.absent[catKey]);
     if (!targetList.some(n => cleanName(n) === cName)) {
       targetList.push(person);
     }
     dayData.absent[catKey] = targetList.join(", ");
-    // Gạch tên khỏi bảng gác ngày đó nếu lỡ xếp
     dayData.cells = dayData.cells.map(c => cleanName(c) === cName ? "" : c);
 
     d = addDay(d, 1);
@@ -128,7 +187,7 @@ function applyMultiDayAbsence() {
 
   saveStorage();
   render();
-  alert(`✅ Đã đăng ký vắng mặt cho "${person}" trong ${countDays} ngày (từ ${vnFormat(startStr)} đến ${vnFormat(endStr)})!`);
+  alert(`✅ Đã đăng ký vắng mặt cho "${person}" trong ${countDays} ngày (từ ${vnFormat(startStr)} đến ${vnFormat(endStr)}). Các đồng chí cùng Tổ sẽ tự động thay thế khi cắt lịch!`);
 }
 
 function initUI() {
@@ -146,7 +205,7 @@ function initUI() {
         const tdCa = document.createElement("td");
         tdCa.className = "ca-title";
         tdCa.rowSpan = 3;
-        tdCa.innerHTML = `<strong>Ca ${caIdx + 1}</strong>`;
+        tdCa.innerHTML = `<strong>Ca ${caIdx + 1}</strong><div id="caTeamBadge_${caIdx}" style="margin-top:4px;font-size:11.5px;background:var(--hl);color:var(--primary-green);padding:2px 6px;border-radius:999px;border:1px solid var(--primary-green);">Tổ ${caIdx + 1}</div>`;
         tr.appendChild(tdCa);
       }
 
@@ -164,7 +223,7 @@ function initUI() {
         
         const inp = document.createElement("input");
         inp.className = "nm";
-        inp.placeholder = c === 0 ? "Chỉ Sĩ quan" : "Chỉ Chiến sĩ";
+        inp.placeholder = c === 0 ? "Đốc gác (SQ)" : "Chiến sĩ (CS)";
         inp.setAttribute("list", c === 0 ? "dlO" : "dlS");
         
         const sup = document.createElement("input");
@@ -188,6 +247,7 @@ function initUI() {
           }
 
           delete d.streaks[k];
+          d.teamInCa = detectTeamsInCa(d);
           saveStorage();
           refresh();
         };
@@ -240,23 +300,17 @@ function initUI() {
     catsContainer.appendChild(row);
   });
 
-  document.getElementById("offT").value = S.officers || "";
-  document.getElementById("solT").value = S.soldiers || "";
-  
-  const saveRoster = () => {
-    S.officers = document.getElementById("offT").value;
-    S.soldiers = document.getElementById("solT").value;
-    syncAccountsFromRosterStrings();
-    saveStorage();
-    document.getElementById("rmsg").textContent = `Đã lưu & đồng bộ tài khoản: ${parseNames(S.officers).length} sĩ quan, ${parseNames(S.soldiers).length} chiến sĩ nghĩa vụ.`;
-    refresh();
-  };
-  
-  ["offT", "solT"].forEach(id => {
-    ["input", "change", "keyup", "blur"].forEach(ev => {
-      document.getElementById(id).addEventListener(ev, saveRoster);
+  populateTeamTextareas();
+  for (let t = 1; t <= 4; t++) {
+    ["team" + t + "Off", "team" + t + "Sol"].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) {
+        ["input", "change", "keyup", "blur"].forEach(ev => {
+          el.addEventListener(ev, saveTeamsFromTextareas);
+        });
+      }
     });
-  });
+  }
 
   document.getElementById("prev").onclick = () => navigateDate(-1);
   document.getElementById("next").onclick = () => navigateDate(1);
@@ -319,7 +373,8 @@ function renderChips(el, arr, emptyText) {
     const span = document.createElement("span");
     span.className = "chip person-hover-link";
     span.style.cursor = "pointer";
-    span.textContent = n;
+    const tid = getPersonTeamId(n);
+    span.textContent = tid ? `${n} [Tổ ${tid}]` : n;
     span.onmouseenter = (ev) => showPersonnelHoverCard(ev, n);
     span.onmousemove = (ev) => movePersonnelHoverCard(ev);
     span.onmouseleave = () => hidePersonnelHoverCard();
@@ -340,15 +395,26 @@ function refresh() {
   fillDataList("dlS", sol);
   fillDataList("dlAll", [...off, ...sol]);
 
-  const absIn = [], wrong = [], consecutiveErrors = [];
+  const detectedTeams = detectTeamsInCa(day);
+  day.teamInCa = detectedTeams;
+  for (let ca = 0; ca < 4; ca++) {
+    const badgeEl = document.getElementById(`caTeamBadge_${ca}`);
+    if (badgeEl) badgeEl.textContent = `Tổ ${detectedTeams[ca] || (ca + 1)}`;
+  }
+
+  const absIn = [], wrong = [], consecutiveErrors = [], crossTeamErrors = [];
   const workingOfficers = {}, workingSoldiers = {}, allWorking = {};
 
   for (let k = 0; k < 60; k++) {
     const n = (day.cells[k] || "").trim();
     const cName = cleanName(n);
     const col = k % 5;
+    const caIdx = Math.floor(Math.floor(k / 5) / 3);
+    const expectedTeamId = detectedTeams[caIdx];
+
     let wg = false;
     let isCon = false;
+    let isWrongTeam = false;
 
     if (n) {
       allWorking[cName] = 1;
@@ -358,7 +424,7 @@ function refresh() {
       if (col === 0) {
         if (!oS[cName] && !oS[n]) {
           wg = true;
-          wrong.push(`${n} (Cột Đốc gác chỉ lấy từ Sĩ quan)`);
+          wrong.push(`${n} (Cột Đốc gác chỉ lấy từ Sĩ quan Đốc gác)`);
         }
       } else {
         if (!sS[cName] && !sS[n]) {
@@ -367,13 +433,19 @@ function refresh() {
         }
       }
 
+      const personTeamId = getPersonTeamId(n);
+      if (personTeamId && expectedTeamId && personTeamId !== expectedTeamId) {
+        isWrongTeam = true;
+        crossTeamErrors.push(`${n} thuộc Tổ ${personTeamId} nhưng đang xếp vào Ca ${caIdx + 1} của Tổ ${expectedTeamId}`);
+      }
+
       if (hasConsecutiveShift(day, n, k)) {
         isCon = true;
         consecutiveErrors.push(n);
       }
     }
 
-    const isBad = !!(n && (ab[cName] || ab[n] || wg || isCon));
+    const isBad = !!(n && (ab[cName] || ab[n] || wg || isCon || isWrongTeam));
     IN[k].classList.toggle("bad", isBad);
 
     SUP[k].style.visibility = n ? "visible" : "hidden";
@@ -388,8 +460,8 @@ function refresh() {
   renderChips(document.getElementById("listO"), restO, off.length ? "Không có ai." : "Nhập danh sách sĩ quan ở Phần 1.");
   renderChips(document.getElementById("listS"), restS, sol.length ? "Không có ai." : "Nhập danh sách chiến sĩ ở Phần 1.");
 
-  document.getElementById("cntO").textContent = off.length ? `(${restO.length} đồng chí)` : "";
-  document.getElementById("cntS").textContent = sol.length ? `(${restS.length} đồng chí)` : "";
+  document.getElementById("cntO").textContent = off.length ? `(${restO.length} đồng chí — mỗi Tổ có 2 Đốc gác nghỉ luân phiên)` : "";
+  document.getElementById("cntS").textContent = sol.length ? `(${restS.length} đồng chí — mỗi Tổ có 3 Chiến sĩ nghỉ xoay vòng)` : "";
 
   const gacOffCount = Object.keys(workingOfficers).length;
   const gacSolCount = Object.keys(workingSoldiers).length;
@@ -398,8 +470,8 @@ function refresh() {
 
   let absTotal = 0;
   const statCardsHtml = [
-    `<div class="stat-card"><span>🛡️ Đang gác (Tổng)</span><b>${gacTotal} người (${gacOffCount} SQ, ${gacSolCount} CS)</b></div>`,
-    `<div class="stat-card"><span>⛺ Trực cơ động tại đơn vị</span><b>${restTotal} người (${restO.length} SQ, ${restS.length} CS)</b></div>`
+    `<div class="stat-card"><span>🛡️ Đang gác (4 Tổ)</span><b>${gacTotal} người (${gacOffCount} Đốc gác, ${gacSolCount} Chiến sĩ)</b></div>`,
+    `<div class="stat-card"><span>⛺ Trực cơ động (Nghỉ tại Tổ)</span><b>${restTotal} người (${restO.length} SQ, ${restS.length} CS)</b></div>`
   ];
 
   CATS.forEach(c => {
@@ -416,7 +488,7 @@ function refresh() {
 
   document.getElementById("totalUnit").textContent = finalUnitTotal;
   document.getElementById("unitBreakdownSub").textContent =
-    `Biên chế: ${off.length} Sĩ quan + ${sol.length} Chiến sĩ nghĩa vụ | Đang gác: ${gacTotal} · Trực cơ động: ${restTotal} · Vắng/Nghỉ: ${absTotal}`;
+    `Biên chế 4 Tổ: ${off.length} Đốc gác (3 người/Tổ) + ${sol.length} Chiến sĩ (7 người/Tổ) | Đang gác: ${gacTotal} · Nghỉ xoay vòng: ${restTotal} · Vắng: ${absTotal}`;
   document.getElementById("detailedStatGrid").innerHTML = statCardsHtml.join("");
 
   const warnEl = document.getElementById("warn");
@@ -429,6 +501,9 @@ function refresh() {
     if (!n) continue;
     const cName = cleanName(n);
     const col = k % 5;
+    const caIdx = Math.floor(Math.floor(k / 5) / 3);
+    const expectedTeamId = detectedTeams[caIdx];
+    const personTeamId = getPersonTeamId(n);
 
     if (ab[cName] || ab[n]) {
       hasCriticalError = true;
@@ -441,11 +516,15 @@ function refresh() {
     if ((col === 0 && !oS[cName] && !oS[n]) || (col > 0 && !sS[cName] && !sS[n])) {
       hasCriticalError = true;
     }
+    if (personTeamId && expectedTeamId && personTeamId !== expectedTeamId) {
+      hasCriticalError = true;
+    }
   }
 
-  if (absIn.length) warnings.push("❌ BÁO ĐỎ: Người đang trong ngày nghỉ/vắng (phép, ốm, viện...) vẫn bị xếp lịch gác: " + Array.from(new Set(absIn)).join(", "));
-  if (consecutiveErrors.length) warnings.push("❌ BÁO ĐỎ: Có nhân sự làm 2 ca liền giờ nhau (trong ngày hoặc nối ca 4 đêm hôm trước sang ca 1 sáng hôm sau): " + Array.from(new Set(consecutiveErrors)).join(", "));
-  if (wrong.length) warnings.push("❌ BÁO ĐỎ SAI VỊ TRÍ: " + Array.from(new Set(wrong)).join(" | "));
+  if (absIn.length) warnings.push("❌ BÁO ĐỎ: Đồng chí đang trong danh sách nghỉ/vắng (phép, ốm, công tác...) vẫn bị xếp gác: " + Array.from(new Set(absIn)).join(", "));
+  if (consecutiveErrors.length) warnings.push("❌ BÁO ĐỎ: Có nhân sự làm 2 ca liền giờ nhau: " + Array.from(new Set(consecutiveErrors)).join(", "));
+  if (wrong.length) warnings.push("❌ BÁO ĐỎ SAI CHỨC DANH (Đốc gác không thay cho Chiến sĩ và ngược lại): " + Array.from(new Set(wrong)).join(" | "));
+  if (crossTeamErrors.length) warnings.push("❌ BÁO ĐỎ LẪN TỔ GÁC (Nhân sự chỉ thay thế trong cùng 1 Tổ cố định): " + Array.from(new Set(crossTeamErrors)).join(" | "));
 
   warnings.forEach(w => {
     const div = document.createElement("div");
@@ -497,10 +576,20 @@ function getFairnessScore(n, dStr) {
   return nightCount;
 }
 
-// Hàm cắt lịch cho 1 ngày tiếp theo từ sourceDate
+/* ==================== THUẬT TOÁN CẮT LỊCH THEO 4 TỔ CỐ ĐỊNH (TOUR GÁC) ====================
+ * 1. Mỗi Tổ (Tổ 1, Tổ 2, Tổ 3, Tổ 4) giữ nguyên đội hình và lùi ca mỗi ngày:
+ *    Ca 1 (0) -> Ca 4 (3) -> Ca 3 (2) -> Ca 2 (1) -> Ca 1 (0) (Công thức: destCa = (srcCa + 3) % 4).
+ * 2. Đốc gác (3 đồng chí/Tổ):
+ *    Mỗi đồng chí làm 1 ngày rồi luân phiên cho đồng chí tiếp theo trong cùng Tổ:
+ *    VD Tổ 1: Ngày 1 Vũ (Ca 1) -> Ngày 2 Nam (Ca 4) -> Ngày 3 Trình (Ca 3) -> Ngày 4 Vũ (Ca 2) -> Ngày 5 Nam (Ca 1)...
+ *    Nếu đồng chí đến lượt đang nghỉ phép/công tác/ốm, tự động nhảy sang đồng chí tiếp theo trong Tổ.
+ * 3. Chiến sĩ nghĩa vụ (7 đồng chí/Tổ):
+ *    Chỉ thay thế và xoay vọng nội bộ trong cùng Tổ (x9 -> x10 -> x11 -> x12 -> x9).
+ *    Đưa chiến sĩ đang nghỉ của Tổ đó vào thay cho các chiến sĩ có số ngày gác liên tục cao nhất trong Tổ.
+ *    Nếu có chiến sĩ nghỉ phép/ốm/công tác, các chiến sĩ còn lại trong Tổ tiếp tục xoay vòng đảm nhiệm cho đến khi đồng chí đó trở lại.
+ */
 function cutOneDayInternal(sourceDate) {
-  const off = parseNames(S.officers);
-  const sol = parseNames(S.soldiers);
+  if (!S.teams || S.teams.length < 4) S.teams = JSON.parse(JSON.stringify(DEFAULT_TEAMS));
   const src = getDayData(sourceDate);
   const tk = addDay(sourceDate, 1);
   const old = S.days[tk];
@@ -510,64 +599,110 @@ function cutOneDayInternal(sourceDate) {
     : JSON.parse(JSON.stringify(src.absent));
   const ab = absSet(tabs);
   const sw = workSet(src);
-  const idx = {};
-  off.concat(sol).forEach((n, i) => { idx[n] = i; });
 
-  function mkq(list) {
-    const q = list.filter(n => !ab[cleanName(n)] && !ab[n] && !sw[cleanName(n)] && !sw[n]);
-    const lw = {};
-    const fairness = {};
-    q.forEach(n => {
-      lw[n] = lastWorkedDate(n, tk);
-      fairness[n] = getFairnessScore(n, sourceDate);
-    });
-    q.sort((a, b) => {
-      if (fairness[a] !== fairness[b]) return fairness[a] - fairness[b];
-      return lw[a] < lw[b] ? -1 : lw[a] > lw[b] ? 1 : idx[a] - idx[b];
-    });
-    return q;
-  }
-
-  const qO = mkq(off);
-  const qS = mkq(sol);
-
-  // Xoay ca 4 -> 3 -> 2 -> 1 -> 4 (Lưu ý: người Ca 4 đêm hôm trước 04-06h sẽ sang Ca 3 ngày hôm sau 10-12h nên cách nhau 4 tiếng nghỉ, KHÔNG trùng vào Ca 1 06-08h!)
+  const srcTeamsInCa = detectTeamsInCa(src);
+  const nextTeamsInCa = [1, 2, 3, 4];
   const base20 = Array(20).fill("");
-  for (let i = 0; i < 4; i++) {
-    for (let c = 0; c < 5; c++) {
-      const p = (src.cells[(i * 3) * 5 + c] || "").trim();
-      const ni = (i + 3) % 4;
-      const nc = c === 0 ? 0 : (c === 4 ? 1 : c + 1);
-      base20[ni * 5 + nc] = p;
+
+  for (let srcCa = 0; srcCa < 4; srcCa++) {
+    const destCa = (srcCa + 3) % 4; // Ca 1->4, Ca 4->3, Ca 3->2, Ca 2->1
+    const teamId = srcTeamsInCa[srcCa] || (srcCa + 1);
+    nextTeamsInCa[destCa] = teamId;
+    const team = S.teams[teamId - 1] || S.teams[0];
+
+    // --- A. CHỌN ĐỐC GÁC TIẾP THEO TRONG CÙNG TỔ (LUÂN PHIÊN 1 NGÀY / NGƯỜI) ---
+    const teamOfficers = team.officers || [];
+    const prevOfficerRaw = (src.cells[(srcCa * 3) * 5 + 0] || "").trim();
+    const prevOffClean = cleanName(prevOfficerRaw).toLowerCase();
+
+    let prevOffIdx = teamOfficers.findIndex(o => cleanName(o).toLowerCase() === prevOffClean);
+    let chosenOfficer = "";
+
+    if (teamOfficers.length > 0) {
+      for (let step = 1; step <= teamOfficers.length; step++) {
+        const candIdx = (prevOffIdx + step) % teamOfficers.length;
+        const cand = teamOfficers[candIdx];
+        if (!ab[cleanName(cand)] && !ab[cand]) {
+          chosenOfficer = cand;
+          break;
+        }
+      }
+    }
+    base20[destCa * 5 + 0] = chosenOfficer;
+
+    // --- B. XOAY VÒNG & THAY THẾ CHIẾN SĨ NGHĨA VỤ NỘI BỘ TRONG CÙNG TỔ ---
+    const teamSoldiers = team.soldiers || [];
+    const soldierOrderIdx = {};
+    teamSoldiers.forEach((sName, idx) => { soldierOrderIdx[cleanName(sName)] = idx; });
+
+    // Hàng đợi các chiến sĩ trong Tổ đang nghỉ (không gác ngày hôm trước) và không vắng mặt
+    const restingSoldiers = teamSoldiers.filter(sName => {
+      const cn = cleanName(sName);
+      return !ab[cn] && !ab[sName] && !sw[cn] && !sw[sName];
+    });
+
+    // Sắp xếp người nghỉ trong Tổ: ưu tiên người nghỉ lâu nhất (lastWorkedDate xa nhất), sau đó theo thứ tự danh sách Tổ
+    const lwMap = {};
+    restingSoldiers.forEach(sName => { lwMap[sName] = lastWorkedDate(sName, tk); });
+    restingSoldiers.sort((a, b) => {
+      if (lwMap[a] !== lwMap[b]) return lwMap[a] < lwMap[b] ? -1 : 1;
+      return (soldierOrderIdx[cleanName(a)] || 0) - (soldierOrderIdx[cleanName(b)] || 0);
+    });
+
+    // Bước 1: Xoay vọng gác của 4 chiến sĩ ngày hôm trước trong Tổ (x9 -> x10 -> x11 -> x12 -> x9)
+    const rotatedVongs = ["", "", "", ""]; // tương ứng cột 1 (x9), 2 (x10), 3 (x11), 4 (x12)
+    for (let c = 1; c <= 4; c++) {
+      const prevSol = (src.cells[(srcCa * 3) * 5 + c] || "").trim();
+      const nextCol = (c === 4) ? 1 : (c + 1);
+      rotatedVongs[nextCol - 1] = prevSol;
+    }
+
+    // Bước 2: Nếu vị trí nào đang trống hoặc chiến sĩ đó bắt đầu nghỉ phép/ốm/công tác vào ngày mai -> thay ngay bằng người nghỉ trong Tổ
+    for (let v = 0; v < 4; v++) {
+      const curS = rotatedVongs[v];
+      const isAbs = curS && (ab[cleanName(curS)] || ab[curS]);
+      if (!curS || isAbs) {
+        if (restingSoldiers.length > 0) {
+          rotatedVongs[v] = restingSoldiers.shift();
+        } else if (isAbs) {
+          rotatedVongs[v] = "";
+        }
+      }
+    }
+
+    // Bước 3: Thay thế những chiến sĩ đã gác liên tục nhiều ngày nhất (số mũ cao nhất) trong Tổ bằng số người nghỉ còn lại trong Tổ
+    const workingSlots = [];
+    const streakBySlot = {};
+    for (let v = 0; v < 4; v++) {
+      const curS = rotatedVongs[v];
+      if (curS && (sw[cleanName(curS)] || sw[curS])) {
+        workingSlots.push(v);
+        streakBySlot[v] = calculateStreak(curS, sourceDate);
+      }
+    }
+    workingSlots.sort((a, b) => (streakBySlot[b] - streakBySlot[a]) || (a - b));
+
+    workingSlots.forEach(v => {
+      if (restingSoldiers.length > 0) {
+        rotatedVongs[v] = restingSoldiers.shift();
+      }
+    });
+
+    // Bước 4: Nếu vẫn còn vọng trống (do nhiều người đột xuất nghỉ cùng lúc), điền từ các chiến sĩ không vắng mặt trong Tổ chưa có trong 4 vọng
+    for (let v = 0; v < 4; v++) {
+      if (!rotatedVongs[v]) {
+        const usedClean = rotatedVongs.map(x => cleanName(x));
+        const fallback = teamSoldiers.find(sName => {
+          const cn = cleanName(sName);
+          return !ab[cn] && !ab[sName] && !usedClean.includes(cn);
+        });
+        if (fallback) rotatedVongs[v] = fallback;
+      }
+      base20[destCa * 5 + (v + 1)] = rotatedVongs[v];
     }
   }
 
-  for (let k = 0; k < 20; k++) {
-    const currentPerson = base20[k];
-    const isAbsent = currentPerson && (ab[cleanName(currentPerson)] || ab[currentPerson]);
-
-    if (isAbsent || !currentPerson) {
-      const q = (k % 5 === 0) ? qO : qS;
-      if (q.length) base20[k] = q.shift();
-      else if (isAbsent) base20[k] = "";
-    }
-  }
-
-  const order = [];
-  const streaksMap = {};
-  for (let k = 0; k < 20; k++) {
-    if (base20[k] && sw[cleanName(base20[k])]) {
-      order.push(k);
-      streaksMap[k] = calculateStreak(base20[k], sourceDate);
-    }
-  }
-  order.sort((a, b) => streaksMap[b] - streaksMap[a]);
-
-  order.forEach(k => {
-    const q = (k % 5 === 0) ? qO : qS;
-    if (q.length) base20[k] = q.shift();
-  });
-
+  // Nhân bản base20 xuống đủ 3 khung giờ của mỗi Ca (60 ô)
   const cells60 = Array(60).fill("");
   for (let ca = 0; ca < 4; ca++) {
     for (let col = 0; col < 5; col++) {
@@ -586,7 +721,13 @@ function cutOneDayInternal(sourceDate) {
     }
   });
 
-  S.days[tk] = { cells: cells60, absent: tabs, streaks: streaks, manualCredits: {} };
+  S.days[tk] = {
+    cells: cells60,
+    teamInCa: nextTeamsInCa,
+    absent: tabs,
+    streaks: streaks,
+    manualCredits: {}
+  };
   return tk;
 }
 
@@ -610,26 +751,34 @@ function generateSchedule() {
   }
 
   const abSrc = absSet(src.absent);
+  const detectedTeams = detectTeamsInCa(src);
   for (let k = 0; k < 60; k++) {
     const n = (src.cells[k] || "").trim();
     if (!n) continue;
     const cName = cleanName(n);
     const col = k % 5;
+    const caIdx = Math.floor(Math.floor(k / 5) / 3);
+    const expectedTeamId = detectedTeams[caIdx];
+    const personTeamId = getPersonTeamId(n);
 
     if (abSrc[cName] || abSrc[n]) {
-      alert(`Không thể cắt lịch: Có người đang nghỉ (${n}) nhưng lại có tên trong lịch gác ngày hôm nay!`);
+      alert(`Không thể cắt lịch: Đồng chí (${n}) đang trong danh sách nghỉ/vắng nhưng vẫn có tên trong lịch gác!`);
       return;
     }
     if (hasConsecutiveShift(src, n, k)) {
-      alert(`Không thể cắt lịch: Nhân sự (${n}) đang bị xếp 2 ca liền giờ nhau!`);
+      alert(`Không thể cắt lịch: Đồng chí (${n}) đang bị xếp 2 ca liền giờ nhau!`);
       return;
     }
     if (col === 0 && !oS[cName] && !oS[n]) {
-      alert(`Không thể cắt lịch: Vị trí Đốc gác (${n}) phải thuộc danh sách Sĩ quan!`);
+      alert(`Không thể cắt lịch: Vị trí Đốc gác (${n}) phải là Sĩ quan Đốc gác!`);
       return;
     }
     if (col > 0 && !sS[cName] && !sS[n]) {
-      alert(`Không thể cắt lịch: Vị trí Vọng gác (${n}) phải thuộc danh sách Chiến sĩ nghĩa vụ!`);
+      alert(`Không thể cắt lịch: Vị trí Vọng gác (${n}) phải là Chiến sĩ nghĩa vụ!`);
+      return;
+    }
+    if (personTeamId && expectedTeamId && personTeamId !== expectedTeamId) {
+      alert(`Không thể cắt lịch: Đồng chí (${n}) thuộc Tổ ${personTeamId} không được xếp lẫn sang Ca ${caIdx + 1} của Tổ ${expectedTeamId}!`);
       return;
     }
   }
@@ -639,10 +788,9 @@ function generateSchedule() {
   curDate = cutOneDayInternal(curDate);
   saveStorage();
   render();
-  alert(`✅ Cắt lịch thành công cho ngày ${vnFormat(curDate)}!`);
+  alert(`✅ Đã cắt lịch ngày ${vnFormat(curDate)} theo đúng Tour 4 Tổ cố định (Đốc gác luân phiên 1 ngày/người, Chiến sĩ xoay vòng nội bộ trong Tổ)!`);
 }
 
-// CẮT LỊCH TỰ ĐỘNG CẢ TUẦN (7 NGÀY LIÊN TIẾP)
 function generateWeekSchedule() {
   if (currentRole !== 'commander') {
     alert("Chỉ có Chỉ huy / Trưởng ban mới có quyền cắt lịch cả tuần!");
@@ -653,7 +801,7 @@ function generateWeekSchedule() {
     alert(`Hãy điền lịch gác gốc của ngày ${vnFormat(curDate)} trước khi cắt lịch 7 ngày.`);
     return;
   }
-  if (!confirm(`Hệ thống sẽ tự động cắt lịch xoay ca liên tiếp cho 7 ngày tiếp theo (từ ${vnFormat(addDay(curDate, 1))} đến ${vnFormat(addDay(curDate, 7))}). Tiếp tục?`)) return;
+  if (!confirm(`Hệ thống sẽ tự động cắt lịch theo Tour 4 Tổ cố định cho 7 ngày tiếp theo (từ ${vnFormat(addDay(curDate, 1))} đến ${vnFormat(addDay(curDate, 7))}). Tiếp tục?`)) return;
 
   let d = curDate;
   for (let step = 0; step < 7; step++) {
@@ -662,7 +810,7 @@ function generateWeekSchedule() {
   curDate = d;
   saveStorage();
   render();
-  alert(`⚡ Đã cắt lịch tự động hoàn chỉnh cho cả tuần (7 ngày)! Đang hiển thị ngày cuối tuần ${vnFormat(curDate)}.`);
+  alert(`⚡ Đã cắt lịch tự động theo Tour 4 Tổ cố định cho cả tuần (7 ngày)! Đang hiển thị ngày ${vnFormat(curDate)}.`);
 }
 
 window.onload = initUI;

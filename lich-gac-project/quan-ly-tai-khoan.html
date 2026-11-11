@@ -11,7 +11,7 @@
 <header class="top-navbar">
   <div class="brand-group">
     <span class="brand-logo">ĐỘI 3</span>
-    <span class="brand-title">TRUNG ĐOÀN 375 — HỆ THỐNG TRỰC BAN</span>
+    <span class="brand-title">TRUNG ĐOÀN — HỆ THỐNG TRỰC BAN</span>
   </div>
   <form class="search-box" onsubmit="executeGlobalSearch(event)">
     <span>🔍</span>
@@ -86,11 +86,19 @@
       </div>
       <div class="two">
         <div class="form-group">
-          <label>Nhóm cắt gác</label>
-          <select id="editRoleType">
-            <option value="soldier">Chiến sĩ nghĩa vụ (Gác Vọng x9, x10, x11, x12)</option>
-            <option value="officer">Sĩ quan (Gác Đốc gác 1)</option>
-          </select>
+          <label>Tổ biên chế cố định & Nhóm cắt gác</label>
+          <div style="display:flex;gap:6px;">
+            <select id="editTeamId" style="width:110px;">
+              <option value="1">Tổ 1</option>
+              <option value="2">Tổ 2</option>
+              <option value="3">Tổ 3</option>
+              <option value="4">Tổ 4</option>
+            </select>
+            <select id="editRoleType" style="flex:1;">
+              <option value="soldier">Chiến sĩ (Vọng x9–x12)</option>
+              <option value="officer">Sĩ quan (Đốc gác 1)</option>
+            </select>
+          </div>
         </div>
         <div class="form-group">
           <label>Chức vụ / Cấp bậc</label>
@@ -155,11 +163,19 @@
           </div>
           <div class="two">
             <div class="form-group">
-              <label>Nhóm cắt gác (*)</label>
-              <select id="accRoleType" onchange="onRoleTypeChange()">
-                <option value="soldier">Chiến sĩ nghĩa vụ (Gác Vọng x9, x10, x11, x12)</option>
-                <option value="officer">Sĩ quan (Gác Đốc gác 1)</option>
-              </select>
+              <label>Tổ cố định & Nhóm cắt gác (*)</label>
+              <div style="display:flex;gap:6px;">
+                <select id="accTeamId" style="width:105px;">
+                  <option value="1">Tổ 1</option>
+                  <option value="2">Tổ 2</option>
+                  <option value="3">Tổ 3</option>
+                  <option value="4">Tổ 4</option>
+                </select>
+                <select id="accRoleType" onchange="onRoleTypeChange()" style="flex:1;">
+                  <option value="soldier">Chiến sĩ (Vọng x9–x12)</option>
+                  <option value="officer">Sĩ quan (Đốc gác 1)</option>
+                </select>
+              </div>
             </div>
             <div class="form-group">
               <label>Chức vụ / Cấp bậc</label>
@@ -275,6 +291,7 @@
 
   function onRoleTypeChange() {
     const rt = document.getElementById("accRoleType").value;
+    const tid = parseInt(document.getElementById("accTeamId").value, 10) || 1;
     const posInp = document.getElementById("accPosition");
     if (rt === "officer" && posInp.value === "Chiến sĩ nghĩa vụ") {
       posInp.value = "Sĩ quan Đốc gác";
@@ -289,7 +306,7 @@
     document.getElementById("accPreviewUser").value = fn && cd ? formatFullAccountName(fn, cd) : (fn || "");
   }
 
-  function addOrUpdateSingleAccount(fullName, code, roleType, position, password, dob, hometown, customUsername) {
+  function addOrUpdateSingleAccount(fullName, code, roleType, position, password, dob, hometown, customUsername, teamId) {
     const fn = cleanName(fullName);
     const cd = (code || "").trim();
     if (!fn || !cd) return false; // Họ và tên & Mã số là bắt buộc
@@ -312,6 +329,7 @@
         fullName: fn,
         code: cd,
         roleType: roleType,
+        teamId: parseInt(teamId, 10) || 1,
         position: pos,
         username: uName,
         password: pw,
@@ -324,6 +342,7 @@
         fullName: fn,
         code: cd,
         roleType: roleType,
+        teamId: parseInt(teamId, 10) || 1,
         position: pos,
         username: uName,
         password: pw,
@@ -343,13 +362,14 @@
       return;
     }
     const rt = document.getElementById("accRoleType").value;
+    const tid = parseInt(document.getElementById("accTeamId").value, 10) || 1;
     const pos = document.getElementById("accPosition").value.trim();
     const dob = document.getElementById("accDob").value;
     const home = document.getElementById("accHometown").value.trim();
     const uName = document.getElementById("accPreviewUser").value.trim();
     const pw = document.getElementById("accPassword").value.trim() || "1";
 
-    if (addOrUpdateSingleAccount(fn, cd, rt, pos, pw, dob, home, uName)) {
+    if (addOrUpdateSingleAccount(fn, cd, rt, pos, pw, dob, home, uName, tid)) {
       syncRosterStringsFromAccounts();
       saveStorage();
       renderAccountsTable();
@@ -370,6 +390,7 @@
     document.getElementById("editFullName").value = acc.fullName || "";
     document.getElementById("editCode").value = acc.code || "";
     document.getElementById("editRoleType").value = acc.roleType || "soldier";
+    if (document.getElementById("editTeamId")) document.getElementById("editTeamId").value = acc.teamId || getPersonTeamId(acc.fullName) || 1;
     document.getElementById("editPosition").value = acc.position || "";
     document.getElementById("editDob").value = acc.dob || "2004-01-01";
     document.getElementById("editHometown").value = acc.hometown || "";
@@ -410,6 +431,7 @@
     acc.fullName = newFn;
     acc.code = newCd;
     acc.roleType = document.getElementById("editRoleType").value;
+    if (document.getElementById("editTeamId")) acc.teamId = parseInt(document.getElementById("editTeamId").value, 10) || 1;
     acc.position = document.getElementById("editPosition").value.trim() || (acc.roleType === "officer" ? "Sĩ quan Đốc gác" : "Chiến sĩ nghĩa vụ");
     acc.dob = document.getElementById("editDob").value || "2004-01-01";
     acc.hometown = document.getElementById("editHometown").value.trim() || "Chưa cập nhật";
@@ -581,8 +603,8 @@
       const safeLabel = fullLabel.replace(/'/g, "\'");
       const uName = a.username || fullLabel;
       const badge = a.roleType === "officer"
-        ? `<span style="background:#e8f5e9;color:#149a16;padding:3px 8px;border-radius:999px;font-weight:bold;font-size:11.5px;">⭐ Sĩ quan (Đốc gác)</span>`
-        : `<span style="background:#e3f2fd;color:#1976d2;padding:3px 8px;border-radius:999px;font-weight:bold;font-size:11.5px;">👤 Chiến sĩ (Vọng gác)</span>`;
+        ? `<span style="background:#e8f5e9;color:#149a16;padding:3px 8px;border-radius:999px;font-weight:bold;font-size:11.5px;">⭐ Đốc gác - Tổ ${a.teamId || 1}</span>`
+        : `<span style="background:#e3f2fd;color:#1976d2;padding:3px 8px;border-radius:999px;font-weight:bold;font-size:11.5px;">👤 Chiến sĩ - Tổ ${a.teamId || 1}</span>`;
 
       return `<tr>
         <td>${i + 1}</td>

@@ -1,6 +1,7 @@
 let S = {
   officers: "",
   soldiers: "",
+  teams: JSON.parse(JSON.stringify(DEFAULT_TEAMS)),
   days: {},
   swapRequests: [],
   accounts: { ...DEFAULT_COMMANDER_ACCOUNTS },
@@ -39,82 +40,133 @@ function formatFullAccountName(fullName, code) {
   return c && c !== "Chưa cấp" ? `${fn} (${c})` : fn;
 }
 
-// Đồng bộ từ danh sách S.personnelAccounts sang chuỗi S.officers và S.soldiers
+// Đồng bộ từ 4 Tổ (S.teams) sang S.officers, S.soldiers và S.personnelAccounts
+function syncFromTeamsToRosterAndAccounts() {
+  if (!S.teams || !Array.isArray(S.teams) || S.teams.length < 4) {
+    S.teams = JSON.parse(JSON.stringify(DEFAULT_TEAMS));
+  }
+  const allOff = [];
+  const allSol = [];
+  const existingMap = {};
+  (S.personnelAccounts || []).forEach(a => {
+    existingMap[cleanName(a.fullName).toLowerCase()] = a;
+  });
+
+  const updatedAccounts = [];
+  let sqCounter = 1;
+  let csCounter = 1;
+
+  S.teams.forEach((team, tIdx) => {
+    const teamId = tIdx + 1;
+    (team.officers || []).forEach(rawName => {
+      const fn = cleanName(rawName);
+      if (!fn) return;
+      let cd = extractCode(rawName);
+      const prev = existingMap[fn.toLowerCase()];
+      if (cd === "Chưa cấp") cd = (prev && prev.code && prev.code !== "Chưa cấp") ? prev.code : ("SQ" + pad(sqCounter));
+      sqCounter++;
+      const label = formatFullAccountName(fn, cd);
+      if (!allOff.includes(label)) allOff.push(label);
+
+      updatedAccounts.push({
+        id: prev ? prev.id : (Date.now() + Math.random()),
+        fullName: fn,
+        code: cd,
+        roleType: "officer",
+        teamId: teamId,
+        position: prev && prev.position ? prev.position : `Đốc gác - Tổ ${teamId}`,
+        username: prev && prev.username ? prev.username : label,
+        password: prev && prev.password ? prev.password : "1",
+        dob: prev && prev.dob ? prev.dob : "1994-05-19",
+        hometown: prev && prev.hometown ? prev.hometown : "Hà Nội"
+      });
+    });
+
+    (team.soldiers || []).forEach(rawName => {
+      const fn = cleanName(rawName);
+      if (!fn) return;
+      let cd = extractCode(rawName);
+      const prev = existingMap[fn.toLowerCase()];
+      if (cd === "Chưa cấp") cd = (prev && prev.code && prev.code !== "Chưa cấp") ? prev.code : ("CS" + pad(csCounter));
+      csCounter++;
+      const label = formatFullAccountName(fn, cd);
+      if (!allSol.includes(label)) allSol.push(label);
+
+      updatedAccounts.push({
+        id: prev ? prev.id : (Date.now() + Math.random()),
+        fullName: fn,
+        code: cd,
+        roleType: "soldier",
+        teamId: teamId,
+        position: prev && prev.position ? prev.position : `Chiến sĩ Vọng gác - Tổ ${teamId}`,
+        username: prev && prev.username ? prev.username : label,
+        password: prev && prev.password ? prev.password : "1",
+        dob: prev && prev.dob ? prev.dob : "2004-09-02",
+        hometown: prev && prev.hometown ? prev.hometown : "Hải Dương"
+      });
+    });
+
+    // Chuẩn hóa lại mảng tên có mã số trong team
+    team.officers = (team.officers || []).map(n => {
+      const acc = updatedAccounts.find(a => cleanName(a.fullName).toLowerCase() === cleanName(n).toLowerCase());
+      return acc ? formatFullAccountName(acc.fullName, acc.code) : n;
+    });
+    team.soldiers = (team.soldiers || []).map(n => {
+      const acc = updatedAccounts.find(a => cleanName(a.fullName).toLowerCase() === cleanName(n).toLowerCase());
+      return acc ? formatFullAccountName(acc.fullName, acc.code) : n;
+    });
+  });
+
+  S.officers = allOff.join("\n");
+  S.soldiers = allSol.join("\n");
+  S.personnelAccounts = updatedAccounts;
+}
+
+// Đồng bộ từ S.personnelAccounts ngược về S.teams và S.officers/S.soldiers
 function syncRosterStringsFromAccounts() {
   if (!S.personnelAccounts || !Array.isArray(S.personnelAccounts)) return;
+  if (!S.teams || S.teams.length < 4) {
+    S.teams = JSON.parse(JSON.stringify(DEFAULT_TEAMS));
+  }
+  for (let i = 0; i < 4; i++) {
+    S.teams[i].officers = [];
+    S.teams[i].soldiers = [];
+  }
+
   const offList = [];
   const solList = [];
   S.personnelAccounts.forEach(acc => {
     const label = formatFullAccountName(acc.fullName, acc.code);
+    const tIdx = Math.min(3, Math.max(0, (parseInt(acc.teamId, 10) || 1) - 1));
     if (acc.roleType === "officer") {
       if (!offList.includes(label)) offList.push(label);
+      if (!S.teams[tIdx].officers.includes(label)) S.teams[tIdx].officers.push(label);
     } else {
       if (!solList.includes(label)) solList.push(label);
+      if (!S.teams[tIdx].soldiers.includes(label)) S.teams[tIdx].soldiers.push(label);
     }
   });
   S.officers = offList.join("\n");
   S.soldiers = solList.join("\n");
 }
 
-// Đồng bộ từ S.officers và S.soldiers ngược vào S.personnelAccounts (nếu Chỉ huy thêm nhanh ở trang Quản lý lịch)
 function syncAccountsFromRosterStrings() {
-  if (!S.personnelAccounts) S.personnelAccounts = [];
-  const existingMap = {};
-  S.personnelAccounts.forEach(a => {
-    existingMap[formatFullAccountName(a.fullName, a.code).toLowerCase()] = a;
-  });
+  syncFromTeamsToRosterAndAccounts();
+}
 
-  const newAccounts = [];
-  parseNames(S.officers).forEach((item, idx) => {
-    const key = item.toLowerCase();
-    if (existingMap[key]) {
-      existingMap[key].roleType = "officer";
-      newAccounts.push(existingMap[key]);
-    } else {
-      const fn = cleanName(item);
-      let cd = extractCode(item);
-      if (cd === "Chưa cấp") cd = "SQ" + pad(idx + 1);
-      const uName = formatFullAccountName(fn, cd);
-      newAccounts.push({
-        id: Date.now() + Math.random(),
-        fullName: fn,
-        code: cd,
-        roleType: "officer",
-        position: "Sĩ quan Đốc gác",
-        username: uName,
-        password: "1",
-        dob: "1995-05-19",
-        hometown: "Hà Nội"
-      });
+// Tra cứu một quân nhân thuộc Tổ mấy (1..4)
+function getPersonTeamId(personName) {
+  const cName = cleanName(personName).toLowerCase();
+  if (!cName) return null;
+  if (S.teams && Array.isArray(S.teams)) {
+    for (let i = 0; i < S.teams.length; i++) {
+      const t = S.teams[i];
+      if ((t.officers || []).some(n => cleanName(n).toLowerCase() === cName)) return i + 1;
+      if ((t.soldiers || []).some(n => cleanName(n).toLowerCase() === cName)) return i + 1;
     }
-  });
-
-  parseNames(S.soldiers).forEach((item, idx) => {
-    const key = item.toLowerCase();
-    if (existingMap[key]) {
-      existingMap[key].roleType = "soldier";
-      newAccounts.push(existingMap[key]);
-    } else {
-      const fn = cleanName(item);
-      let cd = extractCode(item);
-      if (cd === "Chưa cấp") cd = "CS" + pad(idx + 1);
-      const uName = formatFullAccountName(fn, cd);
-      newAccounts.push({
-        id: Date.now() + Math.random(),
-        fullName: fn,
-        code: cd,
-        roleType: "soldier",
-        position: "Chiến sĩ nghĩa vụ",
-        username: uName,
-        password: "1",
-        dob: "2004-09-02",
-        hometown: "Hải Dương"
-      });
-    }
-  });
-
-  S.personnelAccounts = newAccounts;
-  syncRosterStringsFromAccounts();
+  }
+  const acc = (S.personnelAccounts || []).find(a => cleanName(a.fullName).toLowerCase() === cName);
+  return acc ? (acc.teamId || 1) : null;
 }
 
 function absSet(a) {
@@ -147,80 +199,63 @@ function toSet(a) {
 
 function seedDefaultDataIfEmpty() {
   const todayStr = fmtDate(new Date());
-  if (!S.officers && !S.soldiers && Object.keys(S.days).length === 0) {
-    S.officers = [
-      "Đại úy Nguyễn Văn An (SQ01)",
-      "Thượng úy Trần Minh Tuấn (SQ02)",
-      "Trung úy Lê Hoàng Nam (SQ03)",
-      "Trung úy Phạm Quốc Bảo (SQ04)",
-      "Thiếu úy Vũ Đức Thắng (SQ05)",
-      "Thiếu úy Đặng Tiến Dũng (SQ06)"
-    ].join("\n");
+  if (!S.days || Object.keys(S.days).length === 0) {
+    S.teams = JSON.parse(JSON.stringify(DEFAULT_TEAMS));
+    syncFromTeamsToRosterAndAccounts();
 
-    S.soldiers = [
-      "Bùi Văn Hùng (CS01)", "Đỗ Quang Hải (CS02)", "Hồ Sỹ Phúc (CS03)", "Lý Thành Long (CS04)",
-      "Mai Xuân Trường (CS05)", "Ngô Văn Khải (CS06)", "Nguyễn Đình Phong (CS07)", "Nguyễn Hữu Tài (CS08)",
-      "Nguyễn Mạnh Cường (CS09)", "Nguyễn Trọng Nghĩa (CS10)", "Nguyễn Văn Kiên (CS11)", "Nguyễn Việt Hoàng (CS12)",
-      "Phan Thanh Bình (CS13)", "Phùng Quốc Khánh (CS14)", "Tạ Minh Quân (CS15)", "Trần Đình Trọng (CS16)",
-      "Trần Quốc Tuấn (CS17)", "Trịnh Văn Quyết (CS18)", "Võ Minh Vương (CS19)", "Vương Đình Hiếu (CS20)",
-      "Đinh Công Phượng (CS21)", "Lê Văn Xuân (CS22)", "Nguyễn Tiến Linh (CS23)", "Hoàng Đức Thịnh (CS24)"
-    ].join("\n");
-
-    syncAccountsFromRosterStrings();
-
+    // Ngày 1 mặc định:
+    // Ca 1 = Tổ 1 (Đốc gác 1: Nguyễn Xuân Vũ, x9..x12: 4 chiến sĩ đầu của Tổ 1)
+    // Ca 2 = Tổ 2 (Đốc gác 1: Ứng Đình Dũng, x9..x12: 4 chiến sĩ đầu của Tổ 2)
+    // Ca 3 = Tổ 3 (Đốc gác 1: Nguyễn Văn Thụ, x9..x12: 4 chiến sĩ đầu của Tổ 3)
+    // Ca 4 = Tổ 4 (Đốc gác 1: Nguyễn Thanh Thủy, x9..x12: 4 chiến sĩ đầu của Tổ 4)
     const cells60 = Array(60).fill("");
-    const caOfficers = [
-      "Đại úy Nguyễn Văn An (SQ01)",
-      "Thượng úy Trần Minh Tuấn (SQ02)",
-      "Trung úy Lê Hoàng Nam (SQ03)",
-      "Trung úy Phạm Quốc Bảo (SQ04)"
-    ];
-    const caSoldiers = [
-      ["Bùi Văn Hùng (CS01)", "Đỗ Quang Hải (CS02)", "Hồ Sỹ Phúc (CS03)", "Lý Thành Long (CS04)"],
-      ["Mai Xuân Trường (CS05)", "Ngô Văn Khải (CS06)", "Nguyễn Đình Phong (CS07)", "Nguyễn Hữu Tài (CS08)"],
-      ["Nguyễn Mạnh Cường (CS09)", "Nguyễn Trọng Nghĩa (CS10)", "Nguyễn Văn Kiên (CS11)", "Nguyễn Việt Hoàng (CS12)"],
-      ["Phan Thanh Bình (CS13)", "Phùng Quốc Khánh (CS14)", "Tạ Minh Quân (CS15)", "Trần Đình Trọng (CS16)"]
-    ];
-
     for (let ca = 0; ca < 4; ca++) {
+      const team = S.teams[ca];
+      const docGac = team.officers[0] || "";
+      const vongs = team.soldiers.slice(0, 4);
       for (let slot = 0; slot < 3; slot++) {
         const row = ca * 3 + slot;
-        cells60[row * 5 + 0] = caOfficers[ca];
+        cells60[row * 5 + 0] = docGac;
         for (let c = 1; c < 5; c++) {
-          cells60[row * 5 + c] = caSoldiers[ca][c - 1];
+          cells60[row * 5 + c] = vongs[c - 1] || "";
         }
       }
     }
 
     S.days[todayStr] = {
       cells: cells60,
+      teamInCa: [1, 2, 3, 4], // Ca 1: Tổ 1, Ca 2: Tổ 2, Ca 3: Tổ 3, Ca 4: Tổ 4
       absent: {
-        phep: "Trần Quốc Tuấn (CS17), Trịnh Văn Quyết (CS18)",
-        congtac: "Thiếu úy Vũ Đức Thắng (SQ05), Võ Minh Vương (CS19)",
-        om: "Vương Đình Hiếu (CS20)",
-        om_tai_vien: "Đinh Công Phượng (CS21)",
-        nghibu: "Lê Văn Xuân (CS22)",
-        hoctap: "Nguyễn Tiến Linh (CS23)",
+        phep: "",
+        congtac: "",
+        om: "",
+        om_tai_vien: "",
+        nghibu: "",
+        hoctap: "",
         khac: ""
       },
       streaks: {},
       manualCredits: {}
     };
     saveStorage();
-  } else if (!S.personnelAccounts || S.personnelAccounts.length === 0) {
-    syncAccountsFromRosterStrings();
+  } else {
+    if (!S.teams || S.teams.length < 4) {
+      S.teams = JSON.parse(JSON.stringify(DEFAULT_TEAMS));
+    }
+    syncFromTeamsToRosterAndAccounts();
     saveStorage();
   }
 }
 
 function loadStorage() {
   try {
-    const raw = JSON.parse(localStorage.getItem(KEY) || localStorage.getItem("lich-gac-v10") || localStorage.getItem("lich-gac-v8") || localStorage.getItem("lich-gac-v4") || "null");
+    const raw = JSON.parse(localStorage.getItem(KEY) || "null");
     if (raw && raw.days) {
       S = raw;
       if (!S.swapRequests) S.swapRequests = [];
       if (!S.accounts) S.accounts = { ...DEFAULT_COMMANDER_ACCOUNTS };
       if (!S.personnelAccounts) S.personnelAccounts = [];
+      if (!S.teams || S.teams.length < 4) S.teams = JSON.parse(JSON.stringify(DEFAULT_TEAMS));
     }
   } catch (e) {
     console.error("Lỗi khi tải localStorage:", e);
@@ -238,7 +273,7 @@ function saveStorage() {
 
 function getDayData(d) {
   if (!S.days[d]) {
-    S.days[d] = { cells: Array(60).fill(""), absent: {}, streaks: {}, manualCredits: {} };
+    S.days[d] = { cells: Array(60).fill(""), teamInCa: [1, 2, 3, 4], absent: {}, streaks: {}, manualCredits: {} };
   }
   if (!S.days[d].cells || S.days[d].cells.length < 60) {
     const oldCells = S.days[d].cells || [];
@@ -255,7 +290,30 @@ function getDayData(d) {
   }
   if (!S.days[d].streaks) S.days[d].streaks = {};
   if (!S.days[d].manualCredits) S.days[d].manualCredits = {};
+  if (!S.days[d].teamInCa) S.days[d].teamInCa = detectTeamsInCa(S.days[d]);
   return S.days[d];
+}
+
+// Tự động nhận diện Tổ nào đang trực ở Ca nào (0..3) dựa vào tên Đốc gác hoặc Chiến sĩ trong Ca đó
+function detectTeamsInCa(day) {
+  const res = [1, 2, 3, 4];
+  if (!day || !day.cells) return res;
+  const used = {};
+  for (let ca = 0; ca < 4; ca++) {
+    let foundTeam = null;
+    for (let col = 0; col < 5; col++) {
+      const p = (day.cells[(ca * 3) * 5 + col] || "").trim();
+      if (p) {
+        const tid = getPersonTeamId(p);
+        if (tid) { foundTeam = tid; break; }
+      }
+    }
+    if (foundTeam) {
+      res[ca] = foundTeam;
+      used[foundTeam] = true;
+    }
+  }
+  return res;
 }
 
 function getSavedDatesHistory() {
@@ -280,7 +338,6 @@ function setCurrentUserLabel(label) {
   localStorage.setItem(USER_KEY, label || "");
 }
 
-// Kiểm tra đăng nhập Chiến sĩ / Sĩ quan: chỉ cho phép khi đã được Chỉ huy thêm vào S.personnelAccounts
 function authenticateSoldierLogin(inputUsername, inputPassword) {
   const uNorm = (inputUsername || "").trim().toLowerCase();
   const pNorm = (inputPassword || "").trim();
@@ -291,10 +348,9 @@ function authenticateSoldierLogin(inputUsername, inputPassword) {
     const fullLabel = formatFullAccountName(acc.fullName, acc.code).toLowerCase();
     const uAcc = (acc.username || fullLabel).trim().toLowerCase();
     const pass = (acc.password || "1").trim();
-
-    // Cho phép khớp chính xác "Tên (Mã số)" (ví dụ: "Bùi Văn Hùng (CS01)") hoặc khớp "Tên Mã số"
     const altLabel = `${cleanName(acc.fullName)} ${acc.code}`.trim().toLowerCase();
-    if ((uNorm === fullLabel || uNorm === uAcc || uNorm === altLabel) && pNorm === pass) {
+    const pureName = cleanName(acc.fullName).toLowerCase();
+    if ((uNorm === fullLabel || uNorm === uAcc || uNorm === altLabel || uNorm === pureName) && pNorm === pass) {
       return acc;
     }
   }
@@ -431,9 +487,8 @@ function restoreJSONData(event) {
       const parsed = JSON.parse(e.target.result);
       if (parsed && parsed.days) {
         S = parsed;
-        if (!S.personnelAccounts || !S.personnelAccounts.length) {
-          syncAccountsFromRosterStrings();
-        }
+        if (!S.teams || S.teams.length < 4) S.teams = JSON.parse(JSON.stringify(DEFAULT_TEAMS));
+        syncFromTeamsToRosterAndAccounts();
         saveStorage();
         alert("✅ Đã khôi phục dữ liệu hệ thống thành công!");
         window.location.reload();
@@ -497,8 +552,6 @@ function saveNewCommanderPassword(ev) {
   closePasswordModal();
 }
 
-
-// Tìm thông tin đầy đủ của quân nhân trong S.personnelAccounts theo tên hoặc mã số
 function findPersonnelAccount(nameOrLabel) {
   if (!nameOrLabel) return null;
   const raw = nameOrLabel.trim();
@@ -517,7 +570,6 @@ function findPersonnelAccount(nameOrLabel) {
   return null;
 }
 
-// Cập nhật đồng bộ tên/mã số mới của quân nhân trên toàn bộ lịch sử ngày gác và danh sách vắng khi Chỉ huy chỉnh sửa
 function cascadeUpdatePersonnelName(oldLabel, oldCleanName, newLabel) {
   if (!oldLabel || !newLabel || oldLabel === newLabel) return;
   Object.keys(S.days || {}).forEach(dStr => {
@@ -549,7 +601,6 @@ function cascadeUpdatePersonnelName(oldLabel, oldCleanName, newLabel) {
   });
 }
 
-// Khởi tạo Popover hiển thị đầy đủ thông tin quân nhân khi trỏ chuột (hover) vào tên quân nhân
 function ensurePersonnelHoverPopover() {
   let pop = document.getElementById("globalPersonnelPopover");
   if (!pop) {
@@ -564,14 +615,14 @@ function ensurePersonnelHoverPopover() {
 function showPersonnelHoverCard(ev, personIdentifier) {
   const pop = ensurePersonnelHoverPopover();
   const acc = findPersonnelAccount(personIdentifier);
-  const isCommander = (getCurrentRole() === "commander");
+  const teamId = getPersonTeamId(personIdentifier);
 
   const fullName = acc ? acc.fullName : cleanName(personIdentifier);
   const code = acc ? acc.code : extractCode(personIdentifier);
   const position = acc ? (acc.position || "Chiến sĩ nghĩa vụ") : "Quân nhân";
   const roleGroup = acc
-    ? (acc.roleType === "officer" ? "Sĩ quan (Đốc gác 1)" : "Chiến sĩ nghĩa vụ (Vọng x9–x12)")
-    : "Chưa phân nhóm";
+    ? `${acc.roleType === "officer" ? "Đốc gác (Sĩ quan)" : "Chiến sĩ Vọng gác"} — Tổ ${acc.teamId || teamId || 1}`
+    : (teamId ? `Tổ ${teamId}` : "Chưa phân tổ");
   const username = acc ? (acc.username || formatFullAccountName(fullName, code)) : formatFullAccountName(fullName, code);
   const password = acc ? (acc.password || "1") : "1";
   const dob = acc && acc.dob ? vnFormat(acc.dob) : "Chưa cập nhật";
@@ -583,15 +634,16 @@ function showPersonnelHoverCard(ev, personIdentifier) {
       <div class="pop-avatar">${initials}</div>
       <div class="pop-title-box">
         <h4>${fullName} (${code})</h4>
-        <span>ĐỘI 3 — TRUNG ĐOÀN · Click để mở trang hồ sơ đầy đủ</span>
+        <span>ĐỘI 3 — TỔ ${acc && acc.teamId ? acc.teamId : (teamId || 1)} · Click để mở hồ sơ</span>
       </div>
     </div>
     <div class="pop-row"><span class="pop-label">Họ và tên:</span><span class="pop-val">${fullName}</span></div>
     <div class="pop-row"><span class="pop-label">Mã số quân nhân:</span><span class="pop-val">${code}</span></div>
+    <div class="pop-row"><span class="pop-label">Tổ biên chế cố định:</span><span class="pop-val" style="color:var(--primary-green);">Tổ ${acc && acc.teamId ? acc.teamId : (teamId || 1)}</span></div>
     <div class="pop-row"><span class="pop-label">Chức vụ:</span><span class="pop-val">${position}</span></div>
     <div class="pop-row"><span class="pop-label">Nhóm cắt gác:</span><span class="pop-val">${roleGroup}</span></div>
     <div class="pop-row"><span class="pop-label">Tên TK đăng nhập:</span><span class="pop-val" style="color:var(--primary-green);">${username}</span></div>
-    <div class="pop-row"><span class="pop-label">Mật khẩu:</span><span class="pop-val">${isCommander ? password : password}</span></div>
+    <div class="pop-row"><span class="pop-label">Mật khẩu:</span><span class="pop-val">${password}</span></div>
     <div class="pop-row"><span class="pop-label">Ngày tháng năm sinh:</span><span class="pop-val">${dob}</span></div>
     <div class="pop-row"><span class="pop-label">Quê quán:</span><span class="pop-val">${hometown}</span></div>
   `;
@@ -606,7 +658,7 @@ function movePersonnelHoverCard(ev) {
   let x = ev.clientX + 16;
   let y = ev.clientY + 16;
   if (x + 350 > window.innerWidth) x = ev.clientX - 350;
-  if (y + 310 > window.innerHeight) y = Math.max(10, window.innerHeight - 320);
+  if (y + 330 > window.innerHeight) y = Math.max(10, window.innerHeight - 340);
   pop.style.left = x + "px";
   pop.style.top = y + "px";
 }

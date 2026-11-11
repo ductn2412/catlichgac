@@ -77,30 +77,56 @@
   </aside>
 
   <main class="main-workspace">
-    <!-- PHẦN 1: NHẬP DANH SÁCH QUÂN SỐ -->
+    <!-- PHẦN 1: DANH SÁCH BIÊN CHẾ 4 TỔ CỐ ĐỊNH THEO TOUR -->
     <section class="card roster">
-      <h2>Phần 1: Nhập danh sách quân số & Mã số (Định dạng: Tên (Mã số))</h2>
-      <div class="import-bar" id="importBarDiv">
-        <label class="btn-file">
-          📂 Nhập từ Excel/Word (Sĩ quan)
-          <input type="file" id="fileOff" accept=".xlsx, .xls, .docx, .doc" onchange="importFile(event, 'offT')">
-        </label>
-        <label class="btn-file">
-          📂 Nhập từ Excel/Word (Chiến sĩ)
-          <input type="file" id="fileSol" accept=".xlsx, .xls, .docx, .doc" onchange="importFile(event, 'solT')">
-        </label>
-      </div>
-      <div class="two">
-        <div>
-          <label for="offT"><b>Sĩ quan</b> — <i>Chỉ xếp vào cột Đốc gác 1</i> (VD: Đại úy Nguyễn Văn An (SQ01))</label>
-          <textarea id="offT" rows="4" placeholder="Nhập tên và mã số sĩ quan"></textarea>
-        </div>
-        <div>
-          <label for="solT"><b>Chiến sĩ nghĩa vụ</b> — <i>Chỉ xếp vào Vọng gác x9, x10, x11, x12</i> (VD: Bùi Văn Hùng (CS01))</label>
-          <textarea id="solT" rows="4" placeholder="Nhập tên và mã số chiến sĩ nghĩa vụ"></textarea>
+      <div class="bar" style="justify-content:space-between;margin-bottom:8px;">
+        <h2 style="margin:0;">Phần 1: Biên chế 4 Tổ Gác Cố Định Theo Tour (Đốc gác & Chiến sĩ thay thế nội bộ trong từng Tổ)</h2>
+        <div class="import-bar" id="importBarDiv" style="margin:0;">
+          <button type="button" class="sec" onclick="resetDefaultTourTeams()">🔄 Nạp danh sách 4 Tổ mặc định chuẩn</button>
         </div>
       </div>
-      <div class="rrow"><span id="rmsg"></span></div>
+      <p class="sub">
+        📌 <b>Quy tắc Tour cố định:</b> Mỗi Tổ (Tổ 1, Tổ 2, Tổ 3, Tổ 4) đi liền với nhau và lùi ca mỗi ngày (<b>Ca 1 → Ca 4 → Ca 3 → Ca 2 → Ca 1</b>).<br>
+        📌 <b>Luân phiên nội bộ từng Tổ:</b> 3 Đốc gác trong Tổ luân phiên 1 ngày/người; 7 Chiến sĩ trong Tổ xoay vòng thay thế nhau tại 4 vọng <code>x9, x10, x11, x12</code>. Khi có đồng chí vắng (phép, ốm, công tác...), các đồng chí còn lại <b>trong cùng Tổ</b> tự động gánh ca cho đến khi đồng chí đó trở lại.
+      </p>
+      <div class="two" id="teamsRosterGrid">
+        <!-- Tổ 1 -->
+        <div class="unit-summary-box" style="margin-bottom:0;">
+          <div style="font-weight:800;color:var(--primary-green);margin-bottom:6px;font-size:14.5px;">🛡️ TỔ 1 (3 Đốc gác + 7 Chiến sĩ)</div>
+          <label style="font-size:12px;font-weight:700;">Đốc gác Tổ 1 (Sĩ quan - Luân phiên 1 ngày/người):</label>
+          <textarea id="team1Off" rows="3" style="margin-bottom:6px;"></textarea>
+          <label style="font-size:12px;font-weight:700;">Chiến sĩ nghĩa vụ Tổ 1 (Xoay vòng x9, x10, x11, x12):</label>
+          <textarea id="team1Sol" rows="4"></textarea>
+        </div>
+        <!-- Tổ 2 -->
+        <div class="unit-summary-box" style="margin-bottom:0;">
+          <div style="font-weight:800;color:var(--primary-green);margin-bottom:6px;font-size:14.5px;">🛡️ TỔ 2 (3 Đốc gác + 7 Chiến sĩ)</div>
+          <label style="font-size:12px;font-weight:700;">Đốc gác Tổ 2 (Sĩ quan - Luân phiên 1 ngày/người):</label>
+          <textarea id="team2Off" rows="3" style="margin-bottom:6px;"></textarea>
+          <label style="font-size:12px;font-weight:700;">Chiến sĩ nghĩa vụ Tổ 2 (Xoay vòng x9, x10, x11, x12):</label>
+          <textarea id="team2Sol" rows="4"></textarea>
+        </div>
+        <!-- Tổ 3 -->
+        <div class="unit-summary-box" style="margin-bottom:0;">
+          <div style="font-weight:800;color:var(--primary-green);margin-bottom:6px;font-size:14.5px;">🛡️ TỔ 3 (3 Đốc gác + 7 Chiến sĩ)</div>
+          <label style="font-size:12px;font-weight:700;">Đốc gác Tổ 3 (Sĩ quan - Luân phiên 1 ngày/người):</label>
+          <textarea id="team3Off" rows="3" style="margin-bottom:6px;"></textarea>
+          <label style="font-size:12px;font-weight:700;">Chiến sĩ nghĩa vụ Tổ 3 (Xoay vòng x9, x10, x11, x12):</label>
+          <textarea id="team3Sol" rows="4"></textarea>
+        </div>
+        <!-- Tổ 4 -->
+        <div class="unit-summary-box" style="margin-bottom:0;">
+          <div style="font-weight:800;color:var(--primary-green);margin-bottom:6px;font-size:14.5px;">🛡️ TỔ 4 (3 Đốc gác + 7 Chiến sĩ)</div>
+          <label style="font-size:12px;font-weight:700;">Đốc gác Tổ 4 (Sĩ quan - Luân phiên 1 ngày/người):</label>
+          <textarea id="team4Off" rows="3" style="margin-bottom:6px;"></textarea>
+          <label style="font-size:12px;font-weight:700;">Chiến sĩ nghĩa vụ Tổ 4 (Xoay vòng x9, x10, x11, x12):</label>
+          <textarea id="team4Sol" rows="4"></textarea>
+        </div>
+      </div>
+      <!-- Hidden legacy textareas for compatibility -->
+      <textarea id="offT" style="display:none;"></textarea>
+      <textarea id="solT" style="display:none;"></textarea>
+      <div class="rrow" style="margin-top:8px;"><span id="rmsg" style="font-weight:700;color:var(--primary-green);"></span></div>
     </section>
 
     <!-- ĐĂNG KÝ VẮNG DÀI NGÀY (TỪ NGÀY - ĐẾN NGÀY) -->
