@@ -1,0 +1,11 @@
+lần 2: cấu trúc dự án
+ lich-gac-project/
+├── index.html            # Giao diện chính điều hành hệ thống
+├── css/
+│   └── style.css        # Giao diện tổng thể & cấu hình in ấn/xuất file
+├── js/
+│   ├── config.js         # Cấu hình ca gác & danh mục nghỉ/vắng mặt
+│   ├── storage.js        # Quản lý lưu trữ localStorage & lịch sử các ngày
+│   ├── export.js         # Xử lý xuất file PDF và Excel
+│   └── app.js            # Logic xử lý chính, cắt lịch xoay ca & cập nhật UI
+└── README.md             # Hướng dẫn cài đặt và sử dụng

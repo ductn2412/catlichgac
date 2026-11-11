@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Tra cứu Chiến sĩ & Ca gác - ĐỘI 3 Trung Đoàn</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<!-- TOP GREEN BAR -->
+<header class="top-navbar">
+  <div class="brand-group">
+    <span class="brand-logo">ĐỘI 3</span>
+    <span class="brand-title">TRUNG ĐOÀN — HỆ THỐNG TRỰC BAN</span>
+  </div>
+  <form class="search-box" onsubmit="executeGlobalSearch(event)">
+    <span>🔍</span>
+    <input type="text" id="globalSearchInput" placeholder="Tìm chiến sĩ (VD: Bùi Văn Hùng, CS01) hoặc ca gác (VD: Ca 1)...">
+    <button type="submit">Tìm kiếm</button>
+  </form>
+  <div class="top-actions">
+    <button class="icon-btn-top" onclick="window.location.href='so-truc.html'" title="Yêu cầu đổi ca">
+      🔔 Đổi ca <span id="pendingSwapCount" class="notif-badge">0</span>
+    </button>
+    <button class="icon-btn-top" id="btnChangePassTop" onclick="openPasswordModal()" title="Đổi mật khẩu Chỉ huy">🔑 Mật khẩu</button>
+    <span id="roleBadge" class="role-pill"></span>
+    <button class="btn-top-logout" onclick="window.location.href='index.html'">Đăng xuất</button>
+  </div>
+</header>
+
+<!-- SUB HEADER BAR -->
+<div class="sub-navbar">
+  <div class="sub-nav-left">
+    <div class="widget-tag"><span class="plus">+</span> ĐỘI 3</div>
+    <div class="active-module-title">TRA CỨU CHI TIẾT CHIẾN SĨ, SĨ QUAN & CA GÁC TRONG NGÀY</div>
+  </div>
+  <div></div>
+</div>
+
+<!-- MODAL ĐỔI MẬT KHẨU CHỈ HUY -->
+<div id="passwordModal" class="modal-backdrop">
+  <div class="modal-card">
+    <div class="modal-head">
+      <h3>🔑 Đổi mật khẩu tài khoản Chỉ huy</h3>
+      <button class="sec" onclick="closePasswordModal()">✕</button>
+    </div>
+    <form onsubmit="saveNewCommanderPassword(event)">
+      <div class="form-group">
+        <label>Tài khoản Chỉ huy cần đổi (chihuy / truongban / admin)</label>
+        <input type="text" id="cpUser" value="chihuy" required>
+      </div>
+      <div class="form-group">
+        <label>Mật khẩu hiện tại</label>
+        <input type="password" id="cpOld" required>
+      </div>
+      <div class="form-group">
+        <label>Mật khẩu mới</label>
+        <input type="password" id="cpNew" required>
+      </div>
+      <div class="login-actions">
+        <button type="button" class="sec" onclick="closePasswordModal()">Hủy</button>
+        <button type="submit" class="pri">Lưu mật khẩu mới</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="app-shell">
+  <aside class="left-sidebar">
+    <a href="dashboard.html" class="side-link" id="navDash"><span class="side-icon">📊</span><span>Màn hình Dashboard</span></a>
+    <a href="quan-ly-tai-khoan.html" class="side-link" id="navAccounts"><span class="side-icon">👥</span><span>Quản lý Tài khoản Quân nhân</span></a>
+    <a href="quan-ly-lich.html" class="side-link" id="navManage"><span class="side-icon">📋</span><span>Quản lý lập lịch</span></a>
+    <a href="lich-gac.html" class="side-link" id="navView"><span class="side-icon">📄</span><span>Trang hiển thị lịch gác</span></a>
+    <a href="cham-cong.html" class="side-link" id="navMonthly"><span class="side-icon">🗓️</span><span>Bảng chấm công tháng</span></a>
+    <a href="so-truc.html" class="side-link" id="navLog"><span class="side-icon">📓</span><span>Đăng ký & Duyệt đổi ca</span></a>
+    <a href="tim-kiem.html" class="side-link active" id="navSearch"><span class="side-icon">🔍</span><span>Tra cứu Chiến sĩ & Ca gác</span></a>
+  </aside>
+
+  <main class="main-workspace">
+    <!-- THANH TÌM KIẾM NHANH TRÊN TRANG -->
+    <section class="card">
+      <h2>🔍 Tra cứu Chiến sĩ, Sĩ quan hoặc Ca gác</h2>
+      <div class="bar">
+        <input type="text" id="localSearchInput" list="dlSearchSuggestions" placeholder="Nhập tên chiến sĩ (VD: Bùi Văn Hùng, CS01) hoặc tên ca (VD: Ca 1, Ca 2, Ca 3, Ca 4)..." style="flex:1;min-width:260px;">
+        <label style="font-size:13px;font-weight:600;">Ngày kiểm tra:</label>
+        <input type="date" id="searchDateInput" onchange="runSearchPage()">
+        <label style="font-size:13px;font-weight:600;">Tháng thống kê:</label>
+        <input type="month" id="searchMonthInput" onchange="runSearchPage()">
+        <button class="pri" onclick="runSearchPage()">🔍 Tìm kiếm ngay</button>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:12.5px;color:var(--muted);">
+        <span>Gợi ý tra cứu nhanh:</span>
+        <button class="sec" style="padding:3px 8px;font-size:12px;" onclick="quickSearch('Ca 1')">Ca 1 hôm nay</button>
+        <button class="sec" style="padding:3px 8px;font-size:12px;" onclick="quickSearch('Ca 2')">Ca 2 hôm nay</button>
+        <button class="sec" style="padding:3px 8px;font-size:12px;" onclick="quickSearch('Ca 3')">Ca 3 hôm nay</button>
+        <button class="sec" style="padding:3px 8px;font-size:12px;" onclick="quickSearch('Ca 4')">Ca 4 hôm nay</button>
+        <span id="quickSoldierButtons"></span>
+      </div>
+      <datalist id="dlSearchSuggestions"></datalist>
+    </section>
+
+    <!-- KẾT QUẢ TÌM KIẾM SẼ HIỂN THỊ TẠI ĐÂY -->
+    <div id="searchResultsContainer"></div>
+  </main>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/storage.js"></script>
+<script>
+  function initSearchPage() {
+    loadStorage();
+    updateTopBarShared();
+
+    const todayStr = fmtDate(new Date());
+    document.getElementById("searchDateInput").value = todayStr;
+    document.getElementById("searchMonthInput").value = todayStr.substring(0, 7);
+
+    const off = parseNames(S.officers);
+    const sol = parseNames(S.soldiers);
+    const all = [...off, ...sol];
+
+    const dl = document.getElementById("dlSearchSuggestions");
+    dl.innerHTML = "";
+    ["Ca 1", "Ca 2", "Ca 3", "Ca 4"].concat(all).forEach(item => {
+      const o = document.createElement("option");
+      o.value = item;
+      dl.appendChild(o);
+    });
+
+    // Hiển thị vài nút bấm nhanh tên chiến sĩ mẫu
+    const sampleBtns = all.slice(0, 5).map(n =>
+      `<button class="sec" style="padding:3px 8px;font-size:12px;" onclick="quickSearch('${cleanName(n)}')">${n}</button>`
+    ).join(" ");
+    document.getElementById("quickSoldierButtons").innerHTML = sampleBtns;
+
+    const params = new URLSearchParams(window.location.search);
+    const q = params.get("q") || "";
+    if (q) {
+      document.getElementById("globalSearchInput").value = q;
+      document.getElementById("localSearchInput").value = q;
+      runSearchPage();
+    } else if (all.length > 0) {
+      document.getElementById("localSearchInput").value = all[0];
+      runSearchPage();
+    }
+  }
+
+  function quickSearch(val) {
+    document.getElementById("localSearchInput").value = val;
+    document.getElementById("globalSearchInput").value = val;
+    runSearchPage();
+  }
+
+  function runSearchPage() {
+    const rawQ = (document.getElementById("localSearchInput").value || "").trim();
+    const dStr = document.getElementById("searchDateInput").value || fmtDate(new Date());
+    const mStr = document.getElementById("searchMonthInput").value || dStr.substring(0, 7);
+    const container = document.getElementById("searchResultsContainer");
+
+    if (!rawQ) {
+      container.innerHTML = `<div class="card"><p class="empty">Hãy nhập tên chiến sĩ, mã số hoặc tên ca gác (Ca 1, Ca 2, Ca 3, Ca 4) để xem chi tiết.</p></div>`;
+      return;
+    }
+
+    const qLower = rawQ.toLowerCase();
+
+    // KIỂM TRA NẾU NGƯỜI DÙNG TÌM KIẾM CA GÁC (VD: "ca 1", "ca 2", "ca 3", "ca 4", "ca")
+    const caMatch = qLower.match(/^ca\s*([1-4])?$/i) || qLower.match(/vọng\s*(x9|x10|x11|x12)/i);
+    if (caMatch) {
+      renderShiftSearchResult(rawQ, dStr, caMatch);
+      return;
+    }
+
+    // NẾU TÌM KIẾM CHIẾN SĨ / SĨ QUAN
+    const off = parseNames(S.officers);
+    const sol = parseNames(S.soldiers);
+    const all = [...off, ...sol];
+
+    const matchedPeople = all.filter(n => n.toLowerCase().includes(qLower) || cleanName(n).toLowerCase().includes(qLower));
+
+    if (matchedPeople.length === 0) {
+      // Nếu không khớp trong danh sách, vẫn cho phép tìm theo tên tự do
+      renderSoldierProfileResult(rawQ, dStr, mStr, false);
+    } else {
+      container.innerHTML = matchedPeople.map(person => buildSoldierProfileHTML(person, dStr, mStr)).join("<hr style='border:none;border-top:2px dashed var(--line);margin:24px 0;'>");
+    }
+  }
+
+  // 1. HIỂN THỊ KẾT QUẢ TÌM KIẾM CA GÁC HÔM NAY
+  function renderShiftSearchResult(queryText, dStr, caMatch) {
+    const day = getDayData(dStr);
+    const targetCaNum = caMatch[1] ? parseInt(caMatch[1], 10) : null;
+    const container = document.getElementById("searchResultsContainer");
+
+    let html = `<section class="card">
+      <div class="unit-total-header">
+        <span>🛡️ KẾT QUẢ TÌM KIẾM CA GÁC TRONG NGÀY ${vnFormat(dStr)} (${DOW[parseDate(dStr).getDay()]})</span>
+        <span class="unit-sub">Từ khóa: "${queryText}"</span>
+      </div>
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Ca gác</th>
+              <th>Khung giờ</th>
+              <th>Loại ca</th>
+              <th><b>Đốc gác 1</b>(Sĩ quan)</th>
+              <th><b>Vọng gác x9</b>(Chiến sĩ)</th>
+              <th><b>Vọng gác x10</b>(Chiến sĩ)</th>
+              <th><b>Vọng gác x11</b>(Chiến sĩ)</th>
+              <th><b>Vọng gác x12</b>(Chiến sĩ)</th>
+            </tr>
+          </thead>
+          <tbody>`;
+
+    CA.forEach((slots, caIdx) => {
+      if (targetCaNum && (caIdx + 1) !== targetCaNum) return;
+      slots.forEach((timeStr, slotIdx) => {
+        const rowIdx = caIdx * 3 + slotIdx;
+        const isNight = (slotIdx === 2);
+        html += `<tr style="${isNight ? 'background:#fff8e1;' : ''}">`;
+        if (slotIdx === 0) {
+          html += `<td rowspan="3" class="ca-title" style="font-size:15px;">Ca ${caIdx + 1}</td>`;
+        }
+        html += `<td class="slot-time"><b>${timeStr}</b></td>`;
+        html += `<td>${isNight ? '<span style="color:#e65100;font-weight:bold;">🌙 Ca đêm (22h-6h)</span>' : '<span style="color:var(--primary-green);font-weight:bold;">☀️ Ca ngày</span>'}</td>`;
+        for (let c = 0; c < 5; c++) {
+          const p = day.cells[rowIdx * 5 + c] || "-";
+          if (p !== "-") {
+            html += `<td>${renderPersonHoverLinkHTML(p)}</td>`;
+          } else {
+            html += `<td style="color:var(--muted);">Chưa xếp</td>`;
+          }
+        }
+        html += `</tr>`;
+      });
+    });
+
+    html += `</tbody></table></div></section>`;
+    container.innerHTML = html;
+  }
+
+  function renderSoldierProfileResult(person, dStr, mStr) {
+    document.getElementById("searchResultsContainer").innerHTML = buildSoldierProfileHTML(person, dStr, mStr);
+  }
+
+  // 2. HIỂN THỊ ĐẦY ĐỦ TRANG HỒ SƠ THÔNG TIN QUÂN NHÂN & LỊCH THÁNG KHI TÌM KIẾM / CLICK VÀO TÊN
+  function buildSoldierProfileHTML(personFull, dStr, mStr) {
+    const off = parseNames(S.officers);
+    const acc = findPersonnelAccount(personFull);
+    const isCommander = (getCurrentRole() === "commander");
+
+    const cName = acc ? acc.fullName : cleanName(personFull);
+    const code = acc ? acc.code : extractCode(personFull);
+    const isOfficer = acc ? (acc.roleType === "officer") : off.some(n => cleanName(n) === cName);
+    const position = acc ? (acc.position || (isOfficer ? "Sĩ quan Đốc gác" : "Chiến sĩ nghĩa vụ")) : (isOfficer ? "Sĩ quan Đốc gác" : "Chiến sĩ nghĩa vụ");
+    const roleGroup = isOfficer ? "Sĩ quan (Đốc gác 1)" : "Chiến sĩ nghĩa vụ (Vọng gác x9, x10, x11, x12)";
+    const username = acc ? (acc.username || formatFullAccountName(cName, code)) : formatFullAccountName(cName, code);
+    const password = acc ? (acc.password || "1") : "1";
+    const dob = acc && acc.dob ? vnFormat(acc.dob) : "Chưa cập nhật";
+    const hometown = acc && acc.hometown ? acc.hometown : "Chưa cập nhật";
+    const safeFull = formatFullAccountName(cName, code).replace(/'/g, "\'");
+
+    // A. Trạng thái ngày đang kiểm tra (hôm nay): Đang nghỉ hay đi làm, làm ca nào?
+    const todayDetails = getPersonDayWorkDetails(dStr, personFull);
+    let todayStatusBanner = "";
+
+    if (todayDetails.isAbsent) {
+      todayStatusBanner = `<div class="unit-summary-box" style="border-left-color:var(--bad);background:var(--badbg);">
+        <div class="unit-total-header" style="border-bottom:none;margin-bottom:0;padding-bottom:0;">
+          <span>🔴 TRẠNG THÁI NGÀY ${vnFormat(dStr)}: <strong style="color:var(--bad);">ĐANG NGHỈ / VẮNG MẶT (${todayDetails.absentLabel.toUpperCase()} - Mã: ${todayDetails.absentCode})</strong></span>
+          <span class="unit-sub">Số công ngày ${vnFormat(dStr)}: 0 công</span>
+        </div>
+      </div>`;
+    } else if (todayDetails.totalSlots > 0) {
+      const creditText = todayDetails.credit === 0.5
+        ? "0,5 công (Do chỉ làm 2 ca ngày hoặc 1 ca đêm 22h-06h)"
+        : "1,0 công (Làm đủ ca tiêu chuẩn)";
+      todayStatusBanner = `<div class="unit-summary-box">
+        <div class="unit-total-header">
+          <span>🟢 TRẠNG THÁI NGÀY ${vnFormat(dStr)}: <strong>ĐANG ĐI LÀM (GÁC TRỰC)</strong> — Tổng ${todayDetails.totalSlots} khung giờ (${todayDetails.dayShifts} ca ngày, ${todayDetails.nightShifts} ca đêm)</span>
+          <span class="unit-sub" style="color:var(--primary-green);font-size:14px;">Tính công: <b>${creditText}</b></span>
+        </div>
+        <div class="scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>STT</th>
+                <th>Ca gác</th>
+                <th>Khung giờ</th>
+                <th>Phân loại ca</th>
+                <th>Vị trí gác</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${todayDetails.shiftsDetail.map((sh, idx) => `
+                <tr>
+                  <td>${idx + 1}</td>
+                  <td><b>Ca ${sh.ca}</b></td>
+                  <td><b>${sh.time}</b></td>
+                  <td>${sh.isNight ? '<span style="color:#e65100;font-weight:bold;">🌙 Ca đêm (22h–06h sáng)</span>' : '<span style="color:var(--primary-green);font-weight:bold;">☀️ Ca ngày</span>'}</td>
+                  <td><b>${sh.position}</b></td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </div>
+      </div>`;
+    } else {
+      todayStatusBanner = `<div class="unit-summary-box" style="border-left-color:#ff9800;background:#fff8e1;">
+        <div class="unit-total-header" style="border-bottom:none;margin-bottom:0;padding-bottom:0;">
+          <span>🟠 TRẠNG THÁI NGÀY ${vnFormat(dStr)}: <strong style="color:#e65100;">NGHỈ TẠI ĐƠN VỊ (TRỰC CƠ ĐỘNG)</strong> — Không có ca gác trong bảng lịch</span>
+          <span class="unit-sub">Sẵn sàng cơ động nhận nhiệm vụ</span>
+        </div>
+      </div>`;
+    }
+
+    // B. Tính toán toàn bộ lịch sử tháng hiện tại (mStr) của chiến sĩ
+    const [year, month] = mStr.split("-").map(Number);
+    const daysInMonth = new Date(year, month, 0).getDate();
+
+    let monthTotalCredits = 0;
+    let monthWorkDaysCount = 0;
+    let monthHalfCreditDays = 0;
+    let monthFullCreditDays = 0;
+    let monthNightShiftsCount = 0;
+    let monthLeaveDaysCount = 0;
+    let monthRestUnitDays = 0;
+
+    let monthlyRowsHtml = "";
+
+    for (let d = 1; d <= daysInMonth; d++) {
+      const curDStr = `${year}-${pad(month)}-${pad(d)}`;
+      const dowName = DOW[parseDate(curDStr).getDay()];
+      const det = getPersonDayWorkDetails(curDStr, personFull);
+
+      let statusCell = "";
+      let shiftsCell = "";
+      let creditCell = "0";
+      let rowStyle = "";
+
+      if (det.isAbsent) {
+        monthLeaveDaysCount++;
+        rowStyle = "background:#fce8e6;";
+        statusCell = `<span style="color:var(--bad);font-weight:bold;">🔴 Nghỉ: ${det.absentLabel} (${det.absentCode})</span>`;
+        shiftsCell = `<i>Vắng mặt (${det.absentLabel}) — Không xếp gác</i>`;
+        creditCell = `<b style="color:var(--bad);">0 công (${det.absentCode})</b>`;
+      } else if (det.totalSlots > 0) {
+        monthWorkDaysCount++;
+        monthTotalCredits += det.credit;
+        monthNightShiftsCount += det.nightShifts;
+        if (det.credit === 0.5) {
+          monthHalfCreditDays++;
+          rowStyle = "background:#fff8e1;";
+          creditCell = `<b style="color:#e65100;">0,5 công</b> <span style="font-size:11px;color:var(--muted);">(${det.dayShifts} ca ngày, ${det.nightShifts} ca đêm)</span>`;
+        } else {
+          monthFullCreditDays++;
+          rowStyle = "background:#e8f5e9;";
+          creditCell = `<b style="color:var(--primary-green);">1,0 công (X)</b>`;
+        }
+        statusCell = `<span style="color:var(--primary-green);font-weight:bold;">🟢 Đi làm (Gác)</span>`;
+        shiftsCell = det.shiftsDetail.map(s =>
+          `<b>Ca ${s.ca}</b> (${s.time} - ${s.position}${s.isNight ? ' - 🌙 Ca đêm' : ''})`
+        ).join(" · ");
+      } else {
+        monthRestUnitDays++;
+        statusCell = `<span style="color:#666;font-weight:600;">⛺ Nghỉ / Trực cơ động tại đơn vị</span>`;
+        shiftsCell = `<span style="color:var(--muted);">Trực cơ động tại đơn vị (Không có ca gác)</span>`;
+        creditCell = `<span>0 công (Nghỉ)</span>`;
+      }
+
+      monthlyRowsHtml += `
+        <tr style="${rowStyle}">
+          <td><b>${vnFormat(curDStr)}</b></td>
+          <td>${dowName}</td>
+          <td style="text-align:left;">${statusCell}</td>
+          <td style="text-align:left;">${shiftsCell}</td>
+          <td>${creditCell}</td>
+        </tr>
+      `;
+    }
+
+    const editBtnHtml = isCommander
+      ? `<button class="pri" onclick="window.location.href='quan-ly-tai-khoan.html'">✏️ Chỉnh sửa thông tin quân nhân (Chỉ huy)</button>`
+      : `<span style="font-size:12px;color:var(--muted);">🔒 Thông tin hồ sơ do Chỉ huy Đội 3 nhập và quản lý</span>`;
+
+    return `
+      <!-- PHẦN A: TRANG HIỂN THỊ ĐẦY ĐỦ THÔNG TIN HỒ SƠ QUÂN NHÂN -->
+      <section class="card">
+        <div class="bar" style="justify-content:space-between;">
+          <h2 style="margin:0;">1️⃣ Trang Hồ Sơ Chi Tiết Quân Nhân — ${cName} (${code})</h2>
+          ${editBtnHtml}
+        </div>
+        <div class="scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Họ và tên (*)</th>
+                <th>Mã số quân nhân (*)</th>
+                <th>Chức vụ</th>
+                <th>Nhóm cắt gác</th>
+                <th>Tên tài khoản đăng nhập</th>
+                <th>Mật khẩu</th>
+                <th>Ngày tháng năm sinh</th>
+                <th>Quê quán</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><b style="font-size:15px;color:var(--primary-green);">${cName}</b></td>
+                <td><b>${code}</b></td>
+                <td><b>${position}</b></td>
+                <td>${roleGroup}</td>
+                <td><code style="background:var(--bg);padding:3px 6px;border-radius:4px;font-weight:bold;color:var(--primary-green);">${username}</code></td>
+                <td><b>${password}</b></td>
+                <td><b>${dob}</b></td>
+                <td><b>${hometown}</b></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="stat-grid" style="margin-top:12px;">
+          <div class="stat-card"><span>🗓️ Tổng ngày đi gác (Tháng ${month}/${year})</span><b>${monthWorkDaysCount} ngày (${monthFullCreditDays} đủ, ${monthHalfCreditDays} nửa công)</b></div>
+          <div class="stat-card"><span>⭐ Tổng điểm công tháng</span><b>${monthTotalCredits.toString().replace('.', ',')} công</b></div>
+          <div class="stat-card"><span>🌙 Số ca đêm (22h–06h)</span><b>${monthNightShiftsCount} ca đêm</b></div>
+          <div class="stat-card"><span>📌 Số ngày vắng / Trực cơ động</span><b>${monthLeaveDaysCount} vắng · ${monthRestUnitDays} cơ động</b></div>
+        </div>
+      </section>
+
+      <!-- PHẦN B: TRẠNG THÁI HÔM NAY ĐANG NGHỈ HAY ĐI LÀM, LÀM CA NÀO -->
+      <section class="card">
+        <h2>2️⃣ Trạng Thái Ngày ${vnFormat(dStr)} — ${cName} (${code})</h2>
+        ${todayStatusBanner}
+      </section>
+
+      <!-- PHẦN C: BẢNG THÔNG TIN THÁNG HIỆN TẠI CHI TIẾT TỪNG NGÀY -->
+      <section class="card">
+        <h2>3️⃣ Bảng Chi Tiết Tháng ${month}/${year} Của ${cName} (${code}) (Làm ngày nào, Ca nào, Nghỉ ngày nào)</h2>
+        <div class="scroll">
+          <table>
+            <thead>
+              <tr>
+                <th style="width:110px;">Ngày</th>
+                <th style="width:95px;">Thứ</th>
+                <th style="width:220px;">Trạng thái (Đi làm / Nghỉ)</th>
+                <th>Chi tiết Ca gác / Lý do vắng mặt trong ngày</th>
+                <th style="width:180px;">Tính công</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${monthlyRowsHtml}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    `;
+  }
+
+  window.onload = initSearchPage;
+</script>
+</body>
+</html>

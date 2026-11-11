@@ -1,0 +1,57 @@
+Để nâng cấp hệ thống của **ĐỘI 3 Trung Đoàn** từ một công cụ lập lịch tốt thành một phần mềm quản lý trực ban quân sự chuyên nghiệp, khép kín và sát thực tế vận hành tại đơn vị, bạn nên sửa chữa một số điểm giới hạn kỹ thuật hiện tại và bổ sung các nhóm tính năng sau:
+
+**1. Những điểm cần khắc phục và tinh chỉnh ngay (Sửa lỗi logic)**
+
+* **Kiểm tra trùng ca giao ngày (Ca 4 đêm hôm trước và Ca 1 sáng hôm sau):** Hiện tại hệ thống mới kiểm tra 2 ca liền giờ nhau trong cùng 1 ngày. Tuy nhiên, nếu một chiến sĩ vừa gác khung giờ `04:00 – 06:00` sáng (cuối Ca 4 ngày hôm trước) mà ngày hôm sau lại bị xếp vào khung giờ `06:00 – 08:00` sáng (đầu Ca 1 ngày mới) thì thực tế vẫn là gác 4 tiếng liên tục từ 4h đến 8h sáng. Cần bổ sung kiểm tra nối tiếp giữa ngày $D-1$ và ngày $D$.
+
+
+* **Đồng bộ chính xác từ Bảng chấm công ngược về Bảng lịch gác:** Trong tệp `cham-cong.html`, khi Chỉ huy gõ chữ `X` vào một ngày trống của quân nhân, hệ thống đang tự động điền tên người đó vào ô trống đầu tiên tìm thấy trong mảng 60 ô (`emptyIdx`) mà chưa phân biệt người đó là **Sĩ quan** (chỉ được vào cột Đốc gác) hay **Chiến sĩ** (chỉ được vào 4 cột Vọng gác). Cần sửa lại để khi gõ `X` ở bảng chấm công, Sĩ quan chỉ được điền vào cột 0 và Chiến sĩ chỉ vào cột 1–4.
+
+
+* **Sao lưu và Khôi phục dữ liệu gốc (Backup / Restore JSON):** Toàn bộ dữ liệu hiện đang lưu trong `localStorage` của trình duyệt. Nếu máy tính tại phòng trực bị xóa lịch sử duyệt web hoặc cài lại Win, dữ liệu các tháng sẽ mất. Cần có nút **"Sao lưu dữ liệu (.json)"** và **"Khôi phục dữ liệu"** để lưu trữ an toàn trong ổ cứng.
+
+
+
+**2. Các chức năng nghiệp vụ nên bổ sung thêm**
+
+* **Luồng "Đăng ký đổi ca / Báo bận" thực sự cho Chiến sĩ:** Ở màn hình đăng nhập đã ghi Chiến sĩ có quyền xem và đăng ký đổi ca, nhưng hiện tại tài khoản Chiến sĩ mới chỉ dừng ở mức khóa các ô nhập liệu (chỉ xem). Bạn nên thêm nút **"Đề xuất đổi ca"** bên cạnh ca gác của chiến sĩ:
+
+
+* Chiến sĩ chọn ca của mình $\rightarrow$ chọn đồng đội muốn đổi $\rightarrow$ nhập lý do.
+* Khi Chỉ huy đăng nhập vào `dashboard.html`, sẽ có thông báo (biểu tượng quả chuông trên thanh màu xanh) hiển thị yêu cầu đổi ca, Chỉ huy bấm **"Duyệt"** là hệ thống tự động hoán đổi vị trí của 2 người.
+
+
+
+
+* **Quản lý Vắng mặt theo khoảng thời gian (Từ ngày – Đến ngày):** Thực tế khi quân nhân đi phép, đi viện hoặc đi học thường kéo dài từ 3 đến 15 ngày. Thay vì mỗi ngày Chỉ huy phải gõ lại tên người đó vào ô Nghỉ phép/Ốm viện, hãy thêm bảng **"Đăng ký vắng dài ngày"** (Chọn tên $\rightarrow$ Chọn trạng thái `P`, `OV`, `CT`, `H` $\rightarrow$ Chọn từ ngày A đến ngày B). Hệ thống sẽ tự động điền trạng thái vắng cho tất cả các ngày đó và gạch tên khỏi danh sách cắt lịch tự động.
+
+
+* **Cắt lịch tự động theo Tuần (7 ngày) hoặc theo Tháng:** Ngoài nút *"Cắt lịch ngày mai"*, nên có thêm nút **"Cắt lịch cả tuần (7 ngày)"** để Chỉ huy có thể lập kế hoạch trực ban trước cho cả tuần chỉ với 1 cú nhấp chuột.
+
+
+* **Thống kê chi tiết sự công bằng (Đếm số ca đêm & cuối tuần trong tháng):** Ở cuối bảng `cham-cong.html`, bên cạnh cột *"Tổng ngày làm (X)"*, nên thêm 3 cột thống kê cực kỳ hữu ích cho đơn vị:
+
+
+* **Số ca đêm đã gác** (tính các khung giờ từ `22:00` đến `06:00` sáng).
+
+
+* **Số ca Thứ Bảy / Chủ Nhật.**
+* **Tổng số ngày nghỉ (`P`, `O`, `OV`, `NB`).**
+
+
+* **Sổ Bàn Giao Ca Gác & Nhật Ký Trực Ban (Thêm 1 mục trên menu trái):** Trong quân đội, mỗi khi hết ca gác phải có bàn giao vũ khí, công cụ hỗ trợ, chìa khóa và tình hình an ninh tại các vọng gác x9, x10, x11, x12. Thêm mục **"Sổ trực & Bàn giao"** giúp ghi nhận: *Tình hình ca gác (Bình thường / Có sự cố), Số lượng súng/đạn bàn giao, Người giao, Người nhận*.
+
+
+* **Biểu mẫu In chuẩn Quân đội (Quốc hiệu, Tiêu ngữ & Chữ ký Chỉ huy):** Khi bấm nút **"In lịch"** hoặc **"Xuất PDF"**, bản in tự động bổ sung phần đầu trang gồm *Quốc hiệu - Tiêu ngữ, Tên đơn vị (Trung đoàn... / Đội 3)*, và phần chân trang có sẵn khung ***"Chỉ huy Đội ký duyệt"*** kèm ngày tháng năm để in ra đóng dấu đỏ dùng được ngay.
+
+
+* **Quản lý Đổi mật khẩu Chỉ huy trên giao diện:** Hiện tại tài khoản và mật khẩu (`chihuy` / `doi3`) đang cố định trong file `config.js`. Nên thêm một nút cài đặt nhỏ trên thanh công cụ để Chỉ huy tự đổi mật khẩu của mình ngay trên web.
+
+
+thêm phần khi tìm kiếm chiến sĩ, ca gác sau khi bấm tìm kiếm thì sẽ hiển thị:
+nếu tìm kiếm chiến sĩ:
+- trang thông tin quân quân đang nghỉ hay đi làm, làm ca nào,
+- bảng thông tin của chiến sĩ,
+- bảng thông tin tháng hiện tại của chiến sĩ làm những ngày nào, những ngày đó làm ca nào, nghỉ ngày nào ngày nào làm gì hiển thị rõ 
+nếu tìm kiếm ca gác :
+- hiển thị ca gác muốn tìm kiếm ngày hôm nay

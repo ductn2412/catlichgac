@@ -1,0 +1,32 @@
+LẦN 6
+Chống gác 2 ca liên tục (Báo đỏ & Chặn cắt lịch):
+
+Nếu bất kỳ nhân sự nào bị xếp 2 ca gác liên tiếp liền nhau trong cùng một ngày, hệ thống sẽ báo đỏ ngay lập tức cả 2 ô, hiển thị cảnh báo đỏ và tự động vô hiệu hóa nút "Cắt lịch ngày mai" để đảm bảo tuân thủ nghiêm ngặt quy định nghỉ ngơi.
+
+Kiểm tra chặt chẽ ngày nghỉ / vắng mặt:
+
+Bất kỳ quân nhân nào đang nằm trong danh sách nghỉ (Phép, Công tác, ốm tại nhà, Ốm tại viện, Học tập, Nghỉ bù...) tuyệt đối không thể được xếp vào lịch gác đi làm. Nếu có tên trong lịch, hệ thống sẽ báo đỏ và khóa chức năng cắt lịch.
+
+Mã số định danh quân nhân:
+
+Hỗ trợ định dạng nhập tên kèm mã số (Ví dụ: Nguyễn Văn A (SQ01) hoặc Trần Văn B (CS01)), nhập thủ công hoặc tải lên từ tệp Excel/Word.
+
+Bổ sung danh mục "Ốm tại viện":
+
+Thêm trạng thái "Ốm tại viện" (ký hiệu OV) vào phần ghi chú trực cơ động cũng như bảng chấm công tháng.
+
+Tính công bằng & Phân bổ ca đêm / cuối tuần:
+
+Thuật toán cắt lịch tự động tính toán lịch sử gác trong 7 ngày gần nhất để ưu tiên phân bổ công bằng số lượng ca đêm (Ca 3, Ca 4) và ca ngày cuối tuần giữa các nhân sự, tránh tình trạng dồn việc cho một người.
+
+Phân quyền và Bảo mật (Chỉ huy & Nhân viên):
+
+Thêm thanh chọn phân quyền ở góc trên giao diện:
+
+⭐ Chỉ huy / Trưởng ban: Có toàn quyền nhập quân số, cắt lịch, chỉnh sửa bảng gác và chấm công.
+
+👤 Nhân viên / Chiến sĩ: Chỉ có quyền xem lịch và xem bảng chấm công (các ô chỉnh sửa bị khóa để đảm bảo bảo mật).
+
+Trang Hiển Thị Lịch Gác với Bộ Chọn Ngày:
+
+Tab "Trang Hiển Thị Lịch Gác" được bổ sung ô chọn ngày linh hoạt (<input type="date">), cho phép bạn dễ dàng chọn xem bảng lịch gác chi tiết của bất kỳ ngày nào và in ấn nhanh chóng.
