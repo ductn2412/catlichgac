@@ -653,20 +653,72 @@ function pickOfficerForTeam(team, teamId, prevDay, ab, dateStr) {
   return "";
 }
 
+// Chọn 4/7 chiến sĩ của Tổ theo lịch sử để đảm bảo công bằng:
+// - Ưu tiên người vừa nghỉ hôm qua (chưa làm ngày nào liên tiếp).
+// - Sau đó ưu tiên người ít ngày gác trong 7 ngày gần nhất / nghỉ lâu hơn.
+// - Nếu phải giữ người làm tiếp thì giữ người "mũ 1" trước "mũ 2".
 function pickSoldiersForTeam(team, ab, dateStr, excludeFn) {
   const list = (team.soldiers || []).filter(Boolean);
   const need = 4;
   if (!list.length) return [];
 
-  // Xoay vòng 4/7: mỗi ngày dịch 1 người, đủ 7 ngày thì quay lại.
+  // Dịch điểm bắt đầu theo ngày để phá thế hòa khi các chiến sĩ có lịch sử giống nhau.
   const ord = dayOrdinal(dateStr);
-  const start = ((ord % list.length) + list.length) % list.length;
+  const offset = ((ord % list.length) + list.length) % list.length;
+
+  const cands = [];
+  list.forEach((name, idx) => {
+    if (excludeFn && excludeFn(name)) return;
+    if (isPersonAbsentIn(ab, name)) return;
+    const turn = ((idx - offset) % list.length + list.length) % list.length;
+    const f = soldierFairness(name, dateStr, turn);
+    f.wantCol = nextGuardColumn(name, dateStr); // cột vọng gác sẽ nhận nếu đi làm
+    cands.push(f);
+  });
+
+  cands.sort(compareSoldierFairness);
+
   const picked = [];
-  for (let i = 0; i < list.length && picked.length < need; i++) {
-    const cand = list[(start + i) % list.length];
-    if (excludeFn && excludeFn(cand)) continue;
-    if (!isPersonAbsentIn(ab, cand) && !picked.includes(cand)) picked.push(cand);
+  const usedCols = new Set();
+  let i = 0;
+  while (picked.length < need && i < cands.length) {
+    const key = `${cands[i].dutyStreak}|${cands[i].recent}|${cands[i].restStreak}`;
+    const group = [];
+    while (i < cands.length &&
+      `${cands[i].dutyStreak}|${cands[i].recent}|${cands[i].restStreak}` === key) {
+      group.push(cands[i]);
+      i++;
+    }
+
+    const slots = need - picked.length;
+    if (slots >= group.length) {
+      group.forEach(c => {
+        picked.push(c.name);
+        if (c.wantCol) usedCols.add(c.wantCol);
+      });
+      continue;
+    }
+
+    // Nhóm cuối chỉ lấy 1 phần: ưu tiên người có cột vọng gác không trùng
+    // để mỗi lần đi làm vẫn đẩy được vọng gác lên đúng 1 bậc.
+    const chosen = [];
+    group.forEach(c => {
+      if (chosen.length >= slots || !c.wantCol || usedCols.has(c.wantCol)) return;
+      chosen.push(c);
+      usedCols.add(c.wantCol);
+    });
+    group.forEach(c => {
+      if (chosen.length >= slots || chosen.includes(c) || c.wantCol) return;
+      chosen.push(c);
+    });
+    group.forEach(c => {
+      if (chosen.length >= slots || chosen.includes(c)) return;
+      chosen.push(c);
+      if (c.wantCol) usedCols.add(c.wantCol);
+    });
+    chosen.forEach(c => picked.push(c.name));
   }
+
   return picked;
 }
 
@@ -707,6 +759,43 @@ function dutyDaysInRecent(person, dateStr, days) {
     if (day && Array.isArray(day.cells) && day.cells.some(x => cleanName(x) === cName)) c++;
   }
   return c;
+}
+
+// Số ngày liên tiếp đã NGHỈ (không gác) tính đến hết ngày TRƯỚC dateStr.
+// Dùng để ưu tiên người vừa nghỉ hôm qua, tránh chuỗi nghỉ / làm liên tục.
+function consecutiveRestDays(person, dateStr) {
+  const cName = cleanName(person);
+  if (!cName) return 0;
+  let d = addDay(dateStr, -1);
+  let c = 0;
+  while (c < 90) {
+    const day = S.days && S.days[d];
+    if (!day || !Array.isArray(day.cells)) break;
+    const worked = day.cells.some(x => cleanName(x) === cName);
+    if (worked) break;
+    c++;
+    d = addDay(d, -1);
+  }
+  return c;
+}
+
+// Hồ sơ công bằng của 1 chiến sĩ: ai làm ít ngày liên tiếp / ít ngày gần đây / nghỉ lâu hơn
+// thì được xếp đi làm trước, người đã làm "mũ 2" bị đẩy xuống sau "mũ 1".
+function soldierFairness(person, dateStr, turn) {
+  return {
+    name: person,
+    turn: Number.isFinite(turn) ? turn : 0,
+    dutyStreak: consecutiveDutyDays(person, dateStr),
+    restStreak: consecutiveRestDays(person, dateStr),
+    recent: dutyDaysInRecent(person, dateStr, 7)
+  };
+}
+
+function compareSoldierFairness(a, b) {
+  return (a.dutyStreak - b.dutyStreak) ||
+    (a.recent - b.recent) ||
+    (b.restStreak - a.restStreak) ||
+    (a.turn - b.turn);
 }
 
 // Chọn 1 chiến sĩ từ Tổ khác để mượn tạm thời.
@@ -815,6 +904,81 @@ function fillGeneratedPosition(cells, caIdx, col, dayPerson, nightPerson, nightS
   }
 }
 
+// Cột vọng gác (1..4) mà chiến sĩ đã đứng ở lần đi làm gần nhất trước dateStr.
+// Trả về 0 nếu chưa từng đi làm trong 90 ngày gần đây.
+function lastGuardColumn(person, dateStr) {
+  const cName = cleanName(person);
+  if (!cName) return 0;
+  let d = addDay(dateStr, -1);
+  for (let i = 0; i < 90; i++) {
+    const day = S.days && S.days[d];
+    if (day && Array.isArray(day.cells)) {
+      for (let row = 0; row < 12; row++) {
+        for (let col = 1; col <= 4; col++) {
+          const v = day.cells[row * 5 + col];
+          if (v && cleanName(v) === cName) return col;
+        }
+      }
+    }
+    d = addDay(d, -1);
+  }
+  return 0;
+}
+
+// Cột vọng gác kế tiếp của 1 chiến sĩ (đẩy lên 1 bậc). 0 = chưa có lịch sử.
+function nextGuardColumn(person, dateStr) {
+  const last = lastGuardColumn(person, dateStr);
+  return last ? (last % 4) + 1 : 0;
+}
+
+// Xoay vòng vọng gác: mỗi lần đi làm thì đẩy cột lên 1 (1→2→3→4→1).
+// Người mới (chưa có lịch sử) nhận cột sao cho phân bố "cột kế tiếp" của cả Tổ
+// càng đều càng tốt, tránh các lần sau bị trùng cột.
+function assignGuardColumns(entries, dateStr, teamSoldiers) {
+  const cols = new Array(entries.length).fill(0);
+  const taken = new Set();
+  const pending = [];
+  const nextCount = { 1: 0, 2: 0, 3: 0, 4: 0 };
+  const entryNames = new Set(entries.map(e => cleanName(e.name).toLowerCase()));
+
+  // Phân bố cột kế tiếp của những người cùng Tổ đang nghỉ hôm nay
+  (teamSoldiers || []).forEach(n => {
+    if (!n) return;
+    if (entryNames.has(cleanName(n).toLowerCase())) return;
+    const nc = nextGuardColumn(n, dateStr);
+    if (nc) nextCount[nc]++;
+  });
+
+  // Lượt 1: người đã có lịch sử giữ đúng nhịp xoay
+  entries.forEach((e, i) => {
+    const last = lastGuardColumn(e.name, dateStr);
+    if (!last) { pending.push(i); return; }
+    const want = (last % 4) + 1;
+    if (taken.has(want)) { pending.push(i); return; }
+    cols[i] = want;
+    taken.add(want);
+    nextCount[(want % 4) + 1]++;
+  });
+
+  // Lượt 2: người mới / trùng cột nhận cột trống giúp cân bằng nhịp xoay
+  pending.forEach(i => {
+    let best = 0;
+    let bestScore = Infinity;
+    for (let c = 1; c <= 4; c++) {
+      if (taken.has(c)) continue;
+      const next = (c % 4) + 1;
+      const score = nextCount[next];
+      if (score < bestScore) { bestScore = score; best = c; }
+    }
+    if (!best) return;
+    cols[i] = best;
+    taken.add(best);
+    nextCount[(best % 4) + 1]++;
+  });
+
+  return cols;
+}
+
 function buildGeneratedDay(dateStr, teamMap, prevDay) {
   const day = getDayData(dateStr);
   const ab = absSet(day.absent || {});
@@ -888,8 +1052,16 @@ function buildGeneratedDay(dateStr, teamMap, prevDay) {
       if (finalList.some(e => e.name === n) || overworked.includes(n)) return;
       if (isPersonAbsentIn(ab, n)) return;
       if (isNightOnlyInSet(nightSet, n)) return;
+      if (dayUsed.has(cleanName(n).toLowerCase())) return;
+      // Không lấy người sẽ vi phạm 2 khung giờ liền nhau qua ngày làm người thay
+      if (conflictAt(n)) return;
       idle.push(n);
     });
+    // Người nghỉ lâu / làm ít ngày được ưu tiên thay trước
+    idle.sort((a, b) => compareSoldierFairness(
+      soldierFairness(a, dateStr, (team.soldiers || []).indexOf(a)),
+      soldierFairness(b, dateStr, (team.soldiers || []).indexOf(b))
+    ));
 
     // 1) Thay người làm quá số ngày bằng người cùng Tổ đang nghỉ
     let overIdx = 0;
@@ -964,14 +1136,16 @@ function buildGeneratedDay(dateStr, teamMap, prevDay) {
     const avoidDaySet = new Set(dayUsed);
     overworked.forEach(n => avoidDaySet.add(cleanName(n).toLowerCase()));
 
-    // Xếp vào 4 vị trí vọng gác
-    for (let idx = 0; idx < 4; idx++) {
-      const entry = finalList[idx];
-      if (!entry) {
-        fillGeneratedPosition(cells, ca, idx + 1, "", "", nightSlots);
+    // Xếp vào 4 vị trí vọng gác; cột được xoay vòng theo lần đi làm gần nhất
+    const guardCols = assignGuardColumns(finalList, dateStr, team.soldiers || []);
+    for (let col = 1; col <= 4; col++) {
+      const idx = guardCols.indexOf(col);
+      if (idx < 0) {
+        fillGeneratedPosition(cells, ca, col, "", "", nightSlots);
         unfilled++;
         continue;
       }
+      const entry = finalList[idx];
 
       const soldier = entry.name;
       used.add(cleanName(soldier).toLowerCase());
@@ -985,7 +1159,7 @@ function buildGeneratedDay(dateStr, teamMap, prevDay) {
         if (!dayPerson) unfilled++;
         else dayUsed.add(cleanName(dayPerson).toLowerCase());
       }
-      fillGeneratedPosition(cells, ca, idx + 1, dayPerson, nightPerson, nightSlots);
+      fillGeneratedPosition(cells, ca, col, dayPerson, nightPerson, nightSlots);
 
       if (entry.type === "borrow") {
         borrowed.push({
@@ -993,12 +1167,12 @@ function buildGeneratedDay(dateStr, teamMap, prevDay) {
           fromTeam: entry.fromTeam,
           toTeam: teamId,
           ca: ca + 1,
-          col: idx + 1,
+          col: col,
           reason: entry.reason,
           replacementFor: entry.out || ""
         });
         for (let slot = 0; slot < 3; slot++) {
-          borrowMarks[(ca * 3 + slot) * 5 + (idx + 1)] = {
+          borrowMarks[(ca * 3 + slot) * 5 + col] = {
             fromTeam: entry.fromTeam,
             reason: entry.reason
           };
