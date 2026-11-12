@@ -90,7 +90,7 @@
       </div>
       <p class="sub">
         📌 <b>Quy tắc Tour cố định:</b> Mỗi Tổ (Tổ 1, Tổ 2, Tổ 3, Tổ 4) đi liền với nhau và lùi ca mỗi ngày (<b>Ca 1 → Ca 4 → Ca 3 → Ca 2 → Ca 1</b>).<br>
-        📌 <b>Hiển thị gộp thông minh:</b> Nếu cả 3 khung giờ của 1 ca đều do 1 chiến sĩ đảm nhiệm, bảng lịch chỉ hiển thị <b>1 ô duy nhất</b>. Nếu có phát sinh người làm thay ở khung giờ nào, bấm nút <b>"⇄ Thay ca lẻ"</b> tại ô đó để hiển thị riêng khung giờ cần thay thế.
+        📌 <b>Hiển thị gộp thông minh:</b> Nếu cả 3 khung giờ của 1 ca đều do 1 chiến sĩ đảm nhiệm, bảng lịch chỉ hiển thị <b>1 ô duy nhất</b>. Nếu có phát sinh người làm thay ở khung giờ nào, bấm nút <b>⇄</b> tại ô đó để hiển thị riêng khung giờ cần thay thế.
       </p>
       <div class="two" id="teamsRosterGrid">
         <div class="unit-summary-box" style="margin-bottom:0;">
@@ -188,7 +188,7 @@
           các khung giờ ban ngày (06:00 – 18:00) sẽ do đồng chí khác cùng Tổ đảm nhiệm.
           <b>Lưu ý:</b> Không đánh dấu các đồng chí này vào mục vắng mặt cả ngày.
         </p>
-        <textarea id="nightOnlyList" rows="2" placeholder="VD: Trần Văn Hiệp (CS01), Nguyễn Văn A (CS02)..." oninput="saveNightOnlyList()"></textarea>
+        <div id="nightOnlyPicker" class="name-picker"></div>
         <div id="nightOnlyMsg" style="font-size:12.5px;color:var(--primary-green);font-weight:700;margin-top:6px;"></div>
       </section>
 
@@ -254,7 +254,7 @@
             📌 Đăng ký Vắng mặt Dài ngày (Từ ngày – Đến ngày)
           </div>
           <div class="bar" style="margin-bottom:0;">
-            <input type="text" id="leavePerson" list="dlAll" placeholder="Chọn hoặc nhập tên chiến sĩ..." style="min-width:220px;">
+            <input type="text" id="leavePerson" placeholder="Chọn hoặc nhập tên chiến sĩ..." style="min-width:220px;">
             <select id="leaveType">
               <option value="phep">Nghỉ phép (P)</option>
               <option value="congtac">Công tác (CT)</option>

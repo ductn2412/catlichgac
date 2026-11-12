@@ -1,6 +1,14 @@
 let curDate = fmtDate(new Date());
 let currentRole = getCurrentRole();
-let IN = [], SUP = [], TA = {};
+let IN = [], SUP = [];
+// Bộ chọn tên dạng chip cho "chỉ làm ca đêm" và các mục vắng mặt
+let ABS_PICKERS = {};
+let NIGHT_ONLY_PICKER = null;
+// Trạng thái dropdown gợi ý tên dùng chung
+let nameSuggestDrop = null;
+let nameSuggestOwner = null;
+let nameSuggestPick = null;
+let nameSuggestIndex = -1;
 // Lưu trạng thái ô nào đang được mở rộng để thay người theo khung giờ lẻ (key: "caIdx_colIdx")
 let expandedCells = {};
 
@@ -82,9 +90,277 @@ function toggleSplitCell(caIdx, col, split) {
   render();
 }
 
+// ===== GỢI Ý TÊN & BỘ CHỌN TÊN DẠNG CHIP =====
+function normalizeSearchText(s) {
+  return (s || "").toString().toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d");
+}
+
+function getAllPersonNames() {
+  return [...parseNames(S.officers), ...parseNames(S.soldiers)];
+}
+
+function ensureNameSuggestDrop() {
+  if (nameSuggestDrop && document.body.contains(nameSuggestDrop)) return nameSuggestDrop;
+  const el = document.createElement("div");
+  el.className = "name-suggest-drop";
+  el.style.display = "none";
+  document.body.appendChild(el);
+  nameSuggestDrop = el;
+
+  document.addEventListener("mousedown", (ev) => {
+    if (!nameSuggestDrop || nameSuggestDrop.style.display === "none") return;
+    if (nameSuggestDrop.contains(ev.target)) return;
+    if (nameSuggestOwner && (nameSuggestOwner === ev.target || nameSuggestOwner.contains(ev.target))) return;
+    hideNameSuggestions();
+  });
+  window.addEventListener("resize", hideNameSuggestions);
+  window.addEventListener("scroll", (ev) => {
+    if (nameSuggestDrop && nameSuggestDrop.contains(ev.target)) return;
+    hideNameSuggestions();
+  }, true);
+  return el;
+}
+
+function hideNameSuggestions() {
+  if (nameSuggestDrop) {
+    nameSuggestDrop.style.display = "none";
+    nameSuggestDrop.innerHTML = "";
+  }
+  nameSuggestOwner = null;
+  nameSuggestPick = null;
+  nameSuggestIndex = -1;
+}
+
+function showNameSuggestions(input, names, query, onPick) {
+  const drop = ensureNameSuggestDrop();
+  const q = normalizeSearchText(query).trim();
+  const seen = {};
+  const list = [];
+  (names || []).forEach(n => {
+    n = (n || "").trim();
+    if (!n) return;
+    const key = cleanName(n).toLowerCase();
+    if (!key || seen[key]) return;
+    seen[key] = 1;
+    if (!q || normalizeSearchText(n).includes(q)) list.push(n);
+  });
+
+  drop.innerHTML = "";
+  if (!list.length) {
+    const empty = document.createElement("div");
+    empty.className = "name-suggest-empty";
+    empty.textContent = q ? "Không có tên phù hợp" : "Chưa có danh sách tên";
+    drop.appendChild(empty);
+  } else {
+    list.slice(0, 80).forEach(n => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "name-suggest-item";
+      btn.dataset.name = n;
+      const nm = document.createElement("span");
+      nm.textContent = n;
+      btn.appendChild(nm);
+      const tid = getPersonTeamId(n);
+      if (tid) {
+        const team = document.createElement("small");
+        team.textContent = `Tổ ${tid}`;
+        btn.appendChild(team);
+      }
+      btn.onmousedown = (ev) => { ev.preventDefault(); };
+      btn.onclick = () => {
+        if (nameSuggestPick) nameSuggestPick(n);
+        hideNameSuggestions();
+      };
+      drop.appendChild(btn);
+    });
+  }
+
+  nameSuggestOwner = input;
+  nameSuggestPick = onPick || null;
+  nameSuggestIndex = -1;
+
+  const r = input.getBoundingClientRect();
+  drop.style.display = "block";
+  const width = Math.max(r.width, 220);
+  drop.style.width = width + "px";
+  let left = r.left;
+  if (left + width > window.innerWidth - 8) left = Math.max(8, window.innerWidth - width - 8);
+  drop.style.left = left + "px";
+  const h = Math.min(drop.scrollHeight || 0, 260);
+  let top = r.bottom + 4;
+  if (top + h > window.innerHeight - 8 && r.top - h - 4 > 8) top = r.top - h - 4;
+  drop.style.top = top + "px";
+}
+
+function moveNameSuggest(delta) {
+  if (!nameSuggestDrop) return;
+  const items = nameSuggestDrop.querySelectorAll(".name-suggest-item");
+  if (!items.length) return;
+  nameSuggestIndex = (nameSuggestIndex + delta + items.length) % items.length;
+  items.forEach((el, i) => el.classList.toggle("active", i === nameSuggestIndex));
+  if (items[nameSuggestIndex] && items[nameSuggestIndex].scrollIntoView) {
+    items[nameSuggestIndex].scrollIntoView({ block: "nearest" });
+  }
+}
+
+function pickActiveNameSuggest() {
+  if (!nameSuggestDrop || nameSuggestIndex < 0 || !nameSuggestPick) return false;
+  const items = nameSuggestDrop.querySelectorAll(".name-suggest-item");
+  const item = items[nameSuggestIndex];
+  if (!item || !item.dataset.name) return false;
+  const picked = item.dataset.name;
+  const handler = nameSuggestPick;
+  hideNameSuggestions();
+  handler(picked);
+  return true;
+}
+
+// Gắn dropdown gợi ý tên vào 1 input.
+// - Bấm/focus vào ô là hiện ngay danh sách tên.
+// - Gõ để lọc; Enter/click để chọn.
+function attachNameSuggestions(input, getNames, onPick) {
+  if (!input) return;
+  const handlePick = onPick || ((name) => {
+    input.value = name;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  const show = (query) => {
+    if (input.disabled) return;
+    showNameSuggestions(input, getNames() || [], query, handlePick);
+  };
+  // Bấm/focus vào ô: hiện ngay toàn bộ danh sách tên (không lọc theo tên đang có sẵn)
+  input.addEventListener("focus", () => show(""));
+  input.addEventListener("click", () => show(""));
+  // Gõ mới lọc dần theo nội dung
+  input.addEventListener("input", () => show(input.value));
+  input.addEventListener("keydown", (ev) => {
+    if (!nameSuggestDrop || nameSuggestDrop.style.display === "none" || nameSuggestOwner !== input) return;
+    if (ev.key === "ArrowDown") {
+      ev.preventDefault();
+      moveNameSuggest(1);
+    } else if (ev.key === "ArrowUp") {
+      ev.preventDefault();
+      moveNameSuggest(-1);
+    } else if (ev.key === "Enter") {
+      if (nameSuggestIndex >= 0 && pickActiveNameSuggest()) ev.preventDefault();
+    } else if (ev.key === "Escape") {
+      hideNameSuggestions();
+      ev.preventDefault();
+    }
+  });
+  input.addEventListener("blur", () => {
+    setTimeout(() => { if (nameSuggestOwner === input) hideNameSuggestions(); }, 120);
+  });
+}
+
+// Bộ chọn nhiều tên: các tên đã chọn hiển thị thành chip giống "Trực cơ động".
+function createNameChipPicker(container, options) {
+  container.innerHTML = "";
+  container.classList.add("name-picker");
+
+  const chips = document.createElement("div");
+  chips.className = "chips name-picker-chips";
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "name-picker-input";
+  input.placeholder = options.placeholder || "Nhập hoặc chọn tên...";
+
+  container.appendChild(chips);
+  container.appendChild(input);
+
+  let disabled = false;
+
+  function labels() {
+    return (options.getNames() || []).map(n => (n || "").trim()).filter(Boolean);
+  }
+  function hasName(list, name) {
+    const cn = cleanName(name).toLowerCase();
+    return list.some(n => cleanName(n).toLowerCase() === cn);
+  }
+  function sync() {
+    chips.innerHTML = "";
+    const list = labels();
+    if (!list.length) {
+      const empty = document.createElement("span");
+      empty.className = "empty";
+      empty.textContent = options.emptyText || "Chưa chọn ai.";
+      chips.appendChild(empty);
+      return;
+    }
+    list.forEach(n => {
+      const chip = document.createElement("span");
+      chip.className = "chip chip-removable person-hover-link";
+      const text = document.createElement("span");
+      const tid = getPersonTeamId(n);
+      text.textContent = tid ? `${n} [Tổ ${tid}]` : n;
+      chip.appendChild(text);
+      if (!disabled) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "chip-remove";
+        btn.textContent = "×";
+        btn.title = "Bỏ chọn";
+        btn.onclick = (ev) => {
+          ev.stopPropagation();
+          removeName(n);
+        };
+        chip.appendChild(btn);
+      }
+      chip.onmouseenter = (ev) => showPersonnelHoverCard(ev, n);
+      chip.onmousemove = (ev) => movePersonnelHoverCard(ev);
+      chip.onmouseleave = () => hidePersonnelHoverCard();
+      chips.appendChild(chip);
+    });
+  }
+  function addName(name) {
+    if (disabled) return;
+    const label = (name || "").trim();
+    if (!label) return;
+    const list = labels();
+    if (!hasName(list, label)) {
+      list.push(label);
+      options.onChange(list);
+    }
+    input.value = "";
+    sync();
+    input.focus();
+  }
+  function removeName(name) {
+    if (disabled) return;
+    const cn = cleanName(name).toLowerCase();
+    options.onChange(labels().filter(n => cleanName(n).toLowerCase() !== cn));
+    sync();
+  }
+  function setDisabled(v) {
+    disabled = !!v;
+    input.disabled = disabled;
+    container.classList.toggle("is-disabled", disabled);
+    if (disabled) hideNameSuggestions();
+    sync();
+  }
+
+  attachNameSuggestions(input, getAllPersonNames, addName);
+
+  // Enter khi không chọn gợi ý nào: thêm đúng tên đang gõ
+  input.addEventListener("keydown", (ev) => {
+    if (ev.key !== "Enter" || ev.defaultPrevented) return;
+    const typed = (input.value || "").trim();
+    if (!typed) return;
+    ev.preventDefault();
+    const match = getAllPersonNames().find(n => normalizeSearchText(n).includes(normalizeSearchText(typed)));
+    addName(match || typed);
+  });
+
+  sync();
+  return { input, chips, sync, addName, removeName, setDisabled, isDisabled: () => disabled };
+}
+
 function buildScheduleTableDOM() {
   const tbody = document.getElementById("body");
   if (!tbody) return;
+  hideNameSuggestions();
   tbody.innerHTML = "";
   IN = [];
   SUP = [];
@@ -118,7 +394,6 @@ function buildScheduleTableDOM() {
         const inp = document.createElement("input");
         inp.className = "nm";
         inp.placeholder = c === 0 ? "Đốc gác (SQ)" : "Chiến sĩ (CS)";
-        inp.setAttribute("list", c === 0 ? "dlO" : "dlS");
         inp.disabled = !isCommander;
 
         const sup = document.createElement("input");
@@ -152,6 +427,7 @@ function buildScheduleTableDOM() {
           if ((inp.value || "").trim()) movePersonnelHoverCard(ev);
         });
         inp.addEventListener("mouseleave", () => hidePersonnelHoverCard());
+        attachNameSuggestions(inp, () => parseNames(c === 0 ? S.officers : S.soldiers));
 
         sup.addEventListener("input", () => {
           const d = getDayData(curDate);
@@ -175,8 +451,9 @@ function buildScheduleTableDOM() {
           const btnSplit = document.createElement("button");
           btnSplit.type = "button";
           btnSplit.className = "btn-split-slot no-print";
-          btnSplit.title = "Bấm để thêm người làm thay ca ở khung giờ lẻ";
-          btnSplit.textContent = "⇄ Thay ca lẻ";
+          btnSplit.title = "Thay ca lẻ (tách riêng 3 khung giờ của ca này)";
+          btnSplit.setAttribute("aria-label", "Thay ca lẻ");
+          btnSplit.textContent = "⇄";
           btnSplit.onclick = () => toggleSplitCell(caIdx, c, true);
           wrapper.appendChild(btnSplit);
         }
@@ -203,7 +480,6 @@ function buildScheduleTableDOM() {
           const inp = document.createElement("input");
           inp.className = "nm";
           inp.placeholder = c === 0 ? "Đốc gác" : "Chiến sĩ";
-          inp.setAttribute("list", c === 0 ? "dlO" : "dlS");
           inp.disabled = !isCommander;
 
           const sup = document.createElement("input");
@@ -233,6 +509,7 @@ function buildScheduleTableDOM() {
             if ((inp.value || "").trim()) movePersonnelHoverCard(ev);
           });
           inp.addEventListener("mouseleave", () => hidePersonnelHoverCard());
+          attachNameSuggestions(inp, () => parseNames(c === 0 ? S.officers : S.soldiers));
 
           IN[k] = inp;
           SUP[k] = sup;
@@ -269,7 +546,6 @@ function applyRolePermissions() {
   const genWeekBtn = document.getElementById("genWeek");
   const leaveCard = document.getElementById("multiDayLeaveCard");
   const nightOnlyCard = document.getElementById("nightOnlyCard");
-  const nightOnlyList = document.getElementById("nightOnlyList");
   const borrowCard = document.getElementById("borrowCard");
   const borrowEnabled = document.getElementById("borrowEnabled");
   const borrowMaxAbsent = document.getElementById("borrowMaxAbsent");
@@ -280,7 +556,7 @@ function applyRolePermissions() {
   if (genWeekBtn) genWeekBtn.style.display = isCommander ? "inline-block" : "none";
   if (leaveCard) leaveCard.style.display = isCommander ? "block" : "none";
   if (nightOnlyCard) nightOnlyCard.style.display = isCommander ? "block" : "none";
-  if (nightOnlyList) nightOnlyList.disabled = !isCommander;
+  if (NIGHT_ONLY_PICKER) NIGHT_ONLY_PICKER.setDisabled(!isCommander);
   if (borrowCard) borrowCard.style.display = isCommander ? "block" : "none";
   [borrowEnabled, borrowMaxAbsent, borrowMaxDays].forEach(el => { if (el) el.disabled = !isCommander; });
   if (restoreLabel) restoreLabel.style.display = isCommander ? "" : "none";
@@ -296,7 +572,7 @@ function applyRolePermissions() {
   if (impBar) impBar.style.display = isCommander ? "flex" : "none";
 
   CATS.forEach(c => {
-    if (TA[c[0]]) TA[c[0]].disabled = !isCommander;
+    if (ABS_PICKERS[c[0]]) ABS_PICKERS[c[0]].setDisabled(!isCommander);
   });
 
   buildScheduleTableDOM();
@@ -841,8 +1117,21 @@ function populateTeamTextareas() {
 }
 
 function populateNightOnlyTextarea() {
-  const el = document.getElementById("nightOnlyList");
-  if (el) el.value = S.nightOnly || "";
+  const holder = document.getElementById("nightOnlyPicker");
+  if (!holder) return;
+  if (!NIGHT_ONLY_PICKER) {
+    NIGHT_ONLY_PICKER = createNameChipPicker(holder, {
+      placeholder: "Nhập hoặc chọn tên đồng chí chỉ làm ca đêm...",
+      emptyText: "Chưa có đồng chí nào được đánh dấu.",
+      getNames: () => parseNames(S.nightOnly || ""),
+      onChange: (arr) => {
+        S.nightOnly = arr.join(", ");
+        saveStorage();
+        updateNightOnlyMsg();
+      }
+    });
+  }
+  NIGHT_ONLY_PICKER.sync();
   updateNightOnlyMsg();
 }
 
@@ -856,14 +1145,11 @@ function updateNightOnlyMsg() {
 }
 
 function saveNightOnlyList() {
-  const el = document.getElementById("nightOnlyList");
-  if (!el) return;
   if (getCurrentRole() !== "commander") {
-    el.value = S.nightOnly || "";
+    if (NIGHT_ONLY_PICKER) NIGHT_ONLY_PICKER.sync();
     return;
   }
-  S.nightOnly = el.value;
-  saveStorage();
+  if (NIGHT_ONLY_PICKER) NIGHT_ONLY_PICKER.sync();
   updateNightOnlyMsg();
 }
 
@@ -976,21 +1262,25 @@ function initUI() {
 
   const catsContainer = document.getElementById("cats");
   catsContainer.innerHTML = "";
+  ABS_PICKERS = {};
   CATS.forEach(c => {
     const row = document.createElement("div");
     row.className = "item";
     row.innerHTML = `<div class="lb">* ${c[1]} (${c[2]}) <em id="n_${c[0]}">0</em></div>`;
-    const ta = document.createElement("textarea");
-    ta.rows = 2;
-    ta.placeholder = "Tên chiến sĩ, cách nhau bằng dấu phẩy";
-    ta.addEventListener("input", () => {
-      getDayData(curDate).absent[c[0]] = ta.value;
-      saveStorage();
-      refresh();
-    });
-    TA[c[0]] = ta;
-    row.appendChild(ta);
+    const holder = document.createElement("div");
+    row.appendChild(holder);
     catsContainer.appendChild(row);
+    ABS_PICKERS[c[0]] = createNameChipPicker(holder, {
+      placeholder: `Nhập hoặc chọn tên (${c[1]})...`,
+      emptyText: "Chưa có ai.",
+      getNames: () => parseNames(getDayData(curDate).absent[c[0]]),
+      onChange: (arr) => {
+        const d = getDayData(curDate);
+        d.absent[c[0]] = arr.join(", ");
+        saveStorage();
+        refresh();
+      }
+    });
   });
 
   populateTeamTextareas();
@@ -1018,6 +1308,7 @@ function initUI() {
     leaveStart.value = curDate;
     leaveEnd.value = addDay(curDate, 3);
   }
+  attachNameSuggestions(document.getElementById("leavePerson"), getAllPersonNames);
 
   buildScheduleTableDOM();
   render();
@@ -1369,7 +1660,9 @@ function render() {
   for (let k = 0; k < 60; k++) {
     if (IN[k]) IN[k].value = day.cells[k] || "";
   }
-  CATS.forEach(c => { TA[c[0]].value = day.absent[c[0]] || ""; });
+  CATS.forEach(c => {
+    if (ABS_PICKERS[c[0]]) ABS_PICKERS[c[0]].sync();
+  });
   refresh();
 }
 
