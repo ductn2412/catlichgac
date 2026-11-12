@@ -5,6 +5,24 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Quản lý Tài khoản Chiến Sĩ - ĐỘI 3 </title>
   <link rel="stylesheet" href="css/style.css">
+  <style>
+    .assignment-table { width:100%; border-collapse:collapse; font-size:12.5px; }
+    .assignment-table th, .assignment-table td { border:1px solid var(--line); padding:5px 6px; text-align:center; vertical-align:middle; }
+    .assignment-table thead th { background:var(--hl); color:var(--primary-green); position:sticky; top:0; z-index:2; }
+    .assignment-ca-row td { background:#f1f8e9; font-weight:700; }
+    .assignment-pos-head { cursor:pointer; }
+    .assignment-pos-head:hover { background:#e8f5e9; }
+    .assignment-slot { cursor:pointer; }
+    .assignment-slot:hover { background:#fffde7; }
+    .assignment-slot.selected, .assignment-pos-head.selected { background:#c8e6c9 !important; outline:2px solid var(--primary-green); outline-offset:-2px; font-weight:700; }
+    .assignment-slot.empty-slot { color:var(--muted); }
+    .assignment-slot.same-person { color:var(--primary-green); }
+    .assignment-slot.assignment-disabled, .assignment-pos-head.assignment-disabled { opacity:.4; cursor:not-allowed; }
+    .assignment-borrowed-tag { color:#e65100; font-size:10.5px; font-weight:700; }
+    .assignment-target-info { background:var(--hl); border:1px solid var(--line); border-radius:8px; padding:8px 10px; margin-bottom:8px; font-size:13px; }
+    .assignment-ca-header td { background:#e8f5e9; color:var(--primary-green); font-weight:800; text-align:left !important; font-size:13px; }
+    .assignment-msg { min-height:22px; margin:8px 0; font-size:13px; font-weight:600; }
+  </style>
 </head>
 <body>
 <!-- TOP GREEN BAR -->
@@ -24,7 +42,7 @@
     </button>
     <button class="icon-btn-top" id="btnChangePassTop" onclick="openPasswordModal()" title="Đổi mật khẩu Chỉ huy">🔑 Mật khẩu</button>
     <span id="roleBadge" class="role-pill"></span>
-    <button class="btn-top-logout" onclick="window.location.href='index.html'">Đăng xuất</button>
+    <button class="btn-top-logout" onclick="logout()">Đăng xuất</button>
   </div>
 </header>
 
@@ -127,9 +145,33 @@
       </div>
       <div class="login-actions">
         <button type="button" class="sec" onclick="closeEditAccountModal()">Hủy</button>
+        <button type="button" class="sec" onclick="openAssignmentFromEdit()">🎯 Giao nhiệm vụ thay thế</button>
         <button type="submit" class="pri">💾 Lưu cập nhật thông tin Chiến Sĩ</button>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- MODAL GIAO NHIỆM VỤ ĐI LÀM THAY THẾ -->
+<div id="assignmentModal" class="modal-backdrop">
+  <div class="modal-card" style="max-width:1000px;">
+    <div class="modal-head">
+      <h3 id="assignmentModalTitle">🎯 Giao nhiệm vụ đi làm thay thế</h3>
+      <button class="sec" onclick="closeAssignmentModal()">✕</button>
+    </div>
+    <div class="form-group" style="max-width:240px;">
+      <label>Ngày gác cần thay</label>
+      <input type="date" id="assignmentDate" onchange="renderAssignmentSchedule()">
+    </div>
+    <div id="assignmentInfo"></div>
+    <div class="scroll" style="max-height:420px;overflow-y:auto;">
+      <div id="assignmentScheduleBody"></div>
+    </div>
+    <div id="assignmentValidateMsg" class="assignment-msg"></div>
+    <div class="login-actions">
+      <button type="button" class="sec" onclick="closeAssignmentModal()">Hủy</button>
+      <button type="button" class="pri" onclick="confirmAssignment()">✅ Xác nhận giao nhiệm vụ</button>
+    </div>
   </div>
 </div>
 
@@ -262,7 +304,7 @@
               <th>Quê quán</th>
               <th>Tên TK đăng nhập</th>
               <th>Mật khẩu</th>
-              <th style="width:155px;">Thao tác Chỉ huy</th>
+              <th style="width:255px;">Thao tác Chỉ huy</th>
             </tr>
           </thead>
           <tbody id="accountsTableBody"></tbody>
@@ -279,12 +321,8 @@
 <script>
   function initAccountsPage() {
     loadStorage();
+    if (!requireRole("commander")) return;
     updateTopBarShared();
-    if (getCurrentRole() !== "commander") {
-      alert("Chỉ có Chỉ huy / Trưởng ban mới có quyền truy cập màn hình Quản lý Tài khoản!");
-      window.location.href = "lich-gac.html";
-      return;
-    }
     updatePreviewUsername();
     renderAccountsTable();
   }
@@ -624,11 +662,388 @@
         <td><code style="background:var(--bg);padding:3px 6px;border-radius:4px;font-weight:bold;color:var(--primary-green);">${uName}</code></td>
         <td><b>${a.password || "1"}</b></td>
         <td>
+          <button class="sec" style="padding:4px 8px;font-size:12px;" onclick="openAssignmentById(${a.id})" title="Giao nhiệm vụ đi làm thay thế">🎯 Giao</button>
           <button class="pri" style="padding:4px 8px;font-size:12px;" onclick="openEditAccountModal(${a.id})">✏️ Sửa</button>
           <button class="warn-btn" style="padding:4px 8px;font-size:12px;" onclick="deleteAccount(${a.id})">🗑️ Xóa</button>
         </td>
       </tr>`;
     }).join("");
+  }
+
+  // ===== CHỨC NĂNG GIAO NHIỆM VỤ ĐI LÀM THAY THẾ =====
+  const ASSIGNMENT_POS_LABELS = ["Đốc gác 1", "Vọng x9", "Vọng x10", "Vọng x11", "Vọng x12"];
+  let assignmentTarget = "";
+  let assignmentSelection = new Set();
+
+  function escAssignmentHtml(v) {
+    return String(v == null ? "" : v).replace(/[&<>"']/g, ch => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+    }[ch]));
+  }
+
+  // Lấy đúng nhãn đầy đủ (kèm mã số) đang dùng trong lịch gác
+  function resolveAssignmentLabel(name) {
+    const cn = cleanName(name).toLowerCase();
+    if (!cn) return "";
+    const pools = [...parseNames(S.officers), ...parseNames(S.soldiers)];
+    (S.teams || []).forEach(t => {
+      pools.push(...(t.officers || []), ...(t.soldiers || []));
+    });
+    const hit = pools.find(n => n && cleanName(n).toLowerCase() === cn);
+    if (hit) return hit.trim();
+    const acc = (S.personnelAccounts || []).find(a => cleanName(a.fullName).toLowerCase() === cn);
+    return acc ? formatFullAccountName(acc.fullName, acc.code) : cleanName(name);
+  }
+
+  function isAssignmentOfficer(personName) {
+    const cn = cleanName(personName).toLowerCase();
+    if (!cn) return false;
+    if (parseNames(S.officers).some(n => cleanName(n).toLowerCase() === cn)) return true;
+    const acc = (S.personnelAccounts || []).find(a => cleanName(a.fullName).toLowerCase() === cn);
+    return !!(acc && acc.roleType === "officer");
+  }
+
+  function openAssignmentById(id) {
+    const acc = (S.personnelAccounts || []).find(a => a.id === id);
+    if (!acc) {
+      alert("Không tìm thấy hồ sơ chiến sĩ.");
+      return;
+    }
+    openAssignmentModal(cleanName(acc.fullName));
+  }
+
+  function openAssignmentFromEdit() {
+    const name = cleanName(document.getElementById("editFullName").value);
+    if (!name) {
+      alert("Chưa có họ tên chiến sĩ để giao nhiệm vụ.");
+      return;
+    }
+    closeEditAccountModal();
+    openAssignmentModal(name);
+  }
+
+  function openAssignmentModal(name, dateStr) {
+    const label = resolveAssignmentLabel(name);
+    if (!label) {
+      alert("Chưa chọn chiến sĩ để giao nhiệm vụ.");
+      return;
+    }
+    assignmentTarget = label;
+    assignmentSelection = new Set();
+    document.getElementById("assignmentDate").value = dateStr || fmtDate(new Date());
+    document.getElementById("assignmentModalTitle").textContent = `🎯 Giao nhiệm vụ đi làm thay thế — ${label}`;
+    document.getElementById("assignmentModal").classList.add("show");
+    renderAssignmentSchedule();
+  }
+
+  function closeAssignmentModal() {
+    document.getElementById("assignmentModal").classList.remove("show");
+    assignmentSelection = new Set();
+  }
+
+  function toggleAssignmentSlot(cellIndex) {
+    if (assignmentSelection.has(cellIndex)) assignmentSelection.delete(cellIndex);
+    else assignmentSelection.add(cellIndex);
+    renderAssignmentSchedule();
+  }
+
+  function selectAssignmentPosition(caIdx, col) {
+    const idxs = [0, 1, 2].map(s => (caIdx * 3 + s) * 5 + col);
+    if (idxs.every(k => assignmentSelection.has(k))) {
+      idxs.forEach(k => assignmentSelection.delete(k));
+    } else {
+      idxs.forEach(k => assignmentSelection.add(k));
+    }
+    renderAssignmentSchedule();
+  }
+
+  function renderAssignmentSchedule() {
+    const dateStr = document.getElementById("assignmentDate").value || fmtDate(new Date());
+    const day = getDayData(dateStr);
+    const target = assignmentTarget;
+    const targetClean = cleanName(target).toLowerCase();
+    const targetTeam = getPersonTeamId(target);
+    const targetIsOfficer = isAssignmentOfficer(target);
+    const targetNightOnly = isNightOnlyPerson(target);
+    const detected = detectTeamsInCa(day);
+    const ab = absSet(day.absent);
+    const isAbsent = isPersonAbsentIn(ab, target);
+    const hasSchedule = Array.isArray(day.cells) && day.cells.some(c => (c || "").trim() !== "");
+
+    const infoParts = [`<b>${escAssignmentHtml(target)}</b>`];
+    if (targetTeam) infoParts.push(`Tổ ${targetTeam}`);
+    infoParts.push(targetIsOfficer ? "Sĩ quan (Đốc gác 1)" : "Chiến sĩ (Vọng x9–x12)");
+    if (targetNightOnly) infoParts.push("chỉ làm ca đêm 18:00–06:00");
+
+    let infoHtml = `<div class="assignment-target-info">
+      <div>🎯 Người được giao: ${infoParts.join(" · ")}</div>`;
+    if (isAbsent) infoHtml += `<div style="color:var(--bad);font-weight:700;">⚠️ Đồng chí đang vắng/nghỉ trong ngày ${vnFormat(dateStr)} — không thể giao nhiệm vụ.</div>`;
+    if (!hasSchedule) infoHtml += `<div style="color:#e65100;font-weight:700;">⚠️ Ngày ${vnFormat(dateStr)} chưa có lịch gác.</div>`;
+    infoHtml += `<div style="color:var(--muted);font-size:12px;margin-top:4px;">Bấm vào tên trong ô để chọn khung giờ cần thay; bấm tiêu đề cột để chọn cả 3 khung của vị trí. Người đang giữ ô đó sẽ được thay ra.</div>
+    </div>`;
+    document.getElementById("assignmentInfo").innerHTML = infoHtml;
+
+    let html = `<table class="assignment-table"><thead><tr>
+      <th style="width:86px;">Ca gác</th>
+      <th style="width:104px;">Khung giờ</th>`;
+    ASSIGNMENT_POS_LABELS.forEach(label => { html += `<th>${label}</th>`; });
+    html += `</tr></thead><tbody>`;
+
+    for (let ca = 0; ca < 4; ca++) {
+      const teamId = detected[ca] || (ca + 1);
+      html += `<tr class="assignment-ca-header"><td colspan="7">Ca ${ca + 1} — Tổ ${teamId}</td></tr>`;
+      html += `<tr><th>Khung giờ</th>`;
+      for (let col = 0; col < 5; col++) {
+        const idxs = [0, 1, 2].map(s => (ca * 3 + s) * 5 + col);
+        const allSelected = idxs.every(k => assignmentSelection.has(k));
+        const allowed = targetIsOfficer ? col === 0 : col > 0;
+        const cls = `assignment-pos-head${allSelected ? " selected" : ""}${allowed ? "" : " assignment-disabled"}`;
+        const title = allowed ? "Bấm để chọn cả 3 khung giờ của vị trí này" : "Không đúng chức danh của đồng chí được giao";
+        html += `<th class="${cls}" ${allowed ? `onclick="selectAssignmentPosition(${ca}, ${col})"` : ""} title="${title}">${ASSIGNMENT_POS_LABELS[col]}</th>`;
+      }
+      html += `</tr>`;
+
+      for (let slot = 0; slot < 3; slot++) {
+        html += `<tr><td>${CA[ca][slot]}</td>`;
+        for (let col = 0; col < 5; col++) {
+          const k = (ca * 3 + slot) * 5 + col;
+          const val = (day.cells[k] || "").trim();
+          const isTarget = !!val && cleanName(val).toLowerCase() === targetClean;
+          const allowed = targetIsOfficer ? col === 0 : col > 0;
+          const selected = assignmentSelection.has(k);
+          const mark = day.borrowMarks && day.borrowMarks[k];
+          const cls = [
+            "assignment-slot",
+            selected ? "selected" : "",
+            val ? "" : "empty-slot",
+            isTarget ? "same-person" : "",
+            allowed ? "" : "assignment-disabled"
+          ].filter(Boolean).join(" ");
+          let content = val ? escAssignmentHtml(val) : "—";
+          if (isTarget) content += ` <small>(đang trực)</small>`;
+          if (mark && mark.fromTeam) content += ` <span class="assignment-borrowed-tag" title="Mượn từ Tổ ${mark.fromTeam}">(Tổ ${mark.fromTeam})</span>`;
+          const title = allowed ? (val ? "Bấm để chọn thay đồng chí này" : "Bấm để chọn ô trống này") : "Không đúng chức danh của đồng chí được giao";
+          html += `<td class="${cls}" ${allowed ? `onclick="toggleAssignmentSlot(${k})"` : ""} title="${title}">${content}</td>`;
+        }
+        html += `</tr>`;
+      }
+    }
+    html += `</tbody></table>`;
+    document.getElementById("assignmentScheduleBody").innerHTML = html;
+    renderAssignmentValidation();
+  }
+
+  function validateAssignmentSelection() {
+    const dateStr = document.getElementById("assignmentDate").value || fmtDate(new Date());
+    const day = getDayData(dateStr);
+    const target = assignmentTarget;
+    const selected = Array.from(assignmentSelection).sort((a, b) => a - b);
+    const errors = [];
+    const notes = [];
+    const result = { ok: false, errors, notes, selected: [], dateStr, day, target };
+
+    if (!target) errors.push("Chưa xác định người được giao nhiệm vụ.");
+    if (!selected.length) errors.push("Hãy chọn ít nhất một khung giờ cần thay.");
+    if (errors.length) return result;
+
+    const ab = absSet(day.absent);
+    if (isPersonAbsentIn(ab, target)) {
+      errors.push(`${target} đang vắng/nghỉ trong ngày này nên không thể giao nhiệm vụ.`);
+    }
+
+    const isOfficer = isAssignmentOfficer(target);
+    const nightOnly = isNightOnlyPerson(target);
+    const targetClean = cleanName(target).toLowerCase();
+
+    const byCa = {};
+    selected.forEach(k => {
+      const p = getCellParts(k);
+      (byCa[p.ca] = byCa[p.ca] || []).push(k);
+    });
+
+    Object.keys(byCa).forEach(caKey => {
+      const ca = parseInt(caKey, 10);
+      const idxs = byCa[caKey];
+      const cols = new Set(idxs.map(k => getCellParts(k).col));
+      if (cols.size > 1) {
+        errors.push(`Ca ${ca + 1}: không thể giao cùng lúc nhiều vị trí khác nhau.`);
+        return;
+      }
+      const col = getCellParts(idxs[0]).col;
+      if (isOfficer && col !== 0) {
+        errors.push(`Ca ${ca + 1}: ${target} là Sĩ quan nên chỉ được giao vị trí Đốc gác 1.`);
+      }
+      if (!isOfficer && col === 0) {
+        errors.push(`Ca ${ca + 1}: ${target} là Chiến sĩ nên chỉ được giao vị trí Vọng x9–x12.`);
+      }
+      idxs.forEach(k => {
+        const p = getCellParts(k);
+        if (nightOnly && !isNightShiftForPerson(p.ca, p.slot, target)) {
+          errors.push(`Ca ${p.ca + 1} · ${CA[p.ca][p.slot]}: ${target} chỉ làm ca đêm 18:00–06:00.`);
+        }
+      });
+      const conflict = findShiftConflict(dateStr, target, idxs, { ca, col });
+      if (conflict) {
+        errors.push(`Ca ${ca + 1}: ${target} ${conflict.message}.`);
+      }
+    });
+
+    // Hai khung giờ liền nhau trong cùng ngày
+    const chronos = selected.map(k => getCellParts(k).chrono).sort((a, b) => a - b);
+    for (let i = 1; i < chronos.length; i++) {
+      if (chronos[i] - chronos[i - 1] === 1) {
+        errors.push("Các khung giờ được chọn có 2 khung liền nhau trong ngày.");
+        break;
+      }
+    }
+
+    // Liền ngày trước / ngày sau
+    const tClean = cleanName(target).toLowerCase();
+    if (chronos.includes(0)) {
+      const prev = S.days && S.days[addDay(dateStr, -1)];
+      if (prev && Array.isArray(prev.cells)) {
+        for (let col = 0; col < 5; col++) {
+          if (cleanName(prev.cells[11 * 5 + col] || "").toLowerCase() === tClean) {
+            errors.push(`${target} đã làm khung cuối ngày hôm trước (Ca 4 · ${CA[3][2]}).`);
+            break;
+          }
+        }
+      }
+    }
+    if (chronos.includes(11)) {
+      const next = S.days && S.days[addDay(dateStr, 1)];
+      if (next && Array.isArray(next.cells)) {
+        for (let col = 0; col < 5; col++) {
+          if (cleanName(next.cells[col] || "").toLowerCase() === tClean) {
+            errors.push(`${target} đã làm khung đầu ngày hôm sau (Ca 1 · ${CA[0][0]}).`);
+            break;
+          }
+        }
+      }
+    }
+
+    const replaced = [];
+    selected.forEach(k => {
+      const v = cleanName(day.cells[k] || "");
+      if (v && v.toLowerCase() !== targetClean && !replaced.includes(v)) replaced.push(v);
+    });
+    if (replaced.length) notes.push(`Thay thế cho: ${replaced.join(", ")}.`);
+
+    const allSame = selected.every(k => cleanName(day.cells[k] || "").toLowerCase() === targetClean);
+    if (!errors.length && allSame) {
+      errors.push(`${target} đã đang trực đúng các khung giờ đã chọn.`);
+    }
+
+    result.ok = errors.length === 0;
+    if (result.ok) result.selected = selected;
+    return result;
+  }
+
+  function renderAssignmentValidation() {
+    const box = document.getElementById("assignmentValidateMsg");
+    if (!box) return null;
+    const res = validateAssignmentSelection();
+    let html = "";
+    if (res.errors.length) {
+      html += res.errors.map(e => `<div style="color:#c62828;">⛔ ${escAssignmentHtml(e)}</div>`).join("");
+    } else {
+      html += `<div style="color:#2e7d32;">✅ Hợp lệ — bấm "Xác nhận giao nhiệm vụ" để hoàn tất.</div>`;
+    }
+    if (res.notes.length) {
+      html += res.notes.map(n => `<div style="color:#2e7d32;">ℹ️ ${escAssignmentHtml(n)}</div>`).join("");
+    }
+    box.innerHTML = html;
+    return res;
+  }
+
+  function confirmAssignment() {
+    if (getCurrentRole() !== "commander") {
+      alert("Chỉ có Chỉ huy / Trưởng ban mới được giao nhiệm vụ!");
+      return;
+    }
+    const res = validateAssignmentSelection();
+    if (!res.ok) {
+      renderAssignmentValidation();
+      alert("⛔ Chưa thể giao nhiệm vụ:\n\n- " + res.errors.join("\n- "));
+      return;
+    }
+
+    const { day, selected, dateStr } = res;
+    const target = assignmentTarget;
+    const targetClean = cleanName(target).toLowerCase();
+    if (!confirm(`Giao nhiệm vụ cho "${target}" thay ${selected.length} khung giờ ngày ${vnFormat(dateStr)}?`)) return;
+
+    const teamByCa = detectTeamsInCa(day);
+    const targetTeam = getPersonTeamId(target) || 0;
+    const replacedNames = [];
+    const touched = {};
+
+    selected.forEach(k => {
+      const p = getCellParts(k);
+      const old = cleanName(day.cells[k] || "");
+      if (old && old.toLowerCase() !== targetClean && !replacedNames.includes(old)) replacedNames.push(old);
+      day.cells[k] = target;
+      delete day.streaks[k];
+      delete day.borrowMarks[k];
+      touched[p.ca + ":" + p.col] = { ca: p.ca, col: p.col };
+    });
+
+    // Bỏ các ghi nhận mượn không còn đúng ở vị trí vừa thay
+    Object.values(touched).forEach(({ ca, col }) => {
+      const remaining = new Set();
+      for (let s = 0; s < 3; s++) {
+        const v = cleanName(day.cells[(ca * 3 + s) * 5 + col] || "").toLowerCase();
+        if (v) remaining.add(v);
+      }
+      day.borrowed = (day.borrowed || []).filter(b => {
+        if (!b || !b.person) return false;
+        if (((b.ca || 1) - 1) !== ca || b.col !== col) return true;
+        return remaining.has(cleanName(b.person).toLowerCase());
+      });
+    });
+
+    // Ghi nhận mượn Tổ nếu người được giao khác Tổ đang trực
+    Object.values(touched).forEach(({ ca, col }) => {
+      const teamIdInCa = teamByCa[ca] || (ca + 1);
+      if (!targetTeam || targetTeam === teamIdInCa) return;
+      let entry = (day.borrowed || []).find(b =>
+        b && b.person &&
+        cleanName(b.person).toLowerCase() === targetClean &&
+        ((b.ca || 1) - 1) === ca && b.col === col
+      );
+      if (!entry) {
+        entry = {
+          person: target,
+          fromTeam: targetTeam,
+          toTeam: teamIdInCa,
+          ca: ca + 1,
+          col: col,
+          reason: "Giao nhiệm vụ đi làm thay thế"
+        };
+        day.borrowed.push(entry);
+      }
+      entry.assignment = true;
+      entry.fromTeam = targetTeam;
+      entry.toTeam = teamIdInCa;
+      if (!entry.reason) entry.reason = "Giao nhiệm vụ đi làm thay thế";
+      selected.forEach(k => {
+        const p = getCellParts(k);
+        if (p.ca === ca && p.col === col) {
+          day.borrowMarks[k] = { fromTeam: targetTeam, reason: "Giao nhiệm vụ đi làm thay thế" };
+        }
+      });
+    });
+
+    // C4: lịch đã thay đổi -> bỏ công thủ công cũ, cập nhật lại Tổ đang trực
+    day.manualCredits = {};
+    day.teamInCa = detectTeamsInCa(day);
+    saveStorage();
+    closeAssignmentModal();
+    renderAccountsTable();
+
+    let msg = `✅ Đã giao nhiệm vụ cho "${target}" thay ${selected.length} khung giờ ngày ${vnFormat(dateStr)}.`;
+    if (replacedNames.length) msg += `\nCác đồng chí được thay ra: ${replacedNames.join(", ")}.`;
+    alert(msg);
   }
 
   window.onload = initAccountsPage;
