@@ -209,6 +209,13 @@ function absSet(a) {
   return s;
 }
 
+// Kiểm tra một người có đang vắng mặt trong ngày hay không
+function isPersonAbsentIn(ab, person) {
+  const n = (person || "").trim();
+  if (!n) return false;
+  return !!(ab[cleanName(n)] || ab[n]);
+}
+
 function workSet(day) {
   const s = {};
   if (!day || !day.cells) return s;
@@ -368,11 +375,32 @@ function getSavedDatesHistory() {
 }
 
 function getCurrentRole() {
-  return localStorage.getItem(ROLE_KEY) || "commander";
+  return localStorage.getItem(ROLE_KEY) || null;
 }
 
 function setCurrentRole(role) {
   localStorage.setItem(ROLE_KEY, role);
+}
+
+// Bắt buộc đã đăng nhập (và đúng vai trò nếu có truyền role)
+function requireRole(role) {
+  const current = getCurrentRole();
+  if (!current) {
+    location.replace("index.html");
+    return false;
+  }
+  if (role && current !== role) {
+    alert("Bạn không có quyền truy cập trang này!");
+    location.replace("lich-gac.html");
+    return false;
+  }
+  return true;
+}
+
+function logout() {
+  localStorage.removeItem(ROLE_KEY);
+  localStorage.removeItem(USER_KEY);
+  location.replace("index.html");
 }
 
 function getCurrentUserLabel() {
@@ -471,14 +499,17 @@ function getPersonDayWorkDetails(dateStr, personName) {
     }
   }
 
+  if (result.totalSlots === 0) {
+    result.credit = 0;
+    return result;
+  }
+
   if (dayData.manualCredits && dayData.manualCredits[cName] != null) {
     result.credit = dayData.manualCredits[cName];
     return result;
   }
 
-  if (result.totalSlots === 0) {
-    result.credit = 0;
-  } else if (
+  if (
     (result.dayShifts === 2 && result.nightShifts === 0) ||
     (result.dayShifts === 0 && result.nightShifts === 1) ||
     result.totalSlots < 3
@@ -520,6 +551,92 @@ function hasCrossDayConsecutiveError(dateStr, personName, cellIndex) {
   return false;
 }
 
+// Tách thông tin của 1 ô lịch (0..59) thành ca / khung giờ / cột / thứ tự thời gian
+function getCellParts(cellIndex) {
+  const row = Math.floor(cellIndex / 5);
+  const ca = Math.floor(row / 3);
+  const slot = row % 3;
+  return {
+    index: cellIndex,
+    row: row,
+    ca: ca,
+    slot: slot,
+    col: cellIndex % 5,
+    chrono: slot * 4 + ca
+  };
+}
+
+// Kiểm tra khi gán một người vào các ô lịch:
+// - không trùng ca (đã có mặt ở vị trí khác trong cùng ca),
+// - không tạo 2 khung giờ liền nhau trong ngày,
+// - không tạo 2 khung giờ liền nhau qua ngày trước / ngày sau.
+// targetIndices: các ô sẽ gán cho người đó (bỏ qua khi quét).
+// samePosition: { ca, col } — cho phép người đó đã có mặt ở các khung khác cùng vị trí.
+function findShiftConflict(dateStr, personLabel, targetIndices, samePosition) {
+  const person = cleanName(personLabel).toLowerCase();
+  if (!person) return null;
+  const day = S.days && S.days[dateStr];
+  if (!day || !Array.isArray(day.cells)) return null;
+
+  const targets = (targetIndices || []).map(getCellParts);
+  const ignore = new Set((targetIndices || []).map(Number));
+
+  for (let k = 0; k < 60; k++) {
+    if (ignore.has(k)) continue;
+    if (samePosition && getCellParts(k).ca === samePosition.ca && getCellParts(k).col === samePosition.col) continue;
+    if (cleanName(day.cells[k] || "").toLowerCase() !== person) continue;
+
+    const p = getCellParts(k);
+    if (samePosition && p.ca === samePosition.ca) {
+      return {
+        type: "same-ca",
+        message: `đã có mặt ở Ca ${p.ca + 1} (${CA[p.ca][p.slot]}, ${p.col === 0 ? "Đốc gác 1" : "Vọng x" + (8 + p.col)})`,
+        cellIndex: k
+      };
+    }
+    if (targets.some(t => Math.abs(t.chrono - p.chrono) <= 1)) {
+      return {
+        type: "adjacent",
+        message: `sẽ làm 2 khung giờ liền nhau (Ca ${p.ca + 1} · ${CA[p.ca][p.slot]})`,
+        cellIndex: k
+      };
+    }
+  }
+
+  // Liền ngày: khung cuối ngày trước (Ca 4 · 04:00–06:00) và khung đầu ngày sau (Ca 1 · 06:00–08:00)
+  for (const t of targets) {
+    if (t.chrono === 0) {
+      const prev = S.days && S.days[addDay(dateStr, -1)];
+      if (prev && Array.isArray(prev.cells)) {
+        for (let col = 0; col < 5; col++) {
+          if (cleanName(prev.cells[11 * 5 + col] || "").toLowerCase() === person) {
+            return {
+              type: "prev-day",
+              message: `đã làm khung cuối ngày hôm trước (Ca 4 · ${CA[3][2]})`,
+              cellIndex: 11 * 5 + col
+            };
+          }
+        }
+      }
+    }
+    if (t.chrono === 11) {
+      const next = S.days && S.days[addDay(dateStr, 1)];
+      if (next && Array.isArray(next.cells)) {
+        for (let col = 0; col < 5; col++) {
+          if (cleanName(next.cells[col] || "").toLowerCase() === person) {
+            return {
+              type: "next-day",
+              message: `đã làm khung đầu ngày hôm sau (Ca 1 · ${CA[0][0]})`,
+              cellIndex: col
+            };
+          }
+        }
+      }
+    }
+  }
+  return null;
+}
+
 function executeGlobalSearch(ev) {
   if (ev) ev.preventDefault();
   const inp = document.getElementById("globalSearchInput");
@@ -543,26 +660,76 @@ function backupJSONData() {
 }
 
 function restoreJSONData(event) {
-  const file = event.target.files[0];
+  const resetInput = () => { try { event.target.value = ""; } catch (e) {} };
+
+  if (getCurrentRole() !== "commander") {
+    alert("Chỉ có Chỉ huy / Trưởng ban mới được khôi phục dữ liệu!");
+    resetInput();
+    return;
+  }
+
+  const file = event.target.files && event.target.files[0];
   if (!file) return;
+
+  if (!confirm("Dữ liệu hiện tại sẽ bị thay thế hoàn toàn bằng nội dung tệp JSON. Hệ thống sẽ tự sao lưu dữ liệu hiện tại trước khi khôi phục. Tiếp tục?")) {
+    resetInput();
+    return;
+  }
+
+  // Tự sao lưu dữ liệu hiện tại trước khi ghi đè
+  backupJSONData();
+
   const reader = new FileReader();
   reader.onload = function(e) {
     try {
       const parsed = JSON.parse(e.target.result);
-      if (parsed && parsed.days) {
-        S = parsed;
-        if (!S.teams || S.teams.length < 4) S.teams = JSON.parse(JSON.stringify(DEFAULT_TEAMS));
-        if (typeof S.nightOnly !== "string") S.nightOnly = "";
-        normalizeBorrowRules();
-        syncFromTeamsToRosterAndAccounts();
-        saveStorage();
-        alert("✅ Đã khôi phục dữ liệu hệ thống thành công!");
-        window.location.reload();
-      } else {
-        alert("❌ Tệp JSON không đúng định dạng của hệ thống!");
+      const validDays = parsed && typeof parsed === "object" &&
+        parsed.days && typeof parsed.days === "object" && !Array.isArray(parsed.days);
+      if (!validDays) {
+        alert("❌ Tệp JSON không đúng định dạng của hệ thống (thiếu hoặc sai kiểu dữ liệu 'days').");
+        resetInput();
+        return;
       }
+      const invalidDay = Object.keys(parsed.days).some(k => {
+        const d = parsed.days[k];
+        return !d || typeof d !== "object" || (d.cells != null && !Array.isArray(d.cells));
+      });
+      if (invalidDay) {
+        alert("❌ Tệp JSON có ngày dữ liệu không hợp lệ (trường 'cells' phải là mảng).");
+        resetInput();
+        return;
+      }
+      if (parsed.teams != null && !Array.isArray(parsed.teams)) {
+        alert("❌ Tệp JSON có trường 'teams' không hợp lệ.");
+        resetInput();
+        return;
+      }
+      if (parsed.personnelAccounts != null && !Array.isArray(parsed.personnelAccounts)) {
+        alert("❌ Tệp JSON có trường 'personnelAccounts' không hợp lệ.");
+        resetInput();
+        return;
+      }
+      if (parsed.accounts != null && (typeof parsed.accounts !== "object" || Array.isArray(parsed.accounts))) {
+        alert("❌ Tệp JSON có trường 'accounts' không hợp lệ.");
+        resetInput();
+        return;
+      }
+
+      S = parsed;
+      if (!S.swapRequests) S.swapRequests = [];
+      if (!S.accounts) S.accounts = { ...DEFAULT_COMMANDER_ACCOUNTS };
+      if (!S.personnelAccounts) S.personnelAccounts = [];
+      if (typeof S.nightOnly !== "string") S.nightOnly = "";
+      if (!S.teams || S.teams.length < 4) S.teams = JSON.parse(JSON.stringify(DEFAULT_TEAMS));
+      normalizeBorrowRules();
+      syncFromTeamsToRosterAndAccounts();
+      saveStorage();
+      alert("✅ Đã khôi phục dữ liệu hệ thống thành công!");
+      window.location.reload();
     } catch (err) {
       alert("❌ Lỗi đọc tệp JSON: " + err.message);
+    } finally {
+      resetInput();
     }
   };
   reader.readAsText(file);
@@ -640,6 +807,7 @@ function cascadeUpdatePersonnelName(oldLabel, oldCleanName, newLabel) {
   if (!oldLabel || !newLabel || oldLabel === newLabel) return;
   Object.keys(S.days || {}).forEach(dStr => {
     const day = S.days[dStr];
+    if (day) day.manualCredits = {};
     if (day && Array.isArray(day.cells)) {
       day.cells = day.cells.map(cellVal => {
         const cv = (cellVal || "").trim();

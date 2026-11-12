@@ -4,13 +4,8 @@ let chart3Instance = null;
 
 function initDashboard() {
   loadStorage();
+  if (!requireRole("commander")) return;
   updateTopBarShared();
-  const role = getCurrentRole();
-  if (role !== "commander") {
-    alert("Trang Dashboard chỉ dành cho Chỉ huy / Trưởng ban!");
-    window.location.href = "lich-gac.html";
-    return;
-  }
   const dateInput = document.getElementById("dashDate");
   dateInput.value = fmtDate(new Date());
   renderDashboard();

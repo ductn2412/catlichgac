@@ -72,6 +72,7 @@ function toggleSplitCell(caIdx, col, split) {
     const p0 = day.cells[(caIdx * 3 + 0) * 5 + col] || "";
     day.cells[(caIdx * 3 + 1) * 5 + col] = p0;
     day.cells[(caIdx * 3 + 2) * 5 + col] = p0;
+    day.manualCredits = {};
     delete expandedCells[key];
     saveStorage();
   } else {
@@ -136,6 +137,7 @@ function buildScheduleTableDOM() {
           d.cells[k1] = inp.value;
           d.cells[k2] = inp.value;
           delete d.streaks[k0];
+          d.manualCredits = {};
           d.teamInCa = detectTeamsInCa(d);
           saveStorage();
           refresh();
@@ -216,6 +218,7 @@ function buildScheduleTableDOM() {
             const d = getDayData(curDate);
             d.cells[k] = inp.value;
             delete d.streaks[k];
+            d.manualCredits = {};
             d.teamInCa = detectTeamsInCa(d);
             saveStorage();
             refresh();
@@ -271,6 +274,7 @@ function applyRolePermissions() {
   const borrowEnabled = document.getElementById("borrowEnabled");
   const borrowMaxAbsent = document.getElementById("borrowMaxAbsent");
   const borrowMaxDays = document.getElementById("borrowMaxDays");
+  const restoreLabel = document.getElementById("restoreJsonLabel");
 
   if (genBtn) genBtn.style.display = isCommander ? "inline-block" : "none";
   if (genWeekBtn) genWeekBtn.style.display = isCommander ? "inline-block" : "none";
@@ -279,6 +283,7 @@ function applyRolePermissions() {
   if (nightOnlyList) nightOnlyList.disabled = !isCommander;
   if (borrowCard) borrowCard.style.display = isCommander ? "block" : "none";
   [borrowEnabled, borrowMaxAbsent, borrowMaxDays].forEach(el => { if (el) el.disabled = !isCommander; });
+  if (restoreLabel) restoreLabel.style.display = isCommander ? "" : "none";
 
   for (let t = 1; t <= 4; t++) {
     const oEl = document.getElementById(`team${t}Off`);
@@ -306,6 +311,7 @@ function resetDefaultTourTeams() {
 
   const day = getDayData(curDate);
   day.teamInCa = [1, 2, 3, 4];
+  day.manualCredits = {};
   expandedCells = {};
   for (let ca = 0; ca < 4; ca++) {
     const team = S.teams[ca];
@@ -335,12 +341,6 @@ function nextTeamMap(teamMap) {
 
 function dayOrdinal(dateStr) {
   return Math.floor(parseDate(dateStr).getTime() / 86400000);
-}
-
-function isPersonAbsentIn(ab, person) {
-  const n = (person || "").trim();
-  if (!n) return false;
-  return !!(ab[cleanName(n)] || ab[n]);
 }
 
 function findPreviousOfficerForTeam(prevDay, teamId) {
@@ -729,7 +729,7 @@ function buildGeneratedDay(dateStr, teamMap, prevDay) {
   day.cells = cells;
   day.teamInCa = teamMap.slice();
   day.streaks = {};
-  if (!day.manualCredits) day.manualCredits = {};
+  day.manualCredits = {};
   day.borrowed = borrowed;
   day.overworkSwaps = overworkSwaps;
   day.overworkKept = overworkKept;
@@ -972,6 +972,7 @@ function applyMultiDayAbsence() {
 
 function initUI() {
   loadStorage();
+  if (!requireRole()) return;
 
   const catsContainer = document.getElementById("cats");
   catsContainer.innerHTML = "";
@@ -1159,8 +1160,8 @@ function refresh() {
 
       const personTeamId = getPersonTeamId(n);
       if (personTeamId && expectedTeamId && personTeamId !== expectedTeamId) {
-        if (col > 0 && isBorrowAllowed(n, caIdx)) {
-          // Chiến sĩ được mượn tạm thời từ Tổ khác: không tính là lỗi đỏ
+        if (isBorrowAllowed(n, caIdx)) {
+          // Người được mượn / giao nhiệm vụ từ Tổ khác: không tính là lỗi đỏ
         } else {
           isWrongTeam = true;
           crossTeamErrors.push(`${n} thuộc Tổ ${personTeamId} nhưng đang xếp vào Ca ${caIdx + 1} của Tổ ${expectedTeamId}`);
@@ -1256,7 +1257,7 @@ function refresh() {
       hasCriticalError = true;
     }
     if (personTeamId && expectedTeamId && personTeamId !== expectedTeamId) {
-      if (!(col > 0 && isBorrowAllowed(n, caIdx))) {
+      if (!isBorrowAllowed(n, caIdx)) {
         hasCriticalError = true;
       }
     }

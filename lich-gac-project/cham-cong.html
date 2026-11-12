@@ -24,7 +24,7 @@
     </button>
     <button class="icon-btn-top" id="btnChangePassTop" onclick="openPasswordModal()" title="Đổi mật khẩu Chỉ huy">🔑 Mật khẩu</button>
     <span id="roleBadge" class="role-pill"></span>
-    <button class="btn-top-logout" onclick="window.location.href='index.html'">Đăng xuất</button>
+    <button class="btn-top-logout" onclick="logout()">Đăng xuất</button>
   </div>
 </header>
 
@@ -103,6 +103,7 @@
 <script>
   function initMonthlyPage() {
     loadStorage();
+    if (!requireRole()) return;
     updateTopBarShared();
     const todayStr = fmtDate(new Date());
     document.getElementById("monthPicker").value = todayStr.substring(0, 7);
@@ -176,6 +177,17 @@
     document.getElementById("monthlyBody").innerHTML = bodyHtml;
   }
 
+  // Kiểm tra 1 vị trí (3 khung giờ) có trống không.
+  // Bỏ qua các ô đang chứa chính người đang được xếp lại.
+  function isMonthlyPositionEmpty(day, ca, col, ignoreName) {
+    const cName = cleanName(ignoreName).toLowerCase();
+    for (let s = 0; s < 3; s++) {
+      const v = (day.cells[(ca * 3 + s) * 5 + col] || "").trim();
+      if (v && cleanName(v).toLowerCase() !== cName) return false;
+    }
+    return true;
+  }
+
   function updateMonthlyCellSmart(dateStr, name, val) {
     if (getCurrentRole() !== 'commander') {
       alert("Chỉ có Chỉ huy mới có quyền sửa bảng chấm công!");
@@ -185,7 +197,32 @@
 
     const dayData = getDayData(dateStr);
     const cName = cleanName(name);
-    val = val.trim().toUpperCase().replace(',', '.');
+    val = (val || "").trim().toUpperCase().replace(',', '.');
+
+    const off = parseNames(S.officers);
+    const isOfficer = off.some(n => cleanName(n) === cName);
+    const targetCols = isOfficer ? [0] : [1, 2, 3, 4];
+
+    // Tìm vị trí trống trước khi xóa lịch cũ, tránh trường hợp không còn chỗ
+    // mà người đó đã bị xóa khỏi lịch.
+    let placedCa = -1;
+    let placedCol = -1;
+    if (val === 'X' || val === '1' || val === '0.5') {
+      for (let ca = 0; ca < 4 && placedCa === -1; ca++) {
+        for (const col of targetCols) {
+          if (isMonthlyPositionEmpty(dayData, ca, col, cName)) {
+            placedCa = ca;
+            placedCol = col;
+            break;
+          }
+        }
+      }
+      if (placedCa < 0) {
+        alert("⚠️ Không còn vị trí trống phù hợp cho người này trong ngày. Hãy sửa trực tiếp ở trang Quản lý lịch.");
+        renderStandaloneMonthly();
+        return;
+      }
+    }
 
     CATS.forEach(c => {
       let list = parseNames(dayData.absent[c[0]]);
@@ -194,40 +231,19 @@
     });
     delete dayData.manualCredits[cName];
 
-    const off = parseNames(S.officers);
-    const isOfficer = off.some(n => cleanName(n) === cName);
-
     if (!val || val === '-') {
       dayData.cells = dayData.cells.map(c => cleanName(c) === cName ? "" : c);
     } else if (val === 'X' || val === '1' || val === '0.5') {
       dayData.cells = dayData.cells.map(c => cleanName(c) === cName ? "" : c);
-      const targetCols = isOfficer ? [0] : [1, 2, 3, 4];
-      let placedCa = -1;
-      let placedCol = -1;
-
-      for (let ca = 0; ca < 4 && placedCa === -1; ca++) {
-        for (const col of targetCols) {
-          if (!(dayData.cells[(ca * 3) * 5 + col] || "").trim()) {
-            placedCa = ca;
-            placedCol = col;
-            break;
-          }
-        }
-      }
-
-      if (placedCa >= 0) {
-        if (val === '0.5') {
-          dayData.cells[(placedCa * 3 + 0) * 5 + placedCol] = name;
-          dayData.cells[(placedCa * 3 + 1) * 5 + placedCol] = name;
-          dayData.manualCredits[cName] = 0.5;
-        } else {
-          for (let s = 0; s < 3; s++) {
-            dayData.cells[(placedCa * 3 + s) * 5 + placedCol] = name;
-          }
-          dayData.manualCredits[cName] = 1.0;
-        }
+      if (val === '0.5') {
+        dayData.cells[(placedCa * 3 + 0) * 5 + placedCol] = name;
+        dayData.cells[(placedCa * 3 + 1) * 5 + placedCol] = name;
+        dayData.manualCredits[cName] = 0.5;
       } else {
-        dayData.manualCredits[cName] = (val === '0.5') ? 0.5 : 1.0;
+        for (let s = 0; s < 3; s++) {
+          dayData.cells[(placedCa * 3 + s) * 5 + placedCol] = name;
+        }
+        dayData.manualCredits[cName] = 1.0;
       }
     } else {
       let catKey = 'khac';
@@ -244,6 +260,7 @@
       dayData.cells = dayData.cells.map(c => cleanName(c) === cName ? "" : c);
     }
 
+    dayData.teamInCa = detectTeamsInCa(dayData);
     saveStorage();
     renderStandaloneMonthly();
   }

@@ -24,7 +24,7 @@
     </button>
     <button class="icon-btn-top" id="btnChangePassTop" onclick="openPasswordModal()" title="Đổi mật khẩu Chỉ huy">🔑 Mật khẩu</button>
     <span id="roleBadge" class="role-pill"></span>
-    <button class="btn-top-logout" onclick="window.location.href='index.html'">Đăng xuất</button>
+    <button class="btn-top-logout" onclick="logout()">Đăng xuất</button>
   </div>
 </header>
 
@@ -109,6 +109,7 @@
 <script>
   function initSearchPage() {
     loadStorage();
+    if (!requireRole()) return;
     updateTopBarShared();
 
     const todayStr = fmtDate(new Date());

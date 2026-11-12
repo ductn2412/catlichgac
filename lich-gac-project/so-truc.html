@@ -24,7 +24,7 @@
     </button>
     <button class="icon-btn-top" id="btnChangePassTop" onclick="openPasswordModal()" title="Đổi mật khẩu Chỉ huy">🔑 Mật khẩu</button>
     <span id="roleBadge" class="role-pill"></span>
-    <button class="btn-top-logout" onclick="window.location.href='index.html'">Đăng xuất</button>
+    <button class="btn-top-logout" onclick="logout()">Đăng xuất</button>
   </div>
 </header>
 
@@ -119,6 +119,7 @@
 <script>
   function initSoTrucPage() {
     loadStorage();
+    if (!requireRole()) return;
     updateTopBarShared();
     const todayStr = fmtDate(new Date());
     document.getElementById("swapDate").value = todayStr;
@@ -186,6 +187,9 @@
           swappedCount++;
         }
       }
+      day.manualCredits = {};
+      day.streaks = {};
+      day.teamInCa = detectTeamsInCa(day);
       req.status = "approved";
       saveStorage();
       alert(`✅ Đã duyệt và tự động hoán đổi vị trí trong bảng lịch ngày ${vnFormat(req.date)} (${swappedCount} khung giờ)!`);
