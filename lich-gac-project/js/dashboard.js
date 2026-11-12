@@ -8,6 +8,8 @@ function initDashboard() {
   updateTopBarShared();
   const dateInput = document.getElementById("dashDate");
   dateInput.value = fmtDate(new Date());
+  const monthInput = document.getElementById("fairMonth");
+  if (monthInput) monthInput.value = fmtDate(new Date()).slice(0, 7);
   renderDashboard();
 }
 
@@ -148,6 +150,92 @@ function renderDashboard() {
       }
     }
   });
+
+  renderMonthlyFairness();
 }
 
 window.onload = initDashboard;
+
+// ===== THỐNG KÊ CÔNG BẰNG THEO THÁNG (M1) =====
+function renderMonthlyFairness() {
+  const monthEl = document.getElementById("fairMonth");
+  const table = document.getElementById("fairnessTable");
+  const summary = document.getElementById("fairnessSummary");
+  if (!monthEl || !table || !summary) return;
+
+  const month = monthEl.value || fmtDate(new Date()).slice(0, 7);
+  const result = computeMonthlyFairness(month);
+  const tbody = table.querySelector("tbody");
+  const rows = result.rows || [];
+
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--muted);">Chưa có dữ liệu lịch trong tháng này.</td></tr>`;
+    summary.textContent = `Tháng ${month.split("-")[1]}/${month.split("-")[0]}: chưa có dữ liệu.`;
+    return;
+  }
+
+  const totalCredit = rows.reduce((s, r) => s + (Number(r.credit) || 0), 0);
+  const avg = totalCredit / rows.length;
+  const max = Math.max(...rows.map(r => Number(r.credit) || 0));
+  const min = Math.min(...rows.map(r => Number(r.credit) || 0));
+  const spread = max - min;
+
+  summary.innerHTML =
+    `Tháng <b>${escHTML(month.split("-")[1])}/${escHTML(month.split("-")[0])}</b> · ` +
+    `${rows.length} chiến sĩ · Tổng điểm công <b>${totalCredit.toFixed(1)}</b> · ` +
+    `Trung bình <b>${avg.toFixed(1)}</b> · Chênh lệch cao nhất – thấp nhất <b>${spread.toFixed(1)}</b>` +
+    (spread > 3 ? ` · <span style="color:#c62828;">⚠️ Chênh lệch lớn, cần cân đối</span>` : ` · <span style="color:#2e7d32;">✅ Tương đối công bằng</span>`);
+
+  tbody.innerHTML = rows.map(r => {
+    const credit = Number(r.credit) || 0;
+    let color = "";
+    if (rows.length > 2 && credit > avg + 0.5) color = "#c62828";
+    else if (rows.length > 2 && credit < avg - 0.5) color = "#1565c0";
+    return `<tr>
+      <td style="text-align:center;">${r.teamId ? "Tổ " + r.teamId : "—"}</td>
+      <td><b>${escHTML(r.name)}</b></td>
+      <td style="text-align:center;">${r.days}</td>
+      <td style="text-align:center;">${r.shifts}</td>
+      <td style="text-align:center;">${r.nightShifts}</td>
+      <td style="text-align:center;">${r.dayShifts}</td>
+      <td style="text-align:center;">${r.weekendDays}</td>
+      <td style="text-align:center;font-weight:700;color:${color || "inherit"};">${credit.toFixed(1)}</td>
+    </tr>`;
+  }).join("");
+}
+
+function exportFairnessCSV() {
+  const monthEl = document.getElementById("fairMonth");
+  const month = (monthEl && monthEl.value) || fmtDate(new Date()).slice(0, 7);
+  const result = computeMonthlyFairness(month);
+  const rows = result.rows || [];
+  if (!rows.length) {
+    alert("Chưa có dữ liệu để xuất cho tháng này.");
+    return;
+  }
+  const header = ["Tổ", "Họ tên", "Ngày công", "Khung gác", "Ca đêm", "Ban ngày", "Ngày cuối tuần", "Điểm công"];
+  const lines = [header.join(",")];
+  rows.forEach(r => {
+    const cells = [
+      r.teamId ? "Tổ " + r.teamId : "",
+      r.name,
+      r.days,
+      r.shifts,
+      r.nightShifts,
+      r.dayShifts,
+      r.weekendDays,
+      (Number(r.credit) || 0).toFixed(1)
+    ];
+    lines.push(cells.map(v => `"${String(v).replace(/"/g, '""')}"`).join(","));
+  });
+  // BOM để Excel mở đúng tiếng Việt
+  const blob = new Blob(["\ufeff" + lines.join("\r\n")], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `ThongKeCongBang_${month}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}

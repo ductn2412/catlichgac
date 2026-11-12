@@ -13,6 +13,8 @@
     <h1 class="auth-title">ĐỘI 3</h1>
     <p class="auth-sub">Hệ thống Quản lý Quân số, Tài khoản Quân nhân, Dashboard Chỉ huy & Lịch gác</p>
 
+    <div id="sessionExpiredNotice" class="login-error" style="display:none;color:#b45309;"></div>
+
     <div id="role-buttons" class="auth-btn-group">
       <button class="auth-btn cmd-btn" onclick="showCommanderLogin()">
         <span class="auth-icon">⭐</span>
@@ -139,6 +141,20 @@
         "❌ Tài khoản chưa được Chỉ huy thêm vào hệ thống hoặc sai tên kèm mã số / mật khẩu!";
     }
   }
+
+  // Thông báo phiên đăng nhập hết hạn (requireRole chuyển hướng với ?expired=1)
+  (function showExpiredNotice() {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("expired") === "1") {
+        const el = document.getElementById("sessionExpiredNotice");
+        if (el) {
+          el.textContent = "⏰ Phiên đăng nhập đã hết hạn sau 30 phút không hoạt động. Vui lòng đăng nhập lại.";
+          el.style.display = "block";
+        }
+      }
+    } catch (e) {}
+  })();
 </script>
 </body>
 </html>

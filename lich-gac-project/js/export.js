@@ -44,14 +44,74 @@ function exportToPDF(dateStr) {
     return;
   }
   const element = document.getElementById("print-area");
+  if (!element) {
+    alert("Không tìm thấy vùng in lịch.");
+    return;
+  }
+
+  // Nhân bản vùng in để không làm thay đổi giao diện đang hiển thị.
+  const clone = element.cloneNode(true);
+  clone.removeAttribute("id");
+  clone.querySelectorAll(".no-print, .modal-backdrop, .bar, .roster, .import-bar").forEach(n => n.remove());
+  clone.querySelectorAll("button").forEach(n => n.remove());
+
+  // Hiện tiêu đề/footer chuẩn của bản in.
+  clone.querySelectorAll(".military-print-header, .military-print-footer").forEach(n => {
+    n.style.display = "flex";
+  });
+
+  // Bỏ thanh cuộn, cho bảng tràn đầy trang A4 ngang.
+  clone.querySelectorAll(".scroll").forEach(n => {
+    n.style.overflow = "visible";
+    n.style.maxHeight = "none";
+    n.style.height = "auto";
+  });
+  clone.querySelectorAll("table").forEach(t => {
+    t.style.width = "100%";
+    t.style.fontSize = "11px";
+    t.style.borderCollapse = "collapse";
+  });
+
+  // Ô nhập liệu → chữ tĩnh để bản PDF không bị cắt chữ.
+  clone.querySelectorAll("input, textarea, select").forEach(el => {
+    const span = document.createElement("span");
+    let val = el.value || "";
+    if (el.tagName === "SELECT" && el.options && el.selectedIndex >= 0) {
+      val = el.options[el.selectedIndex].text || "";
+    }
+    span.textContent = val;
+    el.replaceWith(span);
+  });
+
+  const wrapper = document.createElement("div");
+  wrapper.className = "pdf-export";
+  wrapper.style.cssText =
+    "background:#ffffff;color:#000000;width:277mm;padding:0;" +
+    "font-family:'Times New Roman',serif;";
+  wrapper.appendChild(clone);
+  document.body.appendChild(wrapper);
+
   const opt = {
-    margin:       8,
-    filename:     `LichGac_${dateStr}.pdf`,
-    image:        { type: 'jpeg', quality: 0.98 },
-    html2canvas:  { scale: 2 },
-    jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape' }
+    margin: [10, 10, 10, 10],
+    filename: `LichGac_${dateStr || fmtDate(new Date())}.pdf`,
+    image: { type: "jpeg", quality: 0.98 },
+    html2canvas: {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: "#ffffff",
+      scrollY: 0,
+      windowWidth: wrapper.scrollWidth
+    },
+    jsPDF: { unit: "mm", format: "a4", orientation: "landscape" },
+    pagebreak: { mode: ["css", "legacy"], avoid: ["tr", "td", "th", ".card"] }
   };
-  html2pdf().set(opt).from(element).save();
+
+  html2pdf().set(opt).from(wrapper).save()
+    .then(() => wrapper.remove())
+    .catch(err => {
+      wrapper.remove();
+      alert("❌ Không xuất được PDF: " + (err && err.message ? err.message : err));
+    });
 }
 
 function importFile(event, targetId) {

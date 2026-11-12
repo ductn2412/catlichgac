@@ -1005,3 +1005,54 @@ td input.nm.borrowed:not(.bad) {
   .unit-total-header strong { font-size: 16px; }
   .scroll table { min-width: 720px; }
 }
+
+/* ==================== BẢN SAO LƯU TỰ ĐỘNG & CẢNH BÁO BẢO MẬT ==================== */
+.snapshot-list {
+  max-height: 380px;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.snapshot-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.snapshot-item:last-child { border-bottom: 0; }
+.snapshot-info { display: flex; flex-direction: column; text-align: left; font-size: 13px; }
+.snapshot-info span { color: var(--muted); font-size: 12px; }
+
+.security-banner {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10040;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 14px;
+  background: #fff3e0;
+  border-top: 2px solid #ffb74d;
+  color: #8a4b00;
+  font-size: 13px;
+  text-align: center;
+}
+
+/* ==================== IN / XUẤT PDF CHUẨN A4 ==================== */
+@page { size: A4 portrait; margin: 12mm; }
+
+@media print {
+  table { page-break-inside: auto; }
+  thead { display: table-header-group; }
+  tfoot { display: table-footer-group; }
+  tr, td, th { page-break-inside: avoid; }
+  .security-banner, .snapshot-list { display: none !important; }
+  .pdf-export { display: block !important; }
+}

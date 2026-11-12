@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Quản lý Lập Lịch - Đội 3</title>
   <link rel="stylesheet" href="css/style.css">
+  <style>@page { size: A4 landscape; margin: 10mm; }</style>
 </head>
 <body>
 <!-- TOP GREEN BAR -->
@@ -35,8 +36,29 @@
     <div class="active-module-title">QUẢN LÝ LẬP LỊCH</div>
   </div>
   <div>
+    <button class="sec" onclick="openSnapshotModal()">🕘 Bản sao lưu</button>
+    <button class="sec" onclick="restoreLatestSnapshotConfirm()" title="Khôi phục bản sao lưu tự động gần nhất">⏪ Khôi phục bản trước</button>
     <button class="sec" onclick="backupJSONData()">💾 Sao lưu dữ liệu (.json)</button>
     <label class="btn-file" id="restoreJsonLabel" style="margin-left:6px;">📂 Khôi phục (.json)<input type="file" accept=".json" onchange="restoreJSONData(event)"></label>
+  </div>
+</div>
+
+<!-- MODAL BẢN SAO LƯU TỰ ĐỘNG -->
+<div id="snapshotModal" class="modal-backdrop">
+  <div class="modal-card" style="max-width:760px;">
+    <div class="modal-head">
+      <h3>🕘 Bản sao lưu tự động</h3>
+      <button class="sec" onclick="closeSnapshotModal()">✕</button>
+    </div>
+    <p class="sub" style="margin-top:0;">
+      Hệ thống tự lưu tối đa <b>10 bản gần nhất</b> trước mỗi lần cắt lịch, khôi phục dữ liệu hoặc sửa biên chế.
+      Khi khôi phục, dữ liệu hiện tại cũng được sao lưu trước để có thể quay lại.
+    </p>
+    <div id="snapshotList"></div>
+    <div class="login-actions" style="margin-top:12px;">
+      <button type="button" class="sec" onclick="closeSnapshotModal()">Đóng</button>
+      <button type="button" class="pri" onclick="backupJSONData()">💾 Tải bản hiện tại (.json)</button>
+    </div>
   </div>
 </div>
 
@@ -76,6 +98,7 @@
     <a href="lich-gac.html" class="side-link" id="navView"><span class="side-icon">📄</span><span>Trang hiển thị lịch gác</span></a>
     <a href="cham-cong.html" class="side-link" id="navMonthly"><span class="side-icon">🗓️</span><span>Bảng chấm công tháng</span></a>
     <a href="so-truc.html" class="side-link" id="navLog"><span class="side-icon">🔄</span><span>Đăng ký & Duyệt đổi ca</span></a>
+    <a href="ban-giao.html" class="side-link" id="navHandover"><span class="side-icon">📒</span><span>Sổ bàn giao trực ban</span></a>
     <a href="tim-kiem.html" class="side-link" id="navSearch"><span class="side-icon">🔍</span><span>Tra cứu Chiến sĩ & Ca gác</span></a>
   </aside>
 
@@ -222,6 +245,17 @@
         <div id="borrowMsg" style="font-size:12.5px;color:var(--primary-green);font-weight:700;margin-top:6px;"></div>
       </section>
 
+      <!-- KIỂM TRA NỐI NGÀY D-1 → D -->
+      <section class="card no-print" id="crossDayCard" data-html2canvas-ignore="true" style="margin-top:12px;">
+        <h2>🔎 Kiểm tra nối ngày D-1 → D</h2>
+        <p class="sub" style="margin-top:0;">
+          Quét toàn bộ lịch để phát hiện trường hợp một người làm <b>Ca 4 · 04:00 – 06:00</b> ngày hôm trước
+          và tiếp tục <b>Ca 1 · 06:00 – 08:00</b> ngày hôm sau (gác liền 4 giờ). Các trường hợp này luôn bị báo đỏ.
+        </p>
+        <button class="sec" onclick="runCrossDayAudit()">🔍 Kiểm tra toàn bộ lịch</button>
+        <div id="crossDayAuditResult" style="margin-top:8px;font-size:13px;"></div>
+      </section>
+
       <datalist id="dlO"></datalist>
       <datalist id="dlS"></datalist>
 
@@ -274,6 +308,10 @@
           <datalist id="dlAll"></datalist>
         </div>
         
+        <p class="sub" style="margin-top:0;">
+          📌 <b>Lưu ý vắng mặt:</b> Danh sách đã nhập được <b>giữ nguyên qua các lần cắt lịch</b> và chỉ mất khi bấm <b>×</b> để xóa tên.
+          Người đang có tên trong bất kỳ mục nào dưới đây <b>sẽ không được cắt vào lịch đi làm</b>.
+        </p>
         <div id="cats"></div>
         <div class="warn" id="warn"></div>
       </section>

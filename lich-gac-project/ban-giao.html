@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Sổ Bàn Giao Trực Ban - ĐỘI 3 </title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    @page { size: A4 portrait; margin: 12mm; }
+    @media print {
+      #handoverFormCard { display: none !important; }
+      #handoverPrintArea { box-shadow: none; border: 0; padding: 0; }
+      #handoverPrintArea table { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+<!-- TOP GREEN BAR -->
+<header class="top-navbar">
+  <div class="brand-group">
+    <span class="brand-logo">ĐỘI 3</span>
+    <span class="brand-title"> HỆ THỐNG LẬP LỊCH</span>
+  </div>
+  <form class="search-box" onsubmit="executeGlobalSearch(event)">
+    <span>🔍</span>
+    <input type="text" id="globalSearchInput" placeholder="Tìm chiến sĩ (VD: Bùi Văn Hùng, CS01) hoặc ca gác (VD: Ca 1)...">
+    <button type="submit">Tìm kiếm</button>
+  </form>
+  <div class="top-actions">
+    <button class="icon-btn-top" onclick="window.location.href='so-truc.html'" title="Yêu cầu đổi ca">
+      🔔 Đổi ca <span id="pendingSwapCount" class="notif-badge">0</span>
+    </button>
+    <button class="icon-btn-top" id="btnChangePassTop" onclick="openPasswordModal()" title="Đổi mật khẩu Chỉ huy">🔑 Mật khẩu</button>
+    <span id="roleBadge" class="role-pill"></span>
+    <button class="btn-top-logout" onclick="logout()">Đăng xuất</button>
+  </div>
+</header>
+
+<!-- SUB HEADER BAR -->
+<div class="sub-navbar">
+  <div class="sub-nav-left">
+    <div class="widget-tag"><span class="plus">+</span> ĐỘI 3</div>
+    <div class="active-module-title">SỔ BÀN GIAO TRỰC BAN</div>
+  </div>
+  <div>
+    <label for="handoverDate" style="font-size:13px;font-weight:600;color:#555;margin-right:6px;">Ngày bàn giao:</label>
+    <input type="date" id="handoverDate" onchange="renderHandover()">
+  </div>
+</div>
+
+<!-- MODAL ĐỔI MẬT KHẨU CHỈ HUY -->
+<div id="passwordModal" class="modal-backdrop">
+  <div class="modal-card">
+    <div class="modal-head">
+      <h3>🔑 Đổi mật khẩu tài khoản Chỉ huy</h3>
+      <button class="sec" onclick="closePasswordModal()">✕</button>
+    </div>
+    <form onsubmit="saveNewCommanderPassword(event)">
+      <div class="form-group">
+        <label>Tài khoản Chỉ huy cần đổi (chihuy / truongban / admin)</label>
+        <input type="text" id="cpUser" value="chihuy" required>
+      </div>
+      <div class="form-group">
+        <label>Mật khẩu hiện tại</label>
+        <input type="password" id="cpOld" required>
+      </div>
+      <div class="form-group">
+        <label>Mật khẩu mới</label>
+        <input type="password" id="cpNew" required>
+      </div>
+      <div class="login-actions">
+        <button type="button" class="sec" onclick="closePasswordModal()">Hủy</button>
+        <button type="submit" class="pri">Lưu mật khẩu mới</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="app-shell">
+  <aside class="left-sidebar">
+    <a href="dashboard.html" class="side-link" id="navDash"><span class="side-icon">📊</span><span>Màn hình Dashboard</span></a>
+    <a href="quan-ly-tai-khoan.html" class="side-link" id="navAccounts"><span class="side-icon">👥</span><span>Quản lý Tài khoản</span></a>
+    <a href="quan-ly-lich.html" class="side-link" id="navManage"><span class="side-icon">📋</span><span>Quản lý lập lịch</span></a>
+    <a href="lich-gac.html" class="side-link" id="navView"><span class="side-icon">📄</span><span>Trang hiển thị lịch gác</span></a>
+    <a href="cham-cong.html" class="side-link" id="navMonthly"><span class="side-icon">🗓️</span><span>Bảng chấm công tháng</span></a>
+    <a href="so-truc.html" class="side-link" id="navLog"><span class="side-icon">🔄</span><span>Đăng ký & Duyệt đổi ca</span></a>
+    <a href="ban-giao.html" class="side-link active" id="navHandover"><span class="side-icon">📒</span><span>Sổ bàn giao trực ban</span></a>
+    <a href="tim-kiem.html" class="side-link" id="navSearch"><span class="side-icon">🔍</span><span>Tra cứu Chiến sĩ & Ca gác</span></a>
+  </aside>
+
+  <main class="main-workspace">
+    <!-- BIỂU MẪU GHI SỔ BÀN GIAO -->
+    <section class="card no-print" id="handoverFormCard" style="margin-bottom:14px;">
+      <h2>📝 Ghi nhận bàn giao trực ban</h2>
+      <p class="sub" style="margin-top:0;">
+        Ghi lại nội dung bàn giao giữa các ca trực: tình hình đơn vị, vũ khí trang bị, tài liệu, người vắng mặt và các việc cần theo dõi.
+      </p>
+      <form onsubmit="submitHandover(event)">
+        <div class="two">
+          <div class="form-group">
+            <label>Ca bàn giao</label>
+            <select id="handoverCa">
+              <option value="">— Cả ngày / Không theo ca —</option>
+              <option value="1">Ca 1</option>
+              <option value="2">Ca 2</option>
+              <option value="3">Ca 3</option>
+              <option value="4">Ca 4</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Trạng thái</label>
+            <select id="handoverStatus">
+              <option value="done">✅ Đã bàn giao</option>
+              <option value="pending">⏳ Chờ xử lý</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Người bàn giao</label>
+            <input type="text" id="handoverFrom" list="dlHandoverNames" placeholder="VD: Đ/c Bùi Văn Hùng">
+          </div>
+          <div class="form-group">
+            <label>Người nhận bàn giao</label>
+            <input type="text" id="handoverTo" list="dlHandoverNames" placeholder="VD: Đ/c Trần Văn Hiệp">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Nội dung bàn giao</label>
+          <textarea id="handoverContent" rows="4" maxlength="2000" placeholder="VD: Quân số đủ, vũ khí trang bị đầy đủ; đồng chí CS01 vắng có phép; cần kiểm tra lại camera vọng x10..." required></textarea>
+        </div>
+        <div class="login-actions" style="justify-content:flex-start;">
+          <button type="submit" class="pri">💾 Lưu nội dung bàn giao</button>
+          <button type="button" class="sec" onclick="window.print()">🖨 In sổ bàn giao</button>
+        </div>
+      </form>
+      <datalist id="dlHandoverNames"></datalist>
+    </section>
+
+    <!-- KHU VỰC IN -->
+    <section class="card" id="handoverPrintArea">
+      <div class="military-print-header">
+        <div>
+          <b>ĐỘI 3 - TRUNG ĐOÀN 375</b><br>
+          BỘ TƯ LỆNH CẢNH VỆ - BỘ CÔNG AN
+        </div>
+        <div>
+          <b>SỔ BÀN GIAO TRỰC BAN</b><br>
+          <span id="handoverPrintDate"></span>
+        </div>
+      </div>
+      <h2 class="no-print" style="margin-top:0;">📒 Nội dung bàn giao trong ngày</h2>
+      <p class="sub no-print" id="handoverSummary" style="margin-top:0;"></p>
+      <div id="handoverList"></div>
+      <div class="military-print-footer">
+        <div>
+          <b>Người bàn giao</b><br><br><br>
+          <i>(Ký, ghi rõ họ tên)</i>
+        </div>
+        <div>
+          <b>Người nhận bàn giao</b><br><br><br>
+          <i>(Ký, ghi rõ họ tên)</i>
+        </div>
+        <div>
+          <b>Chỉ huy Đội 3</b><br><br><br>
+          <i>(Ký, ghi rõ họ tên)</i>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/storage.js"></script>
+<script>
+  function initHandoverPage() {
+    loadStorage();
+    if (!requireRole()) return;
+    updateTopBarShared();
+    const dateEl = document.getElementById("handoverDate");
+    dateEl.value = fmtDate(new Date());
+
+    const all = [...parseNames(S.officers), ...parseNames(S.soldiers)];
+    const dl = document.getElementById("dlHandoverNames");
+    dl.innerHTML = "";
+    all.forEach(n => {
+      const o = document.createElement("option");
+      o.value = n;
+      dl.appendChild(o);
+    });
+
+    renderHandover();
+  }
+
+  function handoverStatusLabel(status) {
+    return status === "pending"
+      ? '<span style="color:#e65100;font-weight:bold;">⏳ Chờ xử lý</span>'
+      : '<span style="color:#2e7d32;font-weight:bold;">✅ Đã bàn giao</span>';
+  }
+
+  function renderHandover() {
+    const dateEl = document.getElementById("handoverDate");
+    const holder = document.getElementById("handoverList");
+    const summary = document.getElementById("handoverSummary");
+    const printDate = document.getElementById("handoverPrintDate");
+    if (!dateEl || !holder) return;
+
+    const dateStr = dateEl.value || fmtDate(new Date());
+    if (printDate) printDate.textContent = "Ngày " + vnFormat(dateStr);
+
+    const list = getHandoverNotes(dateStr).slice().sort((a, b) =>
+      String(a.ca || "0").localeCompare(String(b.ca || "0")) ||
+      String(a.createdAt || "").localeCompare(String(b.createdAt || ""))
+    );
+
+    if (!list.length) {
+      holder.innerHTML = '<p class="empty">Chưa có nội dung bàn giao nào cho ngày này.</p>';
+      if (summary) summary.textContent = "Chưa có nội dung bàn giao.";
+      return;
+    }
+
+    const pending = list.filter(x => x.status === "pending").length;
+    if (summary) {
+      summary.innerHTML = `Ngày <b>${vnFormat(dateStr)}</b> · ${list.length} nội dung · ` +
+        (pending ? `<span style="color:#e65100;">${pending} việc chờ xử lý</span>` : `<span style="color:#2e7d32;">Đã xử lý xong</span>`);
+    }
+
+    const canEdit = getCurrentRole() === "commander";
+    holder.innerHTML = `<div class="scroll"><table>
+      <thead>
+        <tr>
+          <th style="width:44px;">STT</th>
+          <th style="width:64px;">Ca</th>
+          <th style="width:150px;">Người bàn giao</th>
+          <th style="width:150px;">Người nhận</th>
+          <th>Nội dung</th>
+          <th style="width:110px;">Trạng thái</th>
+          <th class="no-print" style="width:64px;">Xóa</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${list.map((n, i) => `<tr>
+          <td style="text-align:center;">${i + 1}</td>
+          <td style="text-align:center;">${n.ca ? "Ca " + escHTML(n.ca) : "—"}</td>
+          <td>${escHTML(n.from || "—")}</td>
+          <td>${escHTML(n.to || "—")}</td>
+          <td style="white-space:pre-wrap;">${escHTML(n.content)}</td>
+          <td style="text-align:center;">${handoverStatusLabel(n.status)}</td>
+          <td class="no-print" style="text-align:center;">
+            ${canEdit ? `<button class="chip-remove" title="Xóa dòng bàn giao" onclick="removeHandover('${escHTML(n.id)}')">×</button>` : "—"}
+          </td>
+        </tr>`).join("")}
+      </tbody>
+    </table></div>`;
+  }
+
+  function submitHandover(ev) {
+    ev.preventDefault();
+    if (getCurrentRole() !== "commander") {
+      alert("Chỉ có Chỉ huy / Trưởng ban mới được ghi sổ bàn giao!");
+      return;
+    }
+    const res = addHandoverNote({
+      date: document.getElementById("handoverDate").value,
+      ca: document.getElementById("handoverCa").value,
+      from: document.getElementById("handoverFrom").value,
+      to: document.getElementById("handoverTo").value,
+      content: document.getElementById("handoverContent").value,
+      status: document.getElementById("handoverStatus").value
+    });
+    if (!res.ok) {
+      alert("❌ " + res.error);
+      return;
+    }
+    document.getElementById("handoverContent").value = "";
+    renderHandover();
+    alert("✅ Đã lưu nội dung bàn giao!");
+  }
+
+  function removeHandover(id) {
+    if (getCurrentRole() !== "commander") {
+      alert("Chỉ có Chỉ huy / Trưởng ban mới được xóa nội dung bàn giao!");
+      return;
+    }
+    if (!confirm("Xóa dòng bàn giao này?")) return;
+    const dateStr = document.getElementById("handoverDate").value || fmtDate(new Date());
+    const res = deleteHandoverNote(dateStr, id);
+    if (!res.ok) {
+      alert("❌ " + res.error);
+      return;
+    }
+    renderHandover();
+  }
+
+  window.onload = initHandoverPage;
+</script>
+</body>
+</html>

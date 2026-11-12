@@ -582,17 +582,20 @@ function applyRolePermissions() {
 function resetDefaultTourTeams() {
   if (getCurrentRole() !== "commander") return;
   if (!confirm("Khôi phục danh sách biên chế 4 Tổ chuẩn theo file Tour gác và xếp lịch gốc cho ngày đang chọn?")) return;
+  createSnapshot("Trước khi nạp lại biên chế/lịch gốc");
   S.teams = JSON.parse(JSON.stringify(DEFAULT_TEAMS));
   syncFromTeamsToRosterAndAccounts();
 
   const day = getDayData(curDate);
+  const ab = absSet(day.absent || {});
   day.teamInCa = [1, 2, 3, 4];
   day.manualCredits = {};
   expandedCells = {};
   for (let ca = 0; ca < 4; ca++) {
     const team = S.teams[ca];
-    const docGac = team.officers[0] || "";
-    const vongs = team.soldiers.slice(0, 4);
+    // Không xếp người đang vắng mặt vào lịch gốc.
+    const docGac = (team.officers || []).find(n => n && !isPersonAbsentIn(ab, n)) || "";
+    const vongs = (team.soldiers || []).filter(n => n && !isPersonAbsentIn(ab, n)).slice(0, 4);
     for (let slot = 0; slot < 3; slot++) {
       const row = ca * 3 + slot;
       day.cells[row * 5 + 0] = docGac;
@@ -981,6 +984,9 @@ function assignGuardColumns(entries, dateStr, teamSoldiers) {
 
 function buildGeneratedDay(dateStr, teamMap, prevDay) {
   const day = getDayData(dateStr);
+  // Danh sách vắng mặt đã nhập được giữ nguyên qua các lần cắt lịch:
+  // ngày mới kế thừa danh sách vắng mặt gần nhất cho tới khi người dùng xóa tên.
+  applyInheritedAbsence(dateStr, day);
   const ab = absSet(day.absent || {});
   const nightSet = getNightOnlySet();
   const rules = getBorrowRules();
@@ -1181,6 +1187,16 @@ function buildGeneratedDay(dateStr, teamMap, prevDay) {
     }
   }
 
+  // Chốt chặn cuối: tuyệt đối không xếp người đang vắng mặt vào lịch đi làm.
+  const absentFinal = absSet(day.absent || {});
+  for (let k = 0; k < 60; k++) {
+    const person = (cells[k] || "").trim();
+    if (person && isPersonAbsentIn(absentFinal, person)) {
+      cells[k] = "";
+      unfilled++;
+    }
+  }
+
   day.cells = cells;
   day.teamInCa = teamMap.slice();
   day.streaks = {};
@@ -1208,6 +1224,7 @@ function generateSchedule() {
     return;
   }
 
+  createSnapshot("Trước khi cắt lịch ngày " + vnFormat(targetDate));
   const prevDay = getDayData(curDate);
   const teamMap = nextTeamMap(detectTeamsInCa(prevDay));
   const built = buildGeneratedDay(targetDate, teamMap, prevDay);
@@ -1247,6 +1264,7 @@ function generateWeekSchedule() {
     return;
   }
 
+  createSnapshot(`Trước khi cắt lịch tuần (${vnFormat(startDate)} → ${vnFormat(dates[6])})`);
   let prevDay = getDayData(curDate);
   let teamMap = nextTeamMap(detectTeamsInCa(prevDay));
   let totalUnfilled = 0;
@@ -1397,6 +1415,7 @@ function saveTeamsFromTextareas() {
     }
   }
 
+  createSnapshot("Trước khi lưu biên chế 4 Tổ");
   for (let i = 0; i < 4; i++) {
     const oEl = document.getElementById(`team${i + 1}Off`);
     const sEl = document.getElementById(`team${i + 1}Sol`);
@@ -1456,6 +1475,7 @@ function applyMultiDayAbsence() {
       targetList.push(person);
     }
     dayData.absent[catKey] = targetList.join(", ");
+    dayData.absentTouched = true;
     dayData.cells = dayData.cells.map(c => cleanName(c) === cName ? "" : c);
 
     d = addDay(d, 1);
@@ -1488,6 +1508,9 @@ function initUI() {
       onChange: (arr) => {
         const d = getDayData(curDate);
         d.absent[c[0]] = arr.join(", ");
+        // Đánh dấu ngày đã chỉnh tay: danh sách vắng mặt của ngày này sẽ không bị
+        // tự động kế thừa đè lên ở lần cắt lịch sau.
+        d.absentTouched = true;
         saveStorage();
         refresh();
       }
@@ -1582,6 +1605,29 @@ function renderChips(el, arr, emptyText) {
     span.onclick = () => { window.location.href = `tim-kiem.html?q=${encodeURIComponent(cleanName(n))}`; };
     el.appendChild(span);
   });
+}
+
+// ===== ALERT BÁO ĐỎ =====
+// Hiển thị hộp thoại cảnh báo khi phát hiện lỗi đỏ (lịch sai, vắng vẫn xếp gác,
+// trùng ca, lẫn Tổ, nối ngày...). Hộp thoại tồn tại cho tới khi người dùng bấm OK.
+// Cùng một nhóm lỗi chỉ hiện một lần để không chặn thao tác liên tục.
+let lastRedAlertSignature = "";
+
+function showRedAlert(warnings) {
+  const reds = (warnings || []).filter(w => String(w).indexOf("❌") >= 0);
+  if (!reds.length) {
+    lastRedAlertSignature = "";
+    return;
+  }
+  const signature = reds.map(w => String(w).split(":")[0]).join("\n");
+  if (signature === lastRedAlertSignature) return;
+  lastRedAlertSignature = signature;
+  // Trì hoãn 1 nhịp để DOM kịp cập nhật trước khi alert chặn giao diện.
+  setTimeout(() => {
+    alert("⛔ PHÁT HIỆN VẤN ĐỀ CẦN XỬ LÝ:\n\n" +
+      reds.join("\n\n") +
+      "\n\n(Nhấn OK để tắt thông báo)");
+  }, 0);
 }
 
 function refresh() {
@@ -1769,11 +1815,22 @@ function refresh() {
   if (wrong.length) warnings.push("❌ BÁO ĐỎ SAI CHỨC DANH (Đốc gác không thay cho Chiến sĩ và ngược lại): " + Array.from(new Set(wrong)).join(" | "));
   if (crossTeamErrors.length) warnings.push("❌ BÁO ĐỎ LẪN TỔ GÁC (Chiến sĩ chỉ thay thế trong cùng 1 Tổ cố định): " + Array.from(new Set(crossTeamErrors)).join(" | "));
 
+  // Kiểm tra nối ngày D-1 → D cho ngày đang xem (Ca 4 · 04:00–06:00 → Ca 1 · 06:00–08:00)
+  const crossDayNow = auditCrossDayConflicts().filter(c => c.from === curDate || c.to === curDate);
+  if (crossDayNow.length) {
+    hasCriticalError = true;
+    warnings.push("❌ BÁO ĐỎ NỐI NGÀY: " + crossDayNow.map(c => c.message).join(" | "));
+  }
+
   warnings.forEach(w => {
     const div = document.createElement("div");
     div.textContent = w;
     warnEl.appendChild(div);
   });
+
+  // Mỗi khi có báo đỏ, bật hộp thoại alert để người dùng không bỏ sót vấn đề.
+  // Alert chỉ tự tắt khi người dùng bấm OK; cùng một nhóm lỗi chỉ hiện 1 lần.
+  showRedAlert(warnings);
 
   // ===== Cảnh báo & thông tin mượn quân số tạm thời =====
   const notes = [];
