@@ -20,10 +20,13 @@ const KEY = "lich-gac-v12";
 const ROLE_KEY = "lich-gac-role";
 const USER_KEY = "lich-gac-current-user";
 
+// Mật khẩu Chỉ huy mặc định đã được băm SHA-256 + salt (không lưu plaintext).
+// Tài khoản: chihuy / doi3, truongban / doi3, admin / 123456.
+// Nên đổi mật khẩu ngay sau lần đăng nhập đầu tiên.
 const DEFAULT_COMMANDER_ACCOUNTS = {
-  "chihuy": "doi3",
-  "truongban": "doi3",
-  "admin": "123456"
+  "chihuy": "sha256$1000$salt-chihuy-2026$b1e618b3c77266dee920dfb18a351e1af4319cedfb87dcbddcee0bec2003d5f1",
+  "truongban": "sha256$1000$salt-truongban-2026$5f931d393727155c4b6eb8f919ce77b4a28aad4d123dcd13d1481d27ce0674f9",
+  "admin": "sha256$1000$salt-admin-2026$e089e17e129964998609b72e557bb50c7b9104ab83748edec5bdf6195f5e2648"
 };
 
 // CẤU HÌNH 4 TỔ GÁC CỐ ĐỊNH THEO TOUR (ĐỐC GÁC & CHIẾN SĨ NGHĨA VỤ CÙNG TỔ)

@@ -130,7 +130,7 @@
 
     // Hiển thị vài nút bấm nhanh tên chiến sĩ mẫu
     const sampleBtns = all.slice(0, 5).map(n =>
-      `<button class="sec" style="padding:3px 8px;font-size:12px;" onclick="quickSearch('${cleanName(n)}')">${n}</button>`
+      `<button class="sec" style="padding:3px 8px;font-size:12px;" data-q="${escHTML(n)}" onclick="quickSearch(this.dataset.q)">${escHTML(n)}</button>`
     ).join(" ");
     document.getElementById("quickSoldierButtons").innerHTML = sampleBtns;
 
@@ -196,7 +196,7 @@
     let html = `<section class="card">
       <div class="unit-total-header">
         <span>🛡️ KẾT QUẢ TÌM KIẾM CA GÁC TRONG NGÀY ${vnFormat(dStr)} (${DOW[parseDate(dStr).getDay()]})</span>
-        <span class="unit-sub">Từ khóa: "${queryText}"</span>
+        <span class="unit-sub">Từ khóa: "${escHTML(queryText)}"</span>
       </div>
       <div class="scroll">
         <table>
@@ -257,7 +257,6 @@
     const position = acc ? (acc.position || (isOfficer ? "Sĩ quan Đốc gác" : "Chiến sĩ nghĩa vụ")) : (isOfficer ? "Sĩ quan Đốc gác" : "Chiến sĩ nghĩa vụ");
     const roleGroup = isOfficer ? "Sĩ quan (Đốc gác 1)" : "Chiến sĩ nghĩa vụ (Vọng gác x9, x10, x11, x12)";
     const username = acc ? (acc.username || formatFullAccountName(cName, code)) : formatFullAccountName(cName, code);
-    const password = acc ? (acc.password || "1") : "1";
     const dob = acc && acc.dob ? vnFormat(acc.dob) : "Chưa cập nhật";
     const hometown = acc && acc.hometown ? acc.hometown : "Chưa cập nhật";
     const safeFull = formatFullAccountName(cName, code).replace(/'/g, "\'");
@@ -389,7 +388,7 @@
       <!-- PHẦN A: TRANG HIỂN THỊ ĐẦY ĐỦ THÔNG TIN HỒ SƠ Chiến Sĩ -->
       <section class="card">
         <div class="bar" style="justify-content:space-between;">
-          <h2 style="margin:0;">1️⃣ Trang Hồ Sơ Chi Tiết Chiến Sĩ — ${cName} (${code})</h2>
+          <h2 style="margin:0;">1️⃣ Trang Hồ Sơ Chi Tiết Chiến Sĩ — ${escHTML(cName)} (${escHTML(code)})</h2>
           ${editBtnHtml}
         </div>
         <div class="scroll">
@@ -401,21 +400,19 @@
                 <th>Chức vụ</th>
                 <th>Nhóm cắt gác</th>
                 <th>Tên tài khoản đăng nhập</th>
-                <th>Mật khẩu</th>
                 <th>Ngày tháng năm sinh</th>
                 <th>Quê quán</th>
               </tr>
             </thead>
             <tbody>
               <tr>
-                <td><b style="font-size:15px;color:var(--primary-green);">${cName}</b></td>
-                <td><b>${code}</b></td>
-                <td><b>${position}</b></td>
-                <td>${roleGroup}</td>
-                <td><code style="background:var(--bg);padding:3px 6px;border-radius:4px;font-weight:bold;color:var(--primary-green);">${username}</code></td>
-                <td><b>${password}</b></td>
-                <td><b>${dob}</b></td>
-                <td><b>${hometown}</b></td>
+                <td><b style="font-size:15px;color:var(--primary-green);">${escHTML(cName)}</b></td>
+                <td><b>${escHTML(code)}</b></td>
+                <td><b>${escHTML(position)}</b></td>
+                <td>${escHTML(roleGroup)}</td>
+                <td><code style="background:var(--bg);padding:3px 6px;border-radius:4px;font-weight:bold;color:var(--primary-green);">${escHTML(username)}</code></td>
+                <td><b>${escHTML(dob)}</b></td>
+                <td><b>${escHTML(hometown)}</b></td>
               </tr>
             </tbody>
           </table>
@@ -430,13 +427,13 @@
 
       <!-- PHẦN B: TRẠNG THÁI HÔM NAY ĐANG NGHỈ HAY ĐI LÀM, LÀM CA NÀO -->
       <section class="card">
-        <h2>2️⃣ Trạng Thái Ngày ${vnFormat(dStr)} — ${cName} (${code})</h2>
+        <h2>2️⃣ Trạng Thái Ngày ${vnFormat(dStr)} — ${escHTML(cName)} (${escHTML(code)})</h2>
         ${todayStatusBanner}
       </section>
 
       <!-- PHẦN C: BẢNG THÔNG TIN THÁNG HIỆN TẠI CHI TIẾT TỪNG NGÀY -->
       <section class="card">
-        <h2>3️⃣ Bảng Chi Tiết Tháng ${month}/${year} Của ${cName} (${code}) (Làm ngày nào, Ca nào, Nghỉ ngày nào)</h2>
+        <h2>3️⃣ Bảng Chi Tiết Tháng ${month}/${year} Của ${escHTML(cName)} (${escHTML(code)}) (Làm ngày nào, Ca nào, Nghỉ ngày nào)</h2>
         <div class="scroll">
           <table>
             <thead>

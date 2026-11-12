@@ -22,7 +22,7 @@
       <button class="auth-btn sol-btn" onclick="showSoldierLogin()">
         <span class="auth-icon">👤</span>
         <span class="auth-label">Chiến sĩ / Quân nhân</span>
-        <span class="auth-desc">Đăng nhập bằng Tên kèm mã số quân nhân (mật khẩu mặc định: 1) do Chỉ huy cấp</span>
+        <span class="auth-desc">Đăng nhập bằng Tên kèm mã số quân nhân do Chỉ huy cấp</span>
       </button>
     </div>
 
@@ -31,18 +31,18 @@
       <h3>⭐ Đăng nhập Chỉ huy / Trưởng ban</h3>
       <div class="form-group">
         <label for="cmdUser">Tài khoản Chỉ huy</label>
-        <input type="text" id="cmdUser" placeholder="Nhập tài khoản (Mặc định: chihuy)" required value="chihuy">
+        <input type="text" id="cmdUser" placeholder="Nhập tài khoản Chỉ huy" required autocomplete="off">
       </div>
       <div class="form-group">
         <label for="cmdPass">Mật khẩu</label>
-        <input type="password" id="cmdPass" placeholder="Nhập mật khẩu (Mặc định: doi3)" required value="doi3">
+        <input type="password" id="cmdPass" placeholder="Nhập mật khẩu" required autocomplete="current-password">
       </div>
       <div id="loginError" class="login-error"></div>
       <div class="login-actions">
         <button type="button" class="sec" onclick="backToRoleSelect()">← Quay lại</button>
         <button type="submit" class="pri">Đăng nhập Chỉ huy →</button>
       </div>
-      <p class="login-hint">💡 <i>Tài khoản mặc định: <b>chihuy</b> | Mật khẩu: <b>doi3</b></i></p>
+      <p class="login-hint">💡 <i>Mật khẩu do Chỉ huy quản lý. Nếu quên, liên hệ quản trị viên hệ thống.</i></p>
     </form>
 
     <!-- FORM ĐĂNG NHẬP CHIẾN SĨ (CHỈ ĐĂNG NHẬP ĐƯỢC KHI ĐƯỢC CHỈ HUY THÊM VÀO HỆ THỐNG) -->
@@ -54,8 +54,8 @@
         <datalist id="dlRegisteredSoldiers"></datalist>
       </div>
       <div class="form-group">
-        <label for="solPass">Mật khẩu (Mặc định là <b>1</b>)</label>
-        <input type="password" id="solPass" placeholder="Nhập mật khẩu (Mặc định: 1)" required value="1">
+        <label for="solPass">Mật khẩu</label>
+        <input type="password" id="solPass" placeholder="Nhập mật khẩu do Chỉ huy cấp" required autocomplete="current-password">
       </div>
       <div id="solLoginError" class="login-error"></div>
       <div class="login-actions">
@@ -63,7 +63,7 @@
         <button type="submit" class="pri">Đăng nhập Chiến sĩ →</button>
       </div>
       <p class="login-hint">
-        🔒 <i>Lưu ý: Chỉ những tài khoản Sĩ quan / Chiến sĩ đã được <b>Chỉ huy thêm vào hệ thống</b> mới có thể đăng nhập. Tên tài khoản là <b>Họ tên (Mã số)</b>, mật khẩu mặc định là <b>1</b>.</i>
+        🔒 <i>Lưu ý: Chỉ những tài khoản Sĩ quan / Chiến sĩ đã được <b>Chỉ huy thêm vào hệ thống</b> mới có thể đăng nhập. Tên tài khoản là <b>Họ tên (Mã số)</b>. Mật khẩu do Chỉ huy cấp.</i>
       </p>
     </form>
   </div>
@@ -78,6 +78,7 @@
     const dl = document.getElementById("dlRegisteredSoldiers");
     dl.innerHTML = "";
     (S.personnelAccounts || []).forEach(acc => {
+      if (acc.active === false) return;
       const opt = document.createElement("option");
       opt.value = formatFullAccountName(acc.fullName, acc.code);
       opt.label = acc.position || (acc.roleType === "officer" ? "Sĩ quan" : "Chiến sĩ");
@@ -113,7 +114,7 @@
     const u = (document.getElementById("cmdUser").value || "").trim().toLowerCase();
     const p = (document.getElementById("cmdPass").value || "").trim();
     const accs = S.accounts || DEFAULT_COMMANDER_ACCOUNTS;
-    if (accs[u] && accs[u] === p) {
+    if (accs[u] && verifyPasswordRecord(String(accs[u]), p)) {
       setCurrentRole("commander");
       setCurrentUserLabel(u.toUpperCase());
       window.location.href = "dashboard.html";
@@ -135,7 +136,7 @@
       window.location.href = "lich-gac.html";
     } else {
       document.getElementById("solLoginError").textContent =
-        "❌ Tài khoản chưa được Chỉ huy thêm vào hệ thống hoặc sai tên kèm mã số / mật khẩu (Mật khẩu mặc định là 1)!";
+        "❌ Tài khoản chưa được Chỉ huy thêm vào hệ thống hoặc sai tên kèm mã số / mật khẩu!";
     }
   }
 </script>

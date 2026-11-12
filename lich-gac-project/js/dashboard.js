@@ -66,8 +66,8 @@ function renderDashboard() {
       <li class="duty-item" style="cursor:pointer;" onclick="window.location.href='tim-kiem.html?q=Ca+${ca + 1}'">
         <span class="duty-avatar">C${ca + 1}</span>
         <div class="duty-info">
-          <span class="duty-name">Ca ${ca + 1}: Đốc gác ${docGac}</span>
-          <span class="duty-sub">Khung giờ: ${CA[ca].join(" · ")} | Vọng: ${vong9}, ${vong10}...</span>
+          <span class="duty-name">Ca ${ca + 1}: Đốc gác ${escHTML(docGac)}</span>
+          <span class="duty-sub">Khung giờ: ${escHTML(CA[ca].join(" · "))} | Vọng: ${escHTML(vong9)}, ${escHTML(vong10)}...</span>
         </div>
         <span class="duty-pct">${pct}%</span>
       </li>

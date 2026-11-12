@@ -165,7 +165,8 @@
 
         bodyHtml += `<td class="${classTag}">
           <input type="text" value="${status}" ${!isCommander ? 'disabled' : ''} style="width:32px;text-align:center;border:none;background:transparent;font-weight:bold;font-size:11px;" 
-            onchange="updateMonthlyCellSmart('${dateStr}', '${name}', this.value)" title="Nhập X (1 công), 0.5 (0,5 công), H, CT, O, OV, P, NB, K">
+            data-person="${escHTML(name)}"
+            onchange="updateMonthlyCellSmart('${dateStr}', this.dataset.person, this.value)" title="Nhập X (1 công), 0.5 (0,5 công), H, CT, O, OV, P, NB, K">
         </td>`;
       }
       bodyHtml += `<td><b style="color:var(--primary-green);">${totalWorkCredits.toString().replace('.', ',')}</b></td>`;

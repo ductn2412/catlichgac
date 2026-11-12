@@ -139,8 +139,8 @@
           <input type="text" id="editUsername" required style="font-weight:bold;color:var(--primary-green);">
         </div>
         <div class="form-group">
-          <label>Mật khẩu đăng nhập</label>
-          <input type="text" id="editPassword" required>
+          <label>Mật khẩu đăng nhập mới</label>
+          <input type="password" id="editPassword" placeholder="Để trống nếu giữ nguyên mật khẩu" autocomplete="new-password">
         </div>
       </div>
       <div class="login-actions">
@@ -240,8 +240,9 @@
               <input type="text" id="accPreviewUser" required style="background:var(--hl);font-weight:bold;color:var(--primary-green);" placeholder="Họ tên (Mã số)">
             </div>
             <div class="form-group">
-              <label>Mật khẩu đăng nhập (Mặc định là 1)</label>
-              <input type="text" id="accPassword" value="1" required>
+              <label>Mật khẩu đăng nhập (để trống để tạo ngẫu nhiên)</label>
+              <input type="text" id="accPassword" placeholder="Để trống để hệ thống tạo mật khẩu ngẫu nhiên" autocomplete="new-password">
+              <button type="button" class="sec" style="margin-top:6px;padding:4px 10px;font-size:12px;" onclick="fillRandomPassword()">🎲 Tạo mật khẩu ngẫu nhiên</button>
             </div>
           </div>
           <button type="submit" class="pri">✅ Thêm hồ sơ & cấp tài khoản vào hệ thống</button>
@@ -256,7 +257,7 @@
         </p>
         <div class="unit-summary-box" style="margin-bottom:12px;">
           <div style="font-size:13px;line-height:1.6;">
-            📌 <b>Cách 1 (File Excel đầy đủ cột):</b> Cột A: <i>Họ và tên (*)</i> | Cột B: <i>Mã số (*)</i> | Cột C: <i>Chức vụ</i> | Cột D: <i>Ngày sinh (YYYY-MM-DD)</i> | Cột E: <i>Quê quán</i> | Cột F: <i>Mật khẩu (Mặc định: 1)</i>.<br>
+            📌 <b>Cách 1 (File Excel đầy đủ cột):</b> Cột A: <i>Họ và tên (*)</i> | Cột B: <i>Mã số (*)</i> | Cột C: <i>Chức vụ</i> | Cột D: <i>Ngày sinh (YYYY-MM-DD)</i> | Cột E: <i>Quê quán</i> | Cột F: <i>Mật khẩu (để trống sẽ tạo ngẫu nhiên)</i>.<br>
             📌 <b>Cách 2 (File Word hoặc Excel 1 cột):</b> Mỗi dòng ghi theo dạng:<br>
             <code>Họ và tên (Mã số) - Chức vụ - Ngày sinh - Quê quán</code><br>
             (VD: <code>Bùi Văn Hùng (CS01) - Chiến sĩ nghĩa vụ - 2004-05-10 - Nam Định</code>).
@@ -324,6 +325,7 @@
     if (!requireRole("commander")) return;
     updateTopBarShared();
     updatePreviewUsername();
+    fillRandomPassword();
     renderAccountsTable();
   }
 
@@ -344,6 +346,25 @@
     document.getElementById("accPreviewUser").value = fn && cd ? formatFullAccountName(fn, cd) : (fn || "");
   }
 
+  function generateRandomPassword(len) {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+    const n = Math.max(6, parseInt(len, 10) || 8);
+    let s = "";
+    try {
+      const arr = new Uint8Array(n);
+      crypto.getRandomValues(arr);
+      for (let i = 0; i < n; i++) s += chars[arr[i] % chars.length];
+    } catch (e) {
+      for (let i = 0; i < n; i++) s += chars[Math.floor(Math.random() * chars.length)];
+    }
+    return s || ("Doi3@" + Math.floor(Math.random() * 100000));
+  }
+
+  function fillRandomPassword() {
+    const el = document.getElementById("accPassword");
+    if (el) el.value = generateRandomPassword(8);
+  }
+
   function addOrUpdateSingleAccount(fullName, code, roleType, position, password, dob, hometown, customUsername, teamId) {
     const fn = cleanName(fullName);
     const cd = (code || "").trim();
@@ -351,31 +372,35 @@
 
     const uName = (customUsername || "").trim() || formatFullAccountName(fn, cd);
     const pos = (position || "").trim() || (roleType === "officer" ? "Sĩ quan Đốc gác" : "Chiến sĩ nghĩa vụ");
-    const pw = (password || "1").trim() || "1";
+    const pw = (password || "").trim();
     const birth = (dob || "").trim() || "2004-01-01";
     const home = (hometown || "").trim() || "Chưa cập nhật";
 
     if (!S.personnelAccounts) S.personnelAccounts = [];
     const existingIdx = S.personnelAccounts.findIndex(a =>
-      a.code.toLowerCase() === cd.toLowerCase() ||
+      String(a.code || "").toLowerCase() === cd.toLowerCase() ||
       formatFullAccountName(a.fullName, a.code).toLowerCase() === formatFullAccountName(fn, cd).toLowerCase()
     );
 
     if (existingIdx >= 0) {
-      S.personnelAccounts[existingIdx] = {
-        ...S.personnelAccounts[existingIdx],
+      const prev = S.personnelAccounts[existingIdx];
+      const updated = {
+        ...prev,
         fullName: fn,
         code: cd,
         roleType: roleType,
         teamId: parseInt(teamId, 10) || 1,
         position: pos,
         username: uName,
-        password: pw,
         dob: birth,
-        hometown: home
+        hometown: home,
+        active: true
       };
+      if (pw) setAccountPassword(updated, pw);
+      else copyCredentialFields(updated, prev);
+      S.personnelAccounts[existingIdx] = updated;
     } else {
-      S.personnelAccounts.push({
+      const acc = {
         id: Date.now() + Math.random(),
         fullName: fn,
         code: cd,
@@ -383,10 +408,12 @@
         teamId: parseInt(teamId, 10) || 1,
         position: pos,
         username: uName,
-        password: pw,
         dob: birth,
-        hometown: home
-      });
+        hometown: home,
+        active: true
+      };
+      setAccountPassword(acc, pw || generateRandomPassword(8));
+      S.personnelAccounts.push(acc);
     }
     return true;
   }
@@ -405,7 +432,11 @@
     const dob = document.getElementById("accDob").value;
     const home = document.getElementById("accHometown").value.trim();
     const uName = document.getElementById("accPreviewUser").value.trim();
-    const pw = document.getElementById("accPassword").value.trim() || "1";
+    let pw = document.getElementById("accPassword").value.trim();
+    if (!pw) {
+      pw = generateRandomPassword(8);
+      document.getElementById("accPassword").value = pw;
+    }
 
     if (addOrUpdateSingleAccount(fn, cd, rt, pos, pw, dob, home, uName, tid)) {
       syncRosterStringsFromAccounts();
@@ -414,9 +445,9 @@
       document.getElementById("accFullName").value = "";
       document.getElementById("accCode").value = "";
       document.getElementById("accHometown").value = "";
-      document.getElementById("accPassword").value = "1";
+      document.getElementById("accPassword").value = generateRandomPassword(8);
       updatePreviewUsername();
-      alert(`✅ Đã thêm Chiến Sĩ "${formatFullAccountName(fn, cd)}" vào hệ thống!`);
+      alert(`✅ Đã thêm Chiến Sĩ "${formatFullAccountName(fn, cd)}" vào hệ thống!\n🔑 Mật khẩu đăng nhập: ${pw}\n(Vui lòng thông báo cho đồng chí và yêu cầu đổi mật khẩu khi đăng nhập.)`);
     }
   }
 
@@ -433,7 +464,8 @@
     document.getElementById("editDob").value = acc.dob || "2004-01-01";
     document.getElementById("editHometown").value = acc.hometown || "";
     document.getElementById("editUsername").value = acc.username || formatFullAccountName(acc.fullName, acc.code);
-    document.getElementById("editPassword").value = acc.password || "1";
+    document.getElementById("editPassword").value = "";
+    document.getElementById("editPassword").placeholder = "Để trống nếu giữ nguyên mật khẩu";
     document.getElementById("editAccountModal").classList.add("show");
   }
 
@@ -474,7 +506,9 @@
     acc.dob = document.getElementById("editDob").value || "2004-01-01";
     acc.hometown = document.getElementById("editHometown").value.trim() || "Chưa cập nhật";
     acc.username = document.getElementById("editUsername").value.trim() || newLabel;
-    acc.password = document.getElementById("editPassword").value.trim() || "1";
+    const newPw = document.getElementById("editPassword").value.trim();
+    if (newPw) setAccountPassword(acc, newPw);
+    acc.active = true;
 
     // Đồng bộ tên mới sang toàn bộ lịch gác các ngày & danh sách quân số
     cascadeUpdatePersonnelName(oldLabel, oldClean, newLabel);
@@ -498,8 +532,7 @@
     return "soldier";
   }
 
-  function parseLineToAccountObj(lineStr, forcedMode, indexHint) {
-    let s = (lineStr || "").trim();
+  function parseLineToAccountObj(lineStr, forcedMode, indexHint) {    let s = (lineStr || "").trim();
     if (!s) return null;
     const low = s.toLowerCase();
     if (low === "họ và tên" || low === "họ tên" || low.startsWith("stt")) return null;
@@ -517,7 +550,17 @@
       cd = (rt === "officer" ? "SQ" : "CS") + pad(indexHint);
     }
     const pos = posPart || (rt === "officer" ? "Sĩ quan Đốc gác" : "Chiến sĩ nghĩa vụ");
-    return { fullName: fn, code: cd, roleType: rt, position: pos, dob: dobPart, hometown: homePart, password: "1" };
+    return { fullName: fn, code: cd, roleType: rt, position: pos, dob: dobPart, hometown: homePart };
+  }
+
+  // Kiểm tra hồ sơ đã tồn tại (theo mã số hoặc họ tên) trước khi nhập từ file
+  function accountExistsByNameOrCode(fn, cd) {
+    const f = cleanName(fn).toLowerCase();
+    const c = String(cd || "").trim().toLowerCase();
+    return (S.personnelAccounts || []).some(a =>
+      (c && String(a.code || "").trim().toLowerCase() === c) ||
+      (f && cleanName(a.fullName).toLowerCase() === f)
+    );
   }
 
   function importAccountsFromFile(event, mode) {
@@ -533,6 +576,7 @@
         const wb = XLSX.read(data, { type: "array" });
         const sheet = wb.Sheets[wb.SheetNames[0]];
         const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+        const issued = [];
 
         rows.forEach((r, idx) => {
           if (!r || !r.length) return;
@@ -550,12 +594,18 @@
             const pos = c2 || (rt === "officer" ? "Sĩ quan Đốc gác" : "Chiến sĩ nghĩa vụ");
             const dob = c3 || "2004-01-01";
             const home = c4 || "Chưa cập nhật";
-            const pw = c5 || "1";
-            if (addOrUpdateSingleAccount(c0, c1, rt, pos, pw, dob, home)) addedCount++;
+            const pw = c5; // để trống -> hệ thống sinh mật khẩu ngẫu nhiên
+            const isNew = !accountExistsByNameOrCode(c0, c1);
+            if (addOrUpdateSingleAccount(c0, c1, rt, pos, pw, dob, home)) {
+              addedCount++;
+              if (isNew && !pw) issued.push(`${cleanName(c0)} (${c1})`);
+            }
           } else {
             const parsed = parseLineToAccountObj(c0, mode, idx + 1);
-            if (parsed && addOrUpdateSingleAccount(parsed.fullName, parsed.code, parsed.roleType, parsed.position, "1", parsed.dob, parsed.hometown)) {
+            const isNew = parsed ? !accountExistsByNameOrCode(parsed.fullName, parsed.code) : false;
+            if (parsed && addOrUpdateSingleAccount(parsed.fullName, parsed.code, parsed.roleType, parsed.position, "", parsed.dob, parsed.hometown)) {
               addedCount++;
+              if (isNew) issued.push(`${parsed.fullName} (${parsed.code})`);
             }
           }
         });
@@ -564,7 +614,8 @@
         saveStorage();
         renderAccountsTable();
         document.getElementById("importAccStatus").textContent = `✅ Đã nhập thành công ${addedCount} hồ sơ Chiến Sĩ từ file Excel "${file.name}"!`;
-        alert(`✅ Đã nhập và cấp tài khoản cho ${addedCount} Chiến Sĩ!`);
+        alert(`✅ Đã nhập và cấp tài khoản cho ${addedCount} Chiến Sĩ!` +
+          (issued.length ? `\n🔑 ${issued.length} tài khoản chưa có mật khẩu trong file đã được tạo mật khẩu ngẫu nhiên. Vào "✏️ Sửa" để đặt lại mật khẩu và thông báo cho đồng chí.` : ""));
       };
       reader.readAsArrayBuffer(file);
     } else if (ext === "docx" || ext === "doc") {
@@ -572,17 +623,21 @@
       reader.onload = function(e) {
         mammoth.extractRawText({ arrayBuffer: e.target.result }).then(function(result) {
           const lines = result.value.split(/[\r\n]+/);
+          let issuedCount = 0;
           lines.forEach((line, idx) => {
             const parsed = parseLineToAccountObj(line, mode, idx + 1);
-            if (parsed && addOrUpdateSingleAccount(parsed.fullName, parsed.code, parsed.roleType, parsed.position, "1", parsed.dob, parsed.hometown)) {
+            const isNew = parsed ? !accountExistsByNameOrCode(parsed.fullName, parsed.code) : false;
+            if (parsed && addOrUpdateSingleAccount(parsed.fullName, parsed.code, parsed.roleType, parsed.position, "", parsed.dob, parsed.hometown)) {
               addedCount++;
+              if (isNew) issuedCount++;
             }
           });
           syncRosterStringsFromAccounts();
           saveStorage();
           renderAccountsTable();
           document.getElementById("importAccStatus").textContent = `✅ Đã nhập thành công ${addedCount} hồ sơ Chiến Sĩ từ file Word "${file.name}"!`;
-          alert(`✅ Đã nhập và cấp tài khoản cho ${addedCount} Chiến Sĩ từ file Word!`);
+          alert(`✅ Đã nhập và cấp tài khoản cho ${addedCount} Chiến Sĩ từ file Word!` +
+            (issuedCount ? `\n🔑 ${issuedCount} tài khoản đã được tạo mật khẩu ngẫu nhiên. Vào "✏️ Sửa" để đặt lại mật khẩu và thông báo cho đồng chí.` : ""));
         });
       };
       reader.readAsArrayBuffer(file);
@@ -596,11 +651,11 @@
       return;
     }
     const sampleData = [
-      ["Họ và tên", "Mã số", "Chức vụ", "Ngày sinh", "Quê quán", "Mật khẩu"],
-      ["Đại úy Nguyễn Văn An", "SQ01", "Đại đội phó - Sĩ quan Đốc gác", "1992-04-15", "Ba Đình, Hà Nội", "1"],
-      ["Thượng úy Trần Minh Tuấn", "SQ02", "Trung đội trưởng - Sĩ quan Đốc gác", "1995-08-20", "TP. Hải Dương", "1"],
-      ["Bùi Văn Hùng", "CS01", "Chiến sĩ nghĩa vụ", "2004-02-12", "Vụ Bản, Nam Định", "1"],
-      ["Đỗ Quang Hải", "CS02", "Chiến sĩ nghĩa vụ", "2004-11-05", "Đông Anh, Hà Nội", "1"]
+      ["Họ và tên", "Mã số", "Chức vụ", "Ngày sinh", "Quê quán", "Mật khẩu (để trống = ngẫu nhiên)"],
+      ["Đại úy Nguyễn Văn An", "SQ01", "Đại đội phó - Sĩ quan Đốc gác", "1992-04-15", "Ba Đình, Hà Nội", ""],
+      ["Thượng úy Trần Minh Tuấn", "SQ02", "Trung đội trưởng - Sĩ quan Đốc gác", "1995-08-20", "TP. Hải Dương", ""],
+      ["Bùi Văn Hùng", "CS01", "Chiến sĩ nghĩa vụ", "2004-02-12", "Vụ Bản, Nam Định", ""],
+      ["Đỗ Quang Hải", "CS02", "Chiến sĩ nghĩa vụ", "2004-11-05", "Đông Anh, Hà Nội", ""]
     ];
     const ws = XLSX.utils.aoa_to_sheet(sampleData);
     const wb = XLSX.utils.book_new();
@@ -638,33 +693,37 @@
 
     tbody.innerHTML = filtered.map((a, i) => {
       const fullLabel = formatFullAccountName(a.fullName, a.code);
-      const safeLabel = fullLabel.replace(/'/g, "\'");
       const uName = a.username || fullLabel;
+      const teamNo = escHTML(a.teamId || 1);
       const badge = a.roleType === "officer"
-        ? `<span style="background:#e8f5e9;color:#149a16;padding:3px 8px;border-radius:999px;font-weight:bold;font-size:11.5px;">⭐ Đốc gác - Tổ ${a.teamId || 1}</span>`
-        : `<span style="background:#e3f2fd;color:#1976d2;padding:3px 8px;border-radius:999px;font-weight:bold;font-size:11.5px;">👤 Chiến sĩ - Tổ ${a.teamId || 1}</span>`;
+        ? `<span style="background:#e8f5e9;color:#149a16;padding:3px 8px;border-radius:999px;font-weight:bold;font-size:11.5px;">⭐ Đốc gác - Tổ ${teamNo}</span>`
+        : `<span style="background:#e3f2fd;color:#1976d2;padding:3px 8px;border-radius:999px;font-weight:bold;font-size:11.5px;">👤 Chiến sĩ - Tổ ${teamNo}</span>`;
+      const inactiveBadge = a.active === false
+        ? `<span style="background:#ffebee;color:#b71c1c;padding:3px 8px;border-radius:999px;font-weight:bold;font-size:11.5px;margin-left:4px;">⏸ Ngừng hoạt động</span>`
+        : "";
 
-      return `<tr>
+      return `<tr${a.active === false ? ' style="opacity:.65;"' : ''}>
         <td>${i + 1}</td>
         <td style="text-align:left;">
           <a href="tim-kiem.html?q=${encodeURIComponent(a.fullName)}" class="person-hover-link"
-             onmouseenter="showPersonnelHoverCard(event, '${safeLabel}')"
+             data-person="${escHTML(fullLabel)}"
+             onmouseenter="showPersonnelHoverCard(event, this.dataset.person)"
              onmousemove="movePersonnelHoverCard(event)"
              onmouseleave="hidePersonnelHoverCard()">
-            <b>${a.fullName}</b>
-          </a>
+            <b>${escHTML(a.fullName)}</b>
+          </a> ${inactiveBadge}
         </td>
-        <td><b>${a.code}</b></td>
-        <td>${a.position || "-"}</td>
+        <td><b>${escHTML(a.code)}</b></td>
+        <td>${escHTML(a.position || "-")}</td>
         <td>${badge}</td>
-        <td>${a.dob ? vnFormat(a.dob) : "Chưa nhập"}</td>
-        <td>${a.hometown || "Chưa nhập"}</td>
-        <td><code style="background:var(--bg);padding:3px 6px;border-radius:4px;font-weight:bold;color:var(--primary-green);">${uName}</code></td>
-        <td><b>${a.password || "1"}</b></td>
+        <td>${a.dob ? escHTML(vnFormat(a.dob)) : "Chưa nhập"}</td>
+        <td>${escHTML(a.hometown || "Chưa nhập")}</td>
+        <td><code style="background:var(--bg);padding:3px 6px;border-radius:4px;font-weight:bold;color:var(--primary-green);">${escHTML(uName)}</code></td>
+        <td><span title="Mật khẩu đã được mã hóa, không hiển thị">••••••</span></td>
         <td>
-          <button class="sec" style="padding:4px 8px;font-size:12px;" onclick="openAssignmentById(${a.id})" title="Giao nhiệm vụ đi làm thay thế">🎯 Giao</button>
-          <button class="pri" style="padding:4px 8px;font-size:12px;" onclick="openEditAccountModal(${a.id})">✏️ Sửa</button>
-          <button class="warn-btn" style="padding:4px 8px;font-size:12px;" onclick="deleteAccount(${a.id})">🗑️ Xóa</button>
+          <button class="sec" style="padding:4px 8px;font-size:12px;" onclick="openAssignmentById(${Number(a.id)})" title="Giao nhiệm vụ đi làm thay thế">🎯 Giao</button>
+          <button class="pri" style="padding:4px 8px;font-size:12px;" onclick="openEditAccountModal(${Number(a.id)})">✏️ Sửa</button>
+          <button class="warn-btn" style="padding:4px 8px;font-size:12px;" onclick="deleteAccount(${Number(a.id)})">🗑️ Xóa</button>
         </td>
       </tr>`;
     }).join("");

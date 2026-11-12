@@ -710,10 +710,12 @@ function dutyDaysInRecent(person, dateStr, days) {
 }
 
 // Chọn 1 chiến sĩ từ Tổ khác để mượn tạm thời.
+// Chỉ mượn từ Tổ thực sự còn quân dư sau khi trừ số người Tổ đó cần cho ca trực của mình.
 // Ưu tiên Tổ còn quân dư, người ít ngày gác liên tiếp và ít ngày gác gần đây.
 // caIdx/col: vị trí sẽ xếp, dùng để tránh trùng ca sát giờ với ngày hôm trước/hôm sau.
-function pickBorrowedSoldier(dateStr, targetTeamId, dayUsed, ab, nightSet, caIdx, col) {
+function pickBorrowedSoldier(dateStr, targetTeamId, dayUsed, ab, nightSet, caIdx, col, teamMap) {
   const cands = [];
+  const teamsOnDuty = Array.isArray(teamMap) ? teamMap : [];
   for (let t = 1; t <= 4; t++) {
     if (t === targetTeamId) continue;
     const team = S.teams && S.teams[t - 1];
@@ -721,7 +723,10 @@ function pickBorrowedSoldier(dateStr, targetTeamId, dayUsed, ab, nightSet, caIdx
     const avail = (team.soldiers || []).filter(n =>
       n && !isPersonAbsentIn(ab, n) && !isNightOnlyInSet(nightSet, n)
     );
-    const surplus = avail.length - 4; // > 0: Tổ còn người dư có thể cho mượn
+    // Tổ nguồn đang trực trong ngày cần đủ 4 chiến sĩ cho ca của mình.
+    const needed = teamsOnDuty.includes(t) ? 4 : 0;
+    const surplus = avail.length - needed; // > 0: Tổ còn người dư có thể cho mượn
+    if (surplus <= 0) continue; // Không rút người từ Tổ không dư
     avail.forEach(n => {
       const key = cleanName(n).toLowerCase();
       if (!key || dayUsed.has(key)) return;
@@ -906,7 +911,7 @@ function buildGeneratedDay(dateStr, teamMap, prevDay) {
 
     // 2) Vẫn thiếu (Tổ vắng quá ngưỡng hoặc không còn người cùng Tổ) → mượn Tổ khác
     while (rules.enabled && finalList.length < 4) {
-      const b = pickBorrowedSoldier(dateStr, teamId, dayUsed, ab, nightSet, ca, finalList.length + 1);
+      const b = pickBorrowedSoldier(dateStr, teamId, dayUsed, ab, nightSet, ca, finalList.length + 1, teamMap);
       if (!b) break;
 
       const outP = overworked[overIdx] || "";
@@ -1193,6 +1198,31 @@ function saveBorrowRules() {
 }
 
 function saveTeamsFromTextareas() {
+  if (getCurrentRole() !== "commander") {
+    populateTeamTextareas();
+    return;
+  }
+
+  // Đếm số hồ sơ đang hoạt động trước khi sửa để cảnh báo nếu giảm bất thường
+  const oldActive = (S.personnelAccounts || []).filter(a => a.active !== false).length;
+  const nextNames = new Set();
+  for (let i = 0; i < 4; i++) {
+    const oEl = document.getElementById(`team${i + 1}Off`);
+    const sEl = document.getElementById(`team${i + 1}Sol`);
+    [...parseNames(oEl ? oEl.value : ""), ...parseNames(sEl ? sEl.value : "")].forEach(n => {
+      const key = cleanName(n).toLowerCase();
+      if (key) nextNames.add(key);
+    });
+  }
+  if (nextNames.size < oldActive) {
+    const ok = confirm(`Số hồ sơ đang hoạt động giảm từ ${oldActive} xuống ${nextNames.size}.\n` +
+      "Các hồ sơ bị rút khỏi 4 Tổ sẽ được đánh dấu NGỪNG HOẠT ĐỘNG (không xóa hẳn).\nTiếp tục lưu?");
+    if (!ok) {
+      populateTeamTextareas();
+      return;
+    }
+  }
+
   for (let i = 0; i < 4; i++) {
     const oEl = document.getElementById(`team${i + 1}Off`);
     const sEl = document.getElementById(`team${i + 1}Sol`);
@@ -1201,11 +1231,18 @@ function saveTeamsFromTextareas() {
       S.teams[i].soldiers = parseNames(sEl.value);
     }
   }
-  syncFromTeamsToRosterAndAccounts();
+  const duplicatesFixed = syncFromTeamsToRosterAndAccounts();
   saveStorage();
+  populateTeamTextareas();
   const rmsg = document.getElementById("rmsg");
   if (rmsg) {
-    rmsg.textContent = `✅ Đã đồng bộ 4 Tổ cố định: Tổng ${parseNames(S.officers).length} Đốc gác (Sĩ quan) & ${parseNames(S.soldiers).length} Chiến sĩ nghĩa vụ.`;
+    const extra = duplicatesFixed > 0
+      ? ` ⚠️ Đã tự cấp lại ${duplicatesFixed} mã số bị trùng.`
+      : "";
+    rmsg.textContent = `✅ Đã lưu biên chế 4 Tổ: Tổng ${parseNames(S.officers).length} Đốc gác (Sĩ quan) & ${parseNames(S.soldiers).length} Chiến sĩ nghĩa vụ.${extra}`;
+  }
+  if (duplicatesFixed > 0) {
+    alert(`⚠️ Phát hiện ${duplicatesFixed} mã số bị trùng. Hệ thống đã tự cấp mã mới không trùng và cập nhật lại danh sách 4 Tổ.`);
   }
   refresh();
 }
@@ -1290,9 +1327,8 @@ function initUI() {
     ["team" + t + "Off", "team" + t + "Sol"].forEach(id => {
       const el = document.getElementById(id);
       if (el) {
-        ["input", "change", "keyup", "blur"].forEach(ev => {
-          el.addEventListener(ev, saveTeamsFromTextareas);
-        });
+        // Chỉ lưu khi rời khỏi ô, không lưu theo từng ký tự gõ.
+        el.addEventListener("blur", saveTeamsFromTextareas);
       }
     });
   }

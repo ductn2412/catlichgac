@@ -85,14 +85,20 @@
         <form onsubmit="submitSwapRequest(event)">
           <div class="form-group">
             <label>Ngày muốn đổi ca</label>
-            <input type="date" id="swapDate" required>
+            <input type="date" id="swapDate" required onchange="refreshSwapGroups()">
           </div>
           <div class="form-group">
             <label>Người đề xuất đổi (Đang có lịch trong ngày)</label>
-            <input type="text" id="swapFrom" list="dlAllSwap" placeholder="Chọn tên người xin đổi..." required>
+            <input type="text" id="swapFrom" list="dlAllSwap" placeholder="Chọn tên người xin đổi..." required oninput="refreshSwapGroups()" onchange="refreshSwapGroups()">
           </div>
           <div class="form-group">
-            <label>Đồng đội nhận đổi thay</label>
+            <label>Vị trí ca muốn đổi của người đề xuất</label>
+            <select id="swapFromGroup" required>
+              <option value="">— Nhập ngày và tên người đề xuất trước —</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Đồng đội nhận đổi thay (cùng Tổ, cùng chức danh)</label>
             <input type="text" id="swapTo" list="dlAllSwap" placeholder="Chọn tên đồng đội đổi cùng..." required>
           </div>
           <div class="form-group">
@@ -133,7 +139,147 @@
       dl.appendChild(o);
     });
 
+    refreshSwapGroups();
     renderSwapsList();
+  }
+
+  // ===== H1: CHỈ ĐỔI ĐÚNG VỊ TRÍ CA ĐÃ CHỌN, CÓ KIỂM TRA NGHIỆP VỤ =====
+  function swapGroupLabel(g) {
+    if (!g) return "";
+    const pos = g.col === 0 ? "Đốc gác 1" : "Vọng x" + (8 + g.col);
+    const times = g.slots.slice().sort((a, b) => a - b).map(s => CA[g.ca][s]).join(", ");
+    return `Ca ${g.ca + 1} · ${pos} · ${times}`;
+  }
+
+  // Gom các ô của 1 người theo từng vị trí (ca + cột), kèm danh sách khung giờ
+  function getSwapGroups(day, person) {
+    const cn = cleanName(person).toLowerCase();
+    if (!cn || !day || !Array.isArray(day.cells)) return [];
+    const map = {};
+    for (let k = 0; k < 60; k++) {
+      if (cleanName(day.cells[k] || "").toLowerCase() !== cn) continue;
+      const p = getCellParts(k);
+      const key = p.ca + ":" + p.col;
+      if (!map[key]) map[key] = { ca: p.ca, col: p.col, slots: [] };
+      if (map[key].slots.indexOf(p.slot) < 0) map[key].slots.push(p.slot);
+    }
+    Object.keys(map).forEach(k => map[k].slots.sort((a, b) => a - b));
+    return Object.keys(map).map(k => map[k]).sort((a, b) => a.ca - b.ca || a.col - b.col);
+  }
+
+  function refreshSwapGroups() {
+    const select = document.getElementById("swapFromGroup");
+    if (!select) return;
+    const dStr = document.getElementById("swapDate").value;
+    const person = document.getElementById("swapFrom").value.trim();
+    select.innerHTML = "";
+    if (!dStr || !person) {
+      select.innerHTML = `<option value="">— Nhập ngày và tên người đề xuất trước —</option>`;
+      return;
+    }
+    const groups = getSwapGroups(getDayData(dStr), person);
+    if (!groups.length) {
+      select.innerHTML = `<option value="">— ${escHTML(person)} không có ca trong ngày này —</option>`;
+      return;
+    }
+    select.innerHTML = `<option value="">— Chọn vị trí ca muốn đổi —</option>` +
+      groups.map(g => `<option value="${g.ca}:${g.col}">${escHTML(swapGroupLabel(g))}</option>`).join("");
+  }
+
+  // Kiểm tra toàn bộ nghiệp vụ và trả về kế hoạch hoán đổi đúng các ô đã chọn
+  function buildSwapPlan(req) {
+    if (!req || !req.date) return { error: "Chưa chọn ngày đổi ca." };
+    const day = getDayData(req.date);
+    const fromP = (req.fromPerson || "").trim();
+    const toP = (req.toPerson || "").trim();
+    const cFrom = cleanName(fromP).toLowerCase();
+    const cTo = cleanName(toP).toLowerCase();
+    if (!cFrom || !cTo) return { error: "Chưa nhập đủ tên hai người cần đổi ca." };
+    if (cFrom === cTo) return { error: "Người đề xuất và người nhận đổi không được trùng nhau." };
+
+    const accFrom = findPersonnelAccount(fromP);
+    const accTo = findPersonnelAccount(toP);
+    if (!accFrom || !accTo) return { error: "Không tìm thấy hồ sơ của một trong hai người trong hệ thống." };
+    if (accFrom.active === false || accTo.active === false) return { error: "Một trong hai tài khoản đã ngừng hoạt động." };
+
+    const roleFrom = accFrom.roleType || "soldier";
+    const roleTo = accTo.roleType || "soldier";
+    if (roleFrom !== roleTo) return { error: "Chỉ được đổi giữa hai người cùng chức danh (Sĩ quan ↔ Sĩ quan, Chiến sĩ ↔ Chiến sĩ)." };
+
+    const teamFrom = getPersonTeamId(fromP);
+    const teamTo = getPersonTeamId(toP);
+    if (!teamFrom || !teamTo) return { error: "Không xác định được Tổ biên chế của một trong hai người." };
+    if (teamFrom !== teamTo) return { error: `Chỉ được đổi ca trong cùng Tổ (${fromP} thuộc Tổ ${teamFrom}, ${toP} thuộc Tổ ${teamTo}).` };
+
+    const ab = absSet(day.absent || {});
+    if (isPersonAbsentIn(ab, fromP)) return { error: `${fromP} đang vắng mặt trong ngày này, không thể đổi ca.` };
+    if (isPersonAbsentIn(ab, toP)) return { error: `${toP} đang vắng mặt trong ngày này, không thể nhận đổi ca.` };
+
+    const fromGroups = getSwapGroups(day, fromP);
+    const toGroups = getSwapGroups(day, toP);
+    if (!fromGroups.length) return { error: `${fromP} không có ca gác trong ngày ${vnFormat(req.date)}.` };
+    if (!toGroups.length) return { error: `${toP} không có ca gác trong ngày ${vnFormat(req.date)}.` };
+
+    const wantCa = parseInt(req.fromCa, 10);
+    const wantCol = parseInt(req.fromCol, 10);
+    let fg = null;
+    if (Number.isFinite(wantCa) && Number.isFinite(wantCol)) {
+      fg = fromGroups.find(g => g.ca === wantCa && g.col === wantCol);
+      if (!fg) return { error: "Vị trí ca đã chọn không còn trong lịch (lịch có thể vừa thay đổi). Vui lòng chọn lại." };
+    } else {
+      fg = fromGroups[0];
+    }
+
+    // Ưu tiên vị trí tương ứng cùng cột / cùng ca / cùng số khung giờ của người nhận
+    const sameCount = toGroups.filter(g => g.slots.length === fg.slots.length);
+    const tg = sameCount.find(g => g.ca === fg.ca && g.col === fg.col)
+      || sameCount.find(g => g.col === fg.col)
+      || sameCount.find(g => g.ca === fg.ca)
+      || sameCount[0]
+      || toGroups[0];
+    if (!tg) return { error: `${toP} không có vị trí ca phù hợp để hoán đổi.` };
+    if (fg.ca === tg.ca && fg.col === tg.col) return { error: "Hai người đang ở cùng một vị trí ca, không thể hoán đổi." };
+    if (fg.slots.length !== tg.slots.length) {
+      return { error: `Số khung giờ của hai vị trí không bằng nhau (${fg.slots.length} và ${tg.slots.length} khung), không thể hoán đổi công bằng.` };
+    }
+
+    const fs = fg.slots.slice().sort((a, b) => a - b);
+    const ts = tg.slots.slice().sort((a, b) => a - b);
+
+    // Không xếp người chỉ làm ca đêm vào khung ban ngày
+    for (const s of fs) {
+      if (isNightOnlyPerson(toP) && !isNightShiftForPerson(tg.ca, s, toP)) {
+        return { error: `${toP} chỉ làm ca đêm 18:00–06:00 nên không thể nhận khung ${CA[tg.ca][s]}.` };
+      }
+    }
+    for (const s of ts) {
+      if (isNightOnlyPerson(fromP) && !isNightShiftForPerson(fg.ca, s, fromP)) {
+        return { error: `${fromP} chỉ làm ca đêm 18:00–06:00 nên không thể nhận khung ${CA[fg.ca][s]}.` };
+      }
+    }
+
+    const plan = [];
+    for (let i = 0; i < fs.length; i++) {
+      const kf = (fg.ca * 3 + fs[i]) * 5 + fg.col;
+      const kt = (tg.ca * 3 + ts[i]) * 5 + tg.col;
+      if (cleanName(day.cells[kf] || "").toLowerCase() !== cFrom) {
+        return { error: "Vị trí của người đề xuất vừa thay đổi. Vui lòng thử lại." };
+      }
+      if (cleanName(day.cells[kt] || "").toLowerCase() !== cTo) {
+        return { error: "Vị trí của người nhận vừa thay đổi. Vui lòng thử lại." };
+      }
+      plan.push({ kf: kf, kt: kt });
+    }
+
+    return { plan: plan, fromGroup: fg, toGroup: tg };
+  }
+
+  function applySwapPlan(day, plan) {
+    (plan || []).forEach(p => {
+      const tmp = day.cells[p.kf];
+      day.cells[p.kf] = day.cells[p.kt];
+      day.cells[p.kt] = tmp;
+    });
   }
 
   function submitSwapRequest(ev) {
@@ -142,9 +288,24 @@
     const fromP = document.getElementById("swapFrom").value.trim();
     const toP = document.getElementById("swapTo").value.trim();
     const reason = document.getElementById("swapReason").value.trim();
+    const groupVal = document.getElementById("swapFromGroup").value;
 
-    if (cleanName(fromP) === cleanName(toP)) {
-      alert("Người xin đổi và người nhận đổi không được trùng nhau!");
+    if (!groupVal) {
+      alert("Vui lòng chọn đúng vị trí ca muốn đổi của người đề xuất!");
+      return;
+    }
+    const parts = groupVal.split(":");
+    const candidate = {
+      date: dStr,
+      fromPerson: fromP,
+      toPerson: toP,
+      fromCa: parseInt(parts[0], 10),
+      fromCol: parseInt(parts[1], 10)
+    };
+
+    const built = buildSwapPlan(candidate);
+    if (built.error) {
+      alert("❌ Không thể gửi đề xuất: " + built.error);
       return;
     }
 
@@ -153,6 +314,10 @@
       date: dStr,
       fromPerson: fromP,
       toPerson: toP,
+      fromCa: candidate.fromCa,
+      fromCol: candidate.fromCol,
+      fromLabel: swapGroupLabel(built.fromGroup),
+      toLabel: swapGroupLabel(built.toGroup),
       reason: reason,
       status: "pending"
     });
@@ -173,28 +338,38 @@
 
     if (approve) {
       const day = getDayData(req.date);
-      const cFrom = cleanName(req.fromPerson);
-      const cTo = cleanName(req.toPerson);
-      let swappedCount = 0;
-
-      for (let k = 0; k < 60; k++) {
-        const cellVal = (day.cells[k] || "").trim();
-        if (cleanName(cellVal) === cFrom) {
-          day.cells[k] = req.toPerson;
-          swappedCount++;
-        } else if (cleanName(cellVal) === cTo) {
-          day.cells[k] = req.fromPerson;
-          swappedCount++;
-        }
+      const built = buildSwapPlan(req);
+      if (built.error) {
+        alert("❌ Không thể duyệt đổi ca: " + built.error);
+        return;
       }
+
+      const snapshot = day.cells.slice();
+      applySwapPlan(day, built.plan);
+
+      const toNewIndices = built.plan.map(p => p.kf);
+      const fromNewIndices = built.plan.map(p => p.kt);
+      const conflictTo = findShiftConflict(req.date, req.toPerson, toNewIndices, null);
+      const conflictFrom = findShiftConflict(req.date, req.fromPerson, fromNewIndices, null);
+      if (conflictTo || conflictFrom) {
+        for (let k = 0; k < day.cells.length; k++) day.cells[k] = snapshot[k];
+        const msg = conflictTo
+          ? `${cleanName(req.toPerson)} ${conflictTo.message}`
+          : `${cleanName(req.fromPerson)} ${conflictFrom.message}`;
+        alert("❌ Không thể duyệt vì sau khi đổi sẽ tạo lịch sai: " + msg);
+        return;
+      }
+
       day.manualCredits = {};
       day.streaks = {};
       day.teamInCa = detectTeamsInCa(day);
       req.status = "approved";
+      req.approvedAt = new Date().toISOString();
       saveStorage();
-      alert(`✅ Đã duyệt và tự động hoán đổi vị trí trong bảng lịch ngày ${vnFormat(req.date)} (${swappedCount} khung giờ)!`);
+      alert(`✅ Đã duyệt đổi ca ngày ${vnFormat(req.date)}: ${cleanName(req.fromPerson)} ⇄ ${cleanName(req.toPerson)} (${built.plan.length} khung giờ).`);
     } else {
       req.status = "rejected";
+      req.rejectedAt = new Date().toISOString();
       saveStorage();
     }
     updateTopBarShared();
@@ -215,14 +390,18 @@
         let btns = "";
         if (isCommander && r.status === "pending") {
           btns = `<div style="margin-top:6px;display:flex;gap:6px;">
-            <button class="pri" onclick="approveSwapRequest(${r.id}, true)">✓ Duyệt đổi tự động</button>
-            <button class="sec" onclick="approveSwapRequest(${r.id}, false)">✕ Từ chối</button>
+            <button class="pri" onclick="approveSwapRequest(${Number(r.id)}, true)">✓ Duyệt đổi tự động</button>
+            <button class="sec" onclick="approveSwapRequest(${Number(r.id)}, false)">✕ Từ chối</button>
           </div>`;
         }
+        const groupInfo = r.fromLabel
+          ? `<div style="color:var(--primary-green);font-size:12px;margin-top:3px;">📍 ${escHTML(r.fromLabel)}${r.toLabel ? ` ⇄ ${escHTML(r.toLabel)}` : ""}</div>`
+          : "";
         return `<div class="stat-card" style="display:block;margin-bottom:8px;">
           <div style="display:flex;justify-content:space-between;"><b>Ngày ${vnFormat(r.date)}</b> ${badge}</div>
-          <div style="margin-top:4px;"><b>${r.fromPerson}</b> ⇄ muốn đổi với <b>${r.toPerson}</b></div>
-          <div style="color:var(--muted);font-size:12px;margin-top:2px;">Lý do: ${r.reason}</div>
+          <div style="margin-top:4px;"><b>${escHTML(r.fromPerson)}</b> ⇄ muốn đổi với <b>${escHTML(r.toPerson)}</b></div>
+          ${groupInfo}
+          <div style="color:var(--muted);font-size:12px;margin-top:2px;">Lý do: ${escHTML(r.reason)}</div>
           ${btns}
         </div>`;
       }).join("");

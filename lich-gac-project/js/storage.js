@@ -68,70 +68,279 @@ function formatFullAccountName(fullName, code) {
   return c && c !== "Chưa cấp" ? `${fn} (${c})` : fn;
 }
 
+// ===== ESCAPE HTML DÙNG CHUNG (CHỐNG XSS) =====
+function escHTML(value) {
+  return String(value == null ? "" : value).replace(/[&<>"']/g, ch => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
+  }[ch]));
+}
+
+// ===== BĂM MẬT KHẨU (SHA-256 + SALT, CHẠY ĐƯỢC CẢ KHI MỞ BẰNG file://) =====
+const PASSWORD_SCHEME = "sha256";
+const PASSWORD_ITERATIONS = 1000;
+
+function sha256Hex(input) {
+  const str = unescape(encodeURIComponent(String(input == null ? "" : input)));
+  const bytes = [];
+  for (let i = 0; i < str.length; i++) bytes.push(str.charCodeAt(i) & 0xff);
+  const bitLen = bytes.length * 8;
+  bytes.push(0x80);
+  while (bytes.length % 64 !== 56) bytes.push(0);
+  const hi = Math.floor(bitLen / 0x100000000);
+  const lo = bitLen >>> 0;
+  bytes.push((hi >>> 24) & 0xff, (hi >>> 16) & 0xff, (hi >>> 8) & 0xff, hi & 0xff);
+  bytes.push((lo >>> 24) & 0xff, (lo >>> 16) & 0xff, (lo >>> 8) & 0xff, lo & 0xff);
+
+  const K = [
+    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+    0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+    0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+    0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+    0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+    0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
+  ];
+  const rotr = (x, n) => ((x >>> n) | (x << (32 - n))) >>> 0;
+  const H = [0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19];
+
+  for (let off = 0; off < bytes.length; off += 64) {
+    const w = new Array(64);
+    for (let i = 0; i < 16; i++) {
+      const j = off + i * 4;
+      w[i] = ((bytes[j] << 24) | (bytes[j + 1] << 16) | (bytes[j + 2] << 8) | bytes[j + 3]) | 0;
+    }
+    for (let i = 16; i < 64; i++) {
+      const s0 = (rotr(w[i - 15], 7) ^ rotr(w[i - 15], 18) ^ (w[i - 15] >>> 3)) >>> 0;
+      const s1 = (rotr(w[i - 2], 17) ^ rotr(w[i - 2], 19) ^ (w[i - 2] >>> 10)) >>> 0;
+      w[i] = (w[i - 16] + s0 + w[i - 7] + s1) | 0;
+    }
+    let a = H[0], b = H[1], c = H[2], d = H[3], e = H[4], f = H[5], g = H[6], h = H[7];
+    for (let i = 0; i < 64; i++) {
+      const S1 = (rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25)) >>> 0;
+      const ch = ((e & f) ^ (~e & g)) >>> 0;
+      const t1 = (h + S1 + ch + K[i] + w[i]) | 0;
+      const S0 = (rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22)) >>> 0;
+      const maj = ((a & b) ^ (a & c) ^ (b & c)) >>> 0;
+      const t2 = (S0 + maj) | 0;
+      h = g; g = f; f = e;
+      e = (d + t1) | 0;
+      d = c; c = b; b = a;
+      a = (t1 + t2) | 0;
+    }
+    H[0] = (H[0] + a) | 0;
+    H[1] = (H[1] + b) | 0;
+    H[2] = (H[2] + c) | 0;
+    H[3] = (H[3] + d) | 0;
+    H[4] = (H[4] + e) | 0;
+    H[5] = (H[5] + f) | 0;
+    H[6] = (H[6] + g) | 0;
+    H[7] = (H[7] + h) | 0;
+  }
+  return H.map(x => (x >>> 0).toString(16).padStart(8, "0")).join("");
+}
+
+function hashPassword(plain, salt, iterations) {
+  const rounds = Math.max(1, parseInt(iterations, 10) || PASSWORD_ITERATIONS);
+  let h = sha256Hex(String(salt || "") + "\u0000" + String(plain || ""));
+  for (let i = 0; i < rounds; i++) h = sha256Hex(h + "\u0000" + String(salt || ""));
+  return h;
+}
+
+function randomSalt() {
+  const chars = "abcdef0123456789";
+  let s = "";
+  try {
+    const arr = new Uint8Array(16);
+    crypto.getRandomValues(arr);
+    for (let i = 0; i < arr.length; i++) s += chars[arr[i] % chars.length];
+  } catch (e) {
+    for (let i = 0; i < 32; i++) s += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return s || String(Date.now());
+}
+
+function makePasswordRecord(plain) {
+  const salt = randomSalt();
+  return `${PASSWORD_SCHEME}$${PASSWORD_ITERATIONS}$${salt}$${hashPassword(plain, salt, PASSWORD_ITERATIONS)}`;
+}
+
+function verifyPasswordRecord(stored, plain) {
+  if (typeof stored !== "string" || !stored) return false;
+  if (stored.indexOf(PASSWORD_SCHEME + "$") !== 0) return stored === String(plain == null ? "" : plain);
+  const parts = stored.split("$");
+  if (parts.length !== 4) return false;
+  const iterations = parseInt(parts[1], 10) || PASSWORD_ITERATIONS;
+  return hashPassword(plain, parts[2], iterations) === parts[3];
+}
+
+// Gán mật khẩu mới cho 1 hồ sơ quân nhân (chỉ lưu bản băm, không lưu plaintext)
+function setAccountPassword(acc, plain) {
+  if (!acc) return;
+  const pw = String(plain == null ? "" : plain);
+  const salt = randomSalt();
+  acc.passwordSalt = salt;
+  acc.passwordIterations = PASSWORD_ITERATIONS;
+  acc.passwordHash = hashPassword(pw, salt, PASSWORD_ITERATIONS);
+  delete acc.password;
+}
+
+function verifyAccountPassword(acc, plain) {
+  if (!acc) return false;
+  if (acc.passwordHash) {
+    const iterations = parseInt(acc.passwordIterations, 10) || PASSWORD_ITERATIONS;
+    return hashPassword(plain, acc.passwordSalt || "", iterations) === acc.passwordHash;
+  }
+  // Tương thích dữ liệu cũ còn lưu plaintext
+  if (acc.password != null) return String(acc.password).trim() === String(plain == null ? "" : plain).trim();
+  return String(plain == null ? "" : plain).trim() === "1";
+}
+
+function copyCredentialFields(target, prev) {
+  if (!target || !prev) return;
+  if (prev.passwordHash) {
+    target.passwordHash = prev.passwordHash;
+    target.passwordSalt = prev.passwordSalt;
+    target.passwordIterations = prev.passwordIterations;
+  } else if (prev.password != null) {
+    target.password = prev.password;
+  }
+  if (prev.mustChangePassword) target.mustChangePassword = true;
+}
+
+// Nâng cấp toàn bộ mật khẩu plaintext cũ sang bản băm (chạy 1 lần khi tải dữ liệu)
+function migrateLegacyPasswords() {
+  let changed = false;
+  (S.personnelAccounts || []).forEach(acc => {
+    if (!acc.passwordHash && acc.password != null) {
+      setAccountPassword(acc, acc.password);
+      changed = true;
+    }
+  });
+  if (!S.accounts || typeof S.accounts !== "object") {
+    S.accounts = { ...DEFAULT_COMMANDER_ACCOUNTS };
+    changed = true;
+  }
+  Object.keys(S.accounts).forEach(u => {
+    const v = S.accounts[u];
+    if (typeof v === "string" && v.indexOf(PASSWORD_SCHEME + "$") !== 0) {
+      S.accounts[u] = makePasswordRecord(v);
+      changed = true;
+    }
+  });
+  return changed;
+}
+
+// Cấp mã kế tiếp không trùng với bất kỳ mã nào đã dùng
+function nextAvailableCode(prefix, usedCodes) {
+  let max = 0;
+  const re = new RegExp("^" + prefix + "(\\d+)$", "i");
+  (usedCodes || []).forEach(code => {
+    const m = re.exec(String(code || "").trim());
+    if (m) max = Math.max(max, parseInt(m[1], 10));
+  });
+  return prefix + pad(max + 1);
+}
+
 // Đồng bộ từ 4 Tổ (S.teams) sang S.officers, S.soldiers và S.personnelAccounts
+// Trả về số mã số bị trùng đã được cấp lại tự động.
 function syncFromTeamsToRosterAndAccounts() {
   if (!S.teams || !Array.isArray(S.teams) || S.teams.length < 4) {
     S.teams = JSON.parse(JSON.stringify(DEFAULT_TEAMS));
   }
+  S.personnelAccounts = Array.isArray(S.personnelAccounts) ? S.personnelAccounts : [];
+
   const allOff = [];
   const allSol = [];
   const existingMap = {};
-  (S.personnelAccounts || []).forEach(a => {
-    existingMap[cleanName(a.fullName).toLowerCase()] = a;
+  S.personnelAccounts.forEach(a => {
+    const key = cleanName(a.fullName).toLowerCase();
+    if (key) existingMap[key] = a;
   });
 
+  // Tên đang có trong 4 Tổ: mã của những người này được giữ lại cho chính họ.
+  // Mã của hồ sơ đã bị rút khỏi Tổ vẫn được giữ chỗ để không cấp trùng về sau.
+  const teamNameSet = new Set();
+  S.teams.forEach(team => {
+    [...(team.officers || []), ...(team.soldiers || [])].forEach(raw => {
+      const fn = cleanName(raw);
+      if (fn) teamNameSet.add(fn.toLowerCase());
+    });
+  });
+  const usedCodes = new Set();
+  S.personnelAccounts.forEach(a => {
+    const key = cleanName(a.fullName).toLowerCase();
+    if (!teamNameSet.has(key) && a.code && a.code !== "Chưa cấp") {
+      usedCodes.add(String(a.code).trim().toLowerCase());
+    }
+  });
+
+  let duplicatesFixed = 0;
+  function reserveCode(rawName, prev, prefix) {
+    const rawCd = extractCode(rawName);
+    const prevCd = prev && prev.code ? String(prev.code).trim() : "";
+    let cd = (rawCd && rawCd !== "Chưa cấp") ? rawCd.trim() : "";
+    if (!cd && prevCd && prevCd !== "Chưa cấp") cd = prevCd;
+    if (cd && !usedCodes.has(cd.toLowerCase())) {
+      usedCodes.add(cd.toLowerCase());
+      return cd;
+    }
+    if (rawCd && rawCd !== "Chưa cấp") duplicatesFixed++;
+    let next = nextAvailableCode(prefix, Array.from(usedCodes));
+    while (usedCodes.has(next.toLowerCase())) {
+      next = prefix + pad(parseInt(next.slice(prefix.length), 10) + 1);
+    }
+    usedCodes.add(next.toLowerCase());
+    return next;
+  }
+
+  function buildAccount(prev, fn, cd, roleType, teamId, defaultPosition, defaultDob, defaultHome) {
+    const acc = prev ? { ...prev } : { id: Date.now() + Math.random() };
+    acc.fullName = fn;
+    acc.code = cd;
+    acc.roleType = roleType;
+    acc.teamId = teamId;
+    acc.position = prev && prev.position ? prev.position : defaultPosition;
+    acc.username = prev && prev.username ? prev.username : formatFullAccountName(fn, cd);
+    acc.dob = prev && prev.dob ? prev.dob : defaultDob;
+    acc.hometown = prev && prev.hometown ? prev.hometown : defaultHome;
+    acc.active = true;
+    if (prev) {
+      copyCredentialFields(acc, prev);
+      // Hồ sơ cũ thiếu thông tin đăng nhập: cấp mật khẩu mặc định để không bị khóa
+      if (!acc.passwordHash && acc.password == null) setAccountPassword(acc, "1");
+    } else {
+      setAccountPassword(acc, "1");
+    }
+    return acc;
+  }
+
   const updatedAccounts = [];
-  let sqCounter = 1;
-  let csCounter = 1;
 
   S.teams.forEach((team, tIdx) => {
     const teamId = tIdx + 1;
     (team.officers || []).forEach(rawName => {
       const fn = cleanName(rawName);
       if (!fn) return;
-      let cd = extractCode(rawName);
       const prev = existingMap[fn.toLowerCase()];
-      if (cd === "Chưa cấp") cd = (prev && prev.code && prev.code !== "Chưa cấp") ? prev.code : ("SQ" + pad(sqCounter));
-      sqCounter++;
+      const cd = reserveCode(rawName, prev, "SQ");
       const label = formatFullAccountName(fn, cd);
       if (!allOff.includes(label)) allOff.push(label);
-
-      updatedAccounts.push({
-        id: prev ? prev.id : (Date.now() + Math.random()),
-        fullName: fn,
-        code: cd,
-        roleType: "officer",
-        teamId: teamId,
-        position: prev && prev.position ? prev.position : `Đốc gác - Tổ ${teamId}`,
-        username: prev && prev.username ? prev.username : label,
-        password: prev && prev.password ? prev.password : "1",
-        dob: prev && prev.dob ? prev.dob : "1994-05-19",
-        hometown: prev && prev.hometown ? prev.hometown : "Hà Nội"
-      });
+      updatedAccounts.push(buildAccount(prev, fn, cd, "officer", teamId, `Đốc gác - Tổ ${teamId}`, "1994-05-19", "Hà Nội"));
     });
 
     (team.soldiers || []).forEach(rawName => {
       const fn = cleanName(rawName);
       if (!fn) return;
-      let cd = extractCode(rawName);
       const prev = existingMap[fn.toLowerCase()];
-      if (cd === "Chưa cấp") cd = (prev && prev.code && prev.code !== "Chưa cấp") ? prev.code : ("CS" + pad(csCounter));
-      csCounter++;
+      const cd = reserveCode(rawName, prev, "CS");
       const label = formatFullAccountName(fn, cd);
       if (!allSol.includes(label)) allSol.push(label);
-
-      updatedAccounts.push({
-        id: prev ? prev.id : (Date.now() + Math.random()),
-        fullName: fn,
-        code: cd,
-        roleType: "soldier",
-        teamId: teamId,
-        position: prev && prev.position ? prev.position : `Chiến sĩ Vọng gác - Tổ ${teamId}`,
-        username: prev && prev.username ? prev.username : label,
-        password: prev && prev.password ? prev.password : "1",
-        dob: prev && prev.dob ? prev.dob : "2004-09-02",
-        hometown: prev && prev.hometown ? prev.hometown : "Hải Dương"
-      });
+      updatedAccounts.push(buildAccount(prev, fn, cd, "soldier", teamId, `Chiến sĩ Vọng gác - Tổ ${teamId}`, "2004-09-02", "Hải Dương"));
     });
 
     // Chuẩn hóa lại mảng tên có mã số trong team
@@ -145,9 +354,20 @@ function syncFromTeamsToRosterAndAccounts() {
     });
   });
 
+  // Không xóa ngay hồ sơ đã rút khỏi textarea: đánh dấu ngừng hoạt động.
+  // Chỉ Chỉ huy bấm "Xóa" ở trang Quản lý tài khoản mới xóa hẳn.
+  const activeNames = new Set(updatedAccounts.map(a => cleanName(a.fullName).toLowerCase()));
+  S.personnelAccounts.forEach(a => {
+    const key = cleanName(a.fullName).toLowerCase();
+    if (!key || activeNames.has(key)) return;
+    activeNames.add(key);
+    updatedAccounts.push({ ...a, active: false });
+  });
+
   S.officers = allOff.join("\n");
   S.soldiers = allSol.join("\n");
   S.personnelAccounts = updatedAccounts;
+  return duplicatesFixed;
 }
 
 // Đồng bộ từ S.personnelAccounts ngược về S.teams và S.officers/S.soldiers
@@ -164,6 +384,7 @@ function syncRosterStringsFromAccounts() {
   const offList = [];
   const solList = [];
   S.personnelAccounts.forEach(acc => {
+    if (acc.active === false) return; // hồ sơ đã ngừng hoạt động: không đưa lại vào Tổ
     const label = formatFullAccountName(acc.fullName, acc.code);
     const tIdx = Math.min(3, Math.max(0, (parseInt(acc.teamId, 10) || 1) - 1));
     if (acc.roleType === "officer") {
@@ -298,6 +519,7 @@ function loadStorage() {
     console.error("Lỗi khi tải localStorage:", e);
   }
   seedDefaultDataIfEmpty();
+  if (migrateLegacyPasswords()) saveStorage();
 }
 
 function saveStorage() {
@@ -418,14 +640,20 @@ function authenticateSoldierLogin(inputUsername, inputPassword) {
 
   const list = S.personnelAccounts || [];
   for (const acc of list) {
+    if (acc.active === false) continue; // tài khoản đã ngừng hoạt động
     const fullLabel = formatFullAccountName(acc.fullName, acc.code).toLowerCase();
     const uAcc = (acc.username || fullLabel).trim().toLowerCase();
-    const pass = (acc.password || "1").trim();
     const altLabel = `${cleanName(acc.fullName)} ${acc.code}`.trim().toLowerCase();
-    const pureName = cleanName(acc.fullName).toLowerCase();
-    if ((uNorm === fullLabel || uNorm === uAcc || uNorm === altLabel || uNorm === pureName) && pNorm === pass) {
-      return acc;
+    // Chỉ cho đăng nhập bằng Họ tên kèm mã số / tên tài khoản đã cấp.
+    // Không chấp nhận tên thuần để tránh đăng nhập thay người khác.
+    if (uNorm !== fullLabel && uNorm !== uAcc && uNorm !== altLabel) continue;
+    if (!verifyAccountPassword(acc, pNorm)) continue;
+    // Nâng cấp mật khẩu plaintext cũ ngay sau lần đăng nhập thành công đầu tiên
+    if (!acc.passwordHash && acc.password != null) {
+      setAccountPassword(acc, pNorm);
+      saveStorage();
     }
+    return acc;
   }
   return null;
 }
@@ -723,6 +951,7 @@ function restoreJSONData(event) {
       if (!S.teams || S.teams.length < 4) S.teams = JSON.parse(JSON.stringify(DEFAULT_TEAMS));
       normalizeBorrowRules();
       syncFromTeamsToRosterAndAccounts();
+      migrateLegacyPasswords();
       saveStorage();
       alert("✅ Đã khôi phục dữ liệu hệ thống thành công!");
       window.location.reload();
@@ -775,11 +1004,16 @@ function saveNewCommanderPassword(ev) {
   const oldP = document.getElementById("cpOld").value.trim();
   const newP = document.getElementById("cpNew").value.trim();
   if (!S.accounts) S.accounts = { ...DEFAULT_COMMANDER_ACCOUNTS };
-  if (!S.accounts[u] || S.accounts[u] !== oldP) {
+  if (!S.accounts[u] || !verifyPasswordRecord(String(S.accounts[u]), oldP)) {
     alert("❌ Mật khẩu hiện tại không đúng!");
     return;
   }
-  S.accounts[u] = newP;
+  if (newP.length < 4) {
+    alert("❌ Mật khẩu mới phải có ít nhất 4 ký tự!");
+    return;
+  }
+  // Chỉ lưu bản băm, không lưu mật khẩu nguyên văn
+  S.accounts[u] = makePasswordRecord(newP);
   saveStorage();
   alert("✅ Đã cập nhật mật khẩu mới thành công!");
   closePasswordModal();
@@ -858,28 +1092,27 @@ function showPersonnelHoverCard(ev, personIdentifier) {
     ? `${acc.roleType === "officer" ? "Đốc gác (Sĩ quan)" : "Chiến sĩ Vọng gác"} — Tổ ${acc.teamId || teamId || 1}`
     : (teamId ? `Tổ ${teamId}` : "Chưa phân tổ");
   const username = acc ? (acc.username || formatFullAccountName(fullName, code)) : formatFullAccountName(fullName, code);
-  const password = acc ? (acc.password || "1") : "1";
   const dob = acc && acc.dob ? vnFormat(acc.dob) : "Chưa cập nhật";
   const hometown = acc && acc.hometown ? acc.hometown : "Chưa cập nhật";
   const initials = fullName.split(" ").pop().charAt(0).toUpperCase() || "Q";
+  const teamNo = acc && acc.teamId ? acc.teamId : (teamId || 1);
 
   pop.innerHTML = `
     <div class="pop-header">
-      <div class="pop-avatar">${initials}</div>
+      <div class="pop-avatar">${escHTML(initials)}</div>
       <div class="pop-title-box">
-        <h4>${fullName} (${code})</h4>
-        <span>ĐỘI 3 — TỔ ${acc && acc.teamId ? acc.teamId : (teamId || 1)} · Click để mở hồ sơ</span>
+        <h4>${escHTML(fullName)} (${escHTML(code)})</h4>
+        <span>ĐỘI 3 — TỔ ${escHTML(teamNo)} · Click để mở hồ sơ</span>
       </div>
     </div>
-    <div class="pop-row"><span class="pop-label">Họ và tên:</span><span class="pop-val">${fullName}</span></div>
-    <div class="pop-row"><span class="pop-label">Mã số quân nhân:</span><span class="pop-val">${code}</span></div>
-    <div class="pop-row"><span class="pop-label">Tổ biên chế cố định:</span><span class="pop-val" style="color:var(--primary-green);">Tổ ${acc && acc.teamId ? acc.teamId : (teamId || 1)}</span></div>
-    <div class="pop-row"><span class="pop-label">Chức vụ:</span><span class="pop-val">${position}</span></div>
-    <div class="pop-row"><span class="pop-label">Nhóm cắt gác:</span><span class="pop-val">${roleGroup}</span></div>
-    <div class="pop-row"><span class="pop-label">Tên TK đăng nhập:</span><span class="pop-val" style="color:var(--primary-green);">${username}</span></div>
-    <div class="pop-row"><span class="pop-label">Mật khẩu:</span><span class="pop-val">${password}</span></div>
-    <div class="pop-row"><span class="pop-label">Ngày tháng năm sinh:</span><span class="pop-val">${dob}</span></div>
-    <div class="pop-row"><span class="pop-label">Quê quán:</span><span class="pop-val">${hometown}</span></div>
+    <div class="pop-row"><span class="pop-label">Họ và tên:</span><span class="pop-val">${escHTML(fullName)}</span></div>
+    <div class="pop-row"><span class="pop-label">Mã số quân nhân:</span><span class="pop-val">${escHTML(code)}</span></div>
+    <div class="pop-row"><span class="pop-label">Tổ biên chế cố định:</span><span class="pop-val" style="color:var(--primary-green);">Tổ ${escHTML(teamNo)}</span></div>
+    <div class="pop-row"><span class="pop-label">Chức vụ:</span><span class="pop-val">${escHTML(position)}</span></div>
+    <div class="pop-row"><span class="pop-label">Nhóm cắt gác:</span><span class="pop-val">${escHTML(roleGroup)}</span></div>
+    <div class="pop-row"><span class="pop-label">Tên TK đăng nhập:</span><span class="pop-val" style="color:var(--primary-green);">${escHTML(username)}</span></div>
+    <div class="pop-row"><span class="pop-label">Ngày tháng năm sinh:</span><span class="pop-val">${escHTML(dob)}</span></div>
+    <div class="pop-row"><span class="pop-label">Quê quán:</span><span class="pop-val">${escHTML(hometown)}</span></div>
   `;
 
   pop.classList.add("visible");
@@ -905,6 +1138,5 @@ function hidePersonnelHoverCard() {
 function renderPersonHoverLinkHTML(personLabel) {
   const p = (personLabel || "").trim();
   if (!p || p === "-") return "-";
-  const safeP = p.replace(/'/g, "\'");
-  return `<a href="tim-kiem.html?q=${encodeURIComponent(cleanName(p))}" class="person-hover-link" onmouseenter="showPersonnelHoverCard(event, '${safeP}')" onmousemove="movePersonnelHoverCard(event)" onmouseleave="hidePersonnelHoverCard()"><b>${p}</b></a>`;
+  return `<a href="tim-kiem.html?q=${encodeURIComponent(cleanName(p))}" class="person-hover-link" data-person="${escHTML(p)}" onmouseenter="showPersonnelHoverCard(event, this.dataset.person)" onmousemove="movePersonnelHoverCard(event)" onmouseleave="hidePersonnelHoverCard()"><b>${escHTML(p)}</b></a>`;
 }
