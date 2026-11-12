@@ -82,7 +82,7 @@
         <label for="viewDateSelect"><b>Chọn ngày xem lịch:</b></label>
         <input type="date" id="viewDateSelect" onchange="renderStandaloneScheduleView()">
         <button class="sec" onclick="exportToExcel(document.getElementById('viewDateSelect').value)">Xuất Excel</button>
-        <button class="pri" onclick="window.print()">🖨 In Bảng Lịch</button>
+        <button class="pri" onclick="printSchedule(document.getElementById('viewDateSelect').value)">🖨 In Bảng Lịch</button>
       </div>
       <div id="print-area">
         <div class="military-print-header">
@@ -136,7 +136,25 @@
     const detectedTeams = detectTeamsInCa(day);
 
     let html = `<div style="padding:12px;"><h3 style="margin-top:0;color:var(--primary-green);text-align:center;">BẢNG PHÂN CÔNG LỊCH GÁC NGÀY ${vnFormat(dStr)} (${DOW[parseDate(dStr).getDay()]})</h3>`;
-    html += `<table><thead><tr><th>Ca gác & Tổ</th><th>Thời gian trong ngày</th><th>Đốc gác 1 (Sĩ quan)</th><th>Vọng x9 (Chiến sĩ)</th><th>Vọng x10 (Chiến sĩ)</th><th>Vọng x11 (Chiến sĩ)</th><th>Vọng x12 (Chiến sĩ)</th></tr></thead><tbody>`;
+
+    // Có ca lẻ ở bất kỳ vị trí nào? Khi đó hiện thêm cột "Khung giờ" riêng
+    // ngay cạnh cột tên, đồng bộ với trang quản lý lịch.
+    let dayHasAnySplit = false;
+    for (let caIdx = 0; caIdx < CA.length && !dayHasAnySplit; caIdx++) {
+      for (let c = 0; c < 5; c++) {
+        const p0 = (day.cells[(caIdx * 3 + 0) * 5 + c] || "").trim();
+        const p1 = (day.cells[(caIdx * 3 + 1) * 5 + c] || "").trim();
+        const p2 = (day.cells[(caIdx * 3 + 2) * 5 + c] || "").trim();
+        if (cleanName(p0) !== cleanName(p1) || cleanName(p0) !== cleanName(p2)) {
+          dayHasAnySplit = true;
+          break;
+        }
+      }
+    }
+
+    html += `<table><thead><tr><th class="ca-head">${dayHasAnySplit ? "Ca / Tổ trực" : "Ca / Khung giờ"}</th>`;
+    if (dayHasAnySplit) html += `<th class="slot-time extra-time-col">Khung giờ</th>`;
+    html += `<th>Đốc gác 1 (Sĩ quan)</th><th>Vọng x9 (Chiến sĩ)</th><th>Vọng x10 (Chiến sĩ)</th><th>Vọng x11 (Chiến sĩ)</th><th>Vọng x12 (Chiến sĩ)</th></tr></thead><tbody>`;
 
     CA.forEach((slots, caIdx) => {
       const teamId = detectedTeams[caIdx] || (caIdx + 1);
@@ -152,11 +170,15 @@
         }
       }
 
+      const caLabelHtml = `<a href="tim-kiem.html?q=Ca+${caIdx+1}" style="color:var(--primary-green);text-decoration:none;">Ca ${caIdx + 1}</a><div style="font-size:11px;color:var(--muted);">Tổ ${teamId}</div>`;
+      const caTimeLinesHtml = `<div class="ca-time-lines">${slots.map(s => `<div class="ca-time-line">${s}</div>`).join("")}</div>`;
+      const extraTimeCellHtml = `<td class="slot-time extra-time-col"><div class="extra-time-list">${slots.map(s => `<div class="extra-time-line">${s}</div>`).join("")}</div></td>`;
+
       if (!caHasAnySplit) {
         // Cả 5 vị trí đều chỉ có 1 người làm xuyên suốt 3 khung giờ -> Chỉ hiển thị 1 dòng gọn gàng cho cả Ca
         html += `<tr>`;
-        html += `<td class="ca-title"><a href="tim-kiem.html?q=Ca+${caIdx+1}" style="color:var(--primary-green);text-decoration:none;">Ca ${caIdx + 1}</a><div style="font-size:11px;color:var(--muted);">Tổ ${teamId}</div></td>`;
-        html += `<td class="slot-time" style="line-height:1.6;">${slots.join("<br>")}</td>`;
+        html += `<td class="ca-title ca-merged">${caLabelHtml}${dayHasAnySplit ? "" : caTimeLinesHtml}</td>`;
+        if (dayHasAnySplit) html += extraTimeCellHtml;
         for (let c = 0; c < 5; c++) {
           const person = (day.cells[(caIdx * 3) * 5 + c] || "").trim() || "-";
           html += `<td>${person !== "-" ? renderPersonHoverLinkHTML(person) : "-"}</td>`;
@@ -168,9 +190,13 @@
           const rowIdx = caIdx * 3 + slotIdx;
           html += `<tr>`;
           if (slotIdx === 0) {
-            html += `<td rowspan="3" class="ca-title"><a href="tim-kiem.html?q=Ca+${caIdx+1}" style="color:var(--primary-green);text-decoration:none;">Ca ${caIdx + 1}</a><div style="font-size:11px;color:var(--muted);">Tổ ${teamId}</div></td>`;
+            html += `<td rowspan="3" class="ca-title ca-merged">${caLabelHtml}</td>`;
           }
-          html += `<td class="slot-time">${timeStr}</td>`;
+          if (dayHasAnySplit) {
+            html += `<td class="slot-time extra-time-col">${timeStr}</td>`;
+          } else {
+            html += `<td class="slot-time">${timeStr}</td>`;
+          }
           for (let c = 0; c < 5; c++) {
             const p0 = (day.cells[(caIdx * 3 + 0) * 5 + c] || "").trim();
             const p1 = (day.cells[(caIdx * 3 + 1) * 5 + c] || "").trim();
@@ -183,7 +209,7 @@
               }
             } else {
               const curP = (day.cells[rowIdx * 5 + c] || "").trim();
-              html += `<td style="background:#fffdf5;"><span class="sub-shift-badge">${timeStr}</span>${curP ? renderPersonHoverLinkHTML(curP) : "-"}</td>`;
+              html += `<td style="background:#fffdf5;">${curP ? renderPersonHoverLinkHTML(curP) : "-"}</td>`;
             }
           }
           html += `</tr>`;

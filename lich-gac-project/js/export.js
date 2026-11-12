@@ -38,16 +38,11 @@ function exportToExcel(dateStr) {
   XLSX.writeFile(wb, `LichGac_${dateStr}.xlsx`);
 }
 
-function exportToPDF(dateStr) {
-  if (!window.html2pdf) {
-    alert("Thư viện PDF đang tải, vui lòng thử lại.");
-    return;
-  }
+// Tạo bản sao vùng in đã tinh gọn, dùng chung cho cả "Xuất PDF" và "In lịch"
+// để hai đường xuất luôn cho ra cùng một bố cục.
+function buildPdfExportClone(dateStr) {
   const element = document.getElementById("print-area");
-  if (!element) {
-    alert("Không tìm thấy vùng in lịch.");
-    return;
-  }
+  if (!element) return null;
 
   // Nhân bản vùng in để không làm thay đổi giao diện đang hiển thị.
   const clone = element.cloneNode(true);
@@ -72,6 +67,55 @@ function exportToPDF(dateStr) {
     t.style.borderCollapse = "collapse";
   });
 
+  // Bảng lịch nằm riêng trang 1; phần còn lại (quân số, vắng mặt, chữ ký)
+  // bắt đầu trang 2 để bản PDF gọn và đúng bố cục.
+  const phan2Heading = Array.from(clone.querySelectorAll("h2"))
+    .find(h => /Phần\s*2/i.test(h.textContent || ""));
+  const phan2Section = phan2Heading ? phan2Heading.closest("section") : null;
+  if (phan2Section) {
+    phan2Section.style.pageBreakBefore = "always";
+    phan2Section.style.breakBefore = "page";
+  }
+
+  // Rút gọn danh sách vắng mặt thành các dòng chữ (thay cho bộ chọn chip)
+  // để phần còn lại của bản PDF gọn trong 1 trang.
+  const catsEl = clone.querySelector("#cats");
+  if (catsEl && typeof CATS !== "undefined" && typeof getDayData === "function") {
+    const dayData = getDayData(dateStr);
+    const summary = document.createElement("div");
+    summary.className = "pdf-absence-summary";
+    CATS.forEach(c => {
+      const raw = (dayData.absent && dayData.absent[c[0]]) || "";
+      const names = (typeof parseNames === "function")
+        ? parseNames(raw)
+        : String(raw).split(",").map(s => s.trim()).filter(Boolean);
+      const line = document.createElement("div");
+      line.className = "pdf-abs-line";
+      line.innerHTML = `<b>* ${c[1]} (${c[2]}):</b> ${names.length ? names.join(", ") : "Không có"}`;
+      summary.appendChild(line);
+    });
+    catsEl.replaceWith(summary);
+  }
+
+  // Rút gọn danh sách trực cơ động thành 2 dòng chữ.
+  const restEl = clone.querySelector(".rest");
+  if (restEl) {
+    const summary = document.createElement("div");
+    summary.className = "pdf-rest-summary";
+    restEl.querySelectorAll(".part").forEach(part => {
+      const ph = part.querySelector(".ph");
+      const title = ph ? ph.textContent.replace(/\s+/g, " ").trim() : "";
+      const names = Array.from(part.querySelectorAll(".chip"))
+        .map(ch => ch.textContent.trim())
+        .filter(Boolean);
+      const line = document.createElement("div");
+      line.className = "pdf-rest-line";
+      line.innerHTML = `<b>${title}:</b> ${names.length ? names.join(", ") : "Không có"}`;
+      summary.appendChild(line);
+    });
+    restEl.replaceWith(summary);
+  }
+
   // Ô nhập liệu → chữ tĩnh để bản PDF không bị cắt chữ.
   clone.querySelectorAll("input, textarea, select").forEach(el => {
     const span = document.createElement("span");
@@ -89,6 +133,19 @@ function exportToPDF(dateStr) {
     "background:#ffffff;color:#000000;width:277mm;padding:0;" +
     "font-family:'Times New Roman',serif;";
   wrapper.appendChild(clone);
+  return wrapper;
+}
+
+function exportToPDF(dateStr) {
+  if (!window.html2pdf) {
+    alert("Thư viện PDF đang tải, vui lòng thử lại.");
+    return;
+  }
+  const wrapper = buildPdfExportClone(dateStr);
+  if (!wrapper) {
+    alert("Không tìm thấy vùng in lịch.");
+    return;
+  }
   document.body.appendChild(wrapper);
 
   const opt = {
@@ -99,8 +156,13 @@ function exportToPDF(dateStr) {
       scale: 2,
       useCORS: true,
       backgroundColor: "#ffffff",
+      // Bắt buộc neo về gốc tài liệu: nếu trang đang cuộn ngang (do nội dung rộng),
+      // html2canvas sẽ lấy pageXOffset làm mốc và cắt mất phần bên trái của bảng.
+      scrollX: 0,
       scrollY: 0,
-      windowWidth: wrapper.scrollWidth
+      x: 0,
+      y: 0,
+      windowWidth: Math.max(document.documentElement.clientWidth, wrapper.scrollWidth)
     },
     jsPDF: { unit: "mm", format: "a4", orientation: "landscape" },
     pagebreak: { mode: ["css", "legacy"], avoid: ["tr", "td", "th", ".card"] }
@@ -112,6 +174,37 @@ function exportToPDF(dateStr) {
       wrapper.remove();
       alert("❌ Không xuất được PDF: " + (err && err.message ? err.message : err));
     });
+}
+
+// In lịch bằng đúng bản sao đã tinh gọn của "Xuất PDF", tránh việc cửa sổ hẹp
+// kích hoạt giao diện mobile và làm bảng bị cắt/tràn nhiều trang.
+function printSchedule(dateStr) {
+  document.querySelectorAll(".print-clone").forEach(n => n.remove());
+  const wrapper = buildPdfExportClone(dateStr);
+  if (!wrapper) {
+    alert("Không tìm thấy vùng in lịch.");
+    return;
+  }
+  wrapper.classList.add("print-clone");
+  document.body.appendChild(wrapper);
+  document.body.classList.add("printing-clone");
+
+  let cleaned = false;
+  const cleanup = () => {
+    if (cleaned) return;
+    cleaned = true;
+    wrapper.remove();
+    document.body.classList.remove("printing-clone");
+    window.removeEventListener("afterprint", cleanup);
+  };
+  window.addEventListener("afterprint", cleanup);
+
+  try {
+    window.print();
+  } catch (err) {
+    cleanup();
+    alert("❌ Không mở được hộp thoại in: " + (err && err.message ? err.message : err));
+  }
 }
 
 function importFile(event, targetId) {

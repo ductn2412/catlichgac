@@ -167,7 +167,7 @@
       <button class="warn-btn" id="genWeek" onclick="generateWeekSchedule()">⚡ Cắt lịch cả tuần (7 ngày)</button>
       <button class="sec" onclick="exportToExcel(curDate)">Xuất Excel</button>
       <button class="sec" onclick="exportToPDF(curDate)">Xuất PDF</button>
-      <button onclick="window.print()">🖨 In lịch</button>
+      <button onclick="printSchedule(curDate)">🖨 In lịch</button>
       <span class="now" id="now"></span>
     </div>
 
@@ -190,8 +190,7 @@
         <table>
           <thead>
             <tr>
-              <th>Ca & Tổ trực</th>
-              <th>Khung giờ trong ngày</th>
+              <th class="ca-head">Ca / Khung giờ</th>
               <th><b>Đốc gác 1</b>Sĩ quan</th>
               <th><b>Vọng gác x9</b>Chiến sĩ nghĩa vụ</th>
               <th><b>Vọng gác x10</b>Chiến sĩ nghĩa vụ</th>

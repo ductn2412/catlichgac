@@ -807,6 +807,41 @@ td input.nm.borrowed:not(.bad) {
   cursor: pointer;
   align-self: flex-end;
 }
+
+/* ==================== GỘP CỘT CA + KHUNG GIỜ ==================== */
+/* Cột "Ca / Khung giờ" gộp 2 cột cũ, chừa thêm chỗ cho tên chiến sĩ. */
+th.ca-head,
+td.ca-merged { width: 118px; }
+.ca-time-lines { margin-top: 6px; }
+.ca-time-line {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  line-height: 1.3;
+  padding: 3px 0;
+  border-top: 1px solid var(--line);
+}
+.ca-time-line:last-child { border-bottom: 1px solid var(--line); }
+
+/* Cột "Khung giờ" riêng chỉ xuất hiện khi có ca lẻ. */
+td.extra-time-col { width: 92px; }
+.extra-time-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 0;
+}
+.extra-time-line {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--muted);
+  border-bottom: 1px dashed var(--line);
+}
+.extra-time-line:last-child { border-bottom: 0; }
 .sub-shift-inline {
   display: flex;
   flex-direction: column;
@@ -1055,4 +1090,57 @@ td input.nm.borrowed:not(.bad) {
   tr, td, th { page-break-inside: avoid; }
   .security-banner, .snapshot-list { display: none !important; }
   .pdf-export { display: block !important; }
+}
+
+/* Khi xuất PDF, khung xuất luôn rộng 277mm nhưng media query vẫn tính theo
+   cửa sổ trình duyệt. Các override dưới đây giữ bố cục desktop, tránh việc
+   cửa sổ hẹp kích hoạt giao diện mobile (1 cột, cột đầu sticky...). */
+.pdf-export .card { padding: 16px; }
+.pdf-export h2 { font-size: 16px; }
+.pdf-export p.sub { font-size: 13px; }
+.pdf-export .item { grid-template-columns: 170px 1fr; gap: 10px; }
+.pdf-export .stat-grid { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); }
+.pdf-export .unit-total-header { font-size: 15px; }
+.pdf-export .unit-total-header strong { font-size: 19px; }
+.pdf-export .scroll table { min-width: 0; }
+.pdf-export .scroll table th:first-child,
+.pdf-export .scroll table td:first-child {
+  position: static;
+  z-index: auto;
+  box-shadow: none;
+}
+.pdf-export th, .pdf-export td { padding: 6px 8px; }
+.pdf-export td input.nm { font-size: 13px; padding: 6px 26px 6px 6px; }
+.pdf-export .split-slot-time { width: 68px; font-size: 10.5px; }
+.pdf-export .btn-split-slot, .pdf-export .btn-merge-slot { display: none !important; }
+
+/* Bản in PDF: bảng lịch gọn trên 1 trang, phần còn lại sang trang sau. */
+.pdf-export .pdf-absence-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 18px;
+  font-size: 11.5px;
+  line-height: 1.35;
+}
+.pdf-export .pdf-abs-line { padding: 2px 0; border-bottom: 1px dashed #ddd; }
+.pdf-export .pdf-abs-line b { color: #000; }
+.pdf-export .pdf-rest-summary { font-size: 12px; line-height: 1.4; }
+.pdf-export .pdf-rest-line { padding: 2px 0; }
+
+/* Bản in trực tiếp (nút "In lịch"): chỉ in đúng khung đã tinh gọn, không in
+   toàn bộ giao diện quản lý phía sau. */
+.print-clone {
+  position: fixed;
+  left: -99999px;
+  top: 0;
+}
+@media print {
+  body.printing-clone > *:not(.print-clone) { display: none !important; }
+  .print-clone {
+    position: static !important;
+    left: auto !important;
+    top: auto !important;
+    width: 277mm !important;
+    margin: 0 !important;
+  }
 }

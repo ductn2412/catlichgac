@@ -367,20 +367,56 @@ function buildScheduleTableDOM() {
   const day = getDayData(curDate);
   const isCommander = (getCurrentRole() === "commander");
 
+  // Có ít nhất một vị trí đang tách ca lẻ? Khi đó hiện thêm cột "Khung giờ"
+  // ngay cạnh các cột tên để đối chiếu từng dòng mà không chiếm chỗ trong ô tên.
+  const hasAnySplit = CA.some((slots, caIdx) => {
+    for (let c = 0; c < 5; c++) if (isCellSplit(day, caIdx, c)) return true;
+    return false;
+  });
+
+  // Cập nhật tiêu đề bảng cho khớp bố cục đã gộp "Ca & Tổ trực" + "Khung giờ".
+  const table = tbody.closest("table");
+  const headRow = table && table.querySelector("thead tr");
+  if (headRow) {
+    headRow.querySelectorAll(".extra-time-col").forEach(n => n.remove());
+    const firstTh = headRow.querySelector("th");
+    if (firstTh) {
+      firstTh.classList.add("ca-head");
+      firstTh.innerHTML = hasAnySplit ? "Ca / Tổ trực" : "Ca / Khung giờ";
+      if (hasAnySplit) {
+        const thTime = document.createElement("th");
+        thTime.className = "slot-time extra-time-col";
+        thTime.innerHTML = "Khung giờ";
+        firstTh.insertAdjacentElement("afterend", thTime);
+      }
+    }
+  }
+
   CA.forEach((slots, caIdx) => {
     const tr = document.createElement("tr");
     tr.dataset.ca = caIdx;
 
     const tdCa = document.createElement("td");
-    tdCa.className = "ca-title";
-    tdCa.innerHTML = `<strong>Ca ${caIdx + 1}</strong><div id="caTeamBadge_${caIdx}" style="margin-top:4px;font-size:11.5px;background:var(--hl);color:var(--primary-green);padding:2px 6px;border-radius:999px;border:1px solid var(--primary-green);">Tổ ${caIdx + 1}</div>`;
+    tdCa.className = "ca-title ca-merged";
+    let caHtml = `<strong>Ca ${caIdx + 1}</strong><div id="caTeamBadge_${caIdx}" style="margin-top:4px;font-size:11.5px;background:var(--hl);color:var(--primary-green);padding:2px 6px;border-radius:999px;border:1px solid var(--primary-green);">Tổ ${caIdx + 1}</div>`;
+    if (!hasAnySplit) {
+      // Gộp khung giờ vào chính ô Ca, kẻ ngang từng dòng cho dễ đối chiếu.
+      caHtml += `<div class="ca-time-lines">` +
+        slots.map(s => `<div class="ca-time-line">${s}</div>`).join("") +
+        `</div>`;
+    }
+    tdCa.innerHTML = caHtml;
     tr.appendChild(tdCa);
 
-    const tdTime = document.createElement("td");
-    tdTime.className = "slot-time";
-    tdTime.style.lineHeight = "1.65";
-    tdTime.innerHTML = slots.map(s => `<div>${s}</div>`).join("");
-    tr.appendChild(tdTime);
+    if (hasAnySplit) {
+      // Cột khung giờ riêng: 3 dòng thẳng hàng với 3 dòng tên khi tách ca lẻ.
+      const tdTime = document.createElement("td");
+      tdTime.className = "slot-time extra-time-col";
+      tdTime.innerHTML = `<div class="extra-time-list">` +
+        slots.map(s => `<div class="extra-time-line">${s}</div>`).join("") +
+        `</div>`;
+      tr.appendChild(tdTime);
+    }
 
     for (let c = 0; c < 5; c++) {
       const td = document.createElement("td");
@@ -468,11 +504,8 @@ function buildScheduleTableDOM() {
           const rowDiv = document.createElement("div");
           rowDiv.className = "split-slot-row";
 
-          const timeLbl = document.createElement("span");
-          timeLbl.className = "split-slot-time";
-          timeLbl.textContent = timeStr.replace(" – ", "-");
-          rowDiv.appendChild(timeLbl);
-
+          // Giờ đã nằm ở cột "Khung giờ" riêng nên không lặp lại trong ô tên,
+          // nhờ đó ô tên rộng hơn và không bị cắt chữ.
           const cellWrap = document.createElement("div");
           cellWrap.className = "cell";
           cellWrap.style.flex = "1";
