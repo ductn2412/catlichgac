@@ -880,6 +880,14 @@
             allowed ? "" : "assignment-disabled"
           ].filter(Boolean).join(" ");
           let content = val ? escAssignmentHtml(val) : "—";
+          if (val) {
+            const streak = (day.streaks && day.streaks[k] != null)
+              ? day.streaks[k]
+              : getPersonStreak(dateStr, val);
+            if (streak !== "" && streak != null) {
+              content += ` <sup class="streak-sup" title="Số ngày làm liên tiếp (mũ ${streak})">${escHTML(String(streak))}</sup>`;
+            }
+          }
           if (isTarget) content += ` <small>(đang trực)</small>`;
           if (mark && mark.fromTeam) content += ` <span class="assignment-borrowed-tag" title="Mượn từ Tổ ${mark.fromTeam}">(Tổ ${mark.fromTeam})</span>`;
           const title = allowed ? (val ? "Bấm để chọn thay đồng chí này" : "Bấm để chọn ô trống này") : "Không đúng chức danh của đồng chí được giao";

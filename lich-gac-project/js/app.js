@@ -437,6 +437,8 @@ function buildScheduleTableDOM() {
         sup.type = "number";
         sup.min = "0";
         sup.disabled = !isCommander;
+        sup.title = "Số mũ: số ngày làm liên tiếp";
+        sup.setAttribute("aria-label", "Số mũ (số ngày làm liên tiếp)");
 
         const k0 = (caIdx * 3 + 0) * 5 + c;
         const k1 = (caIdx * 3 + 1) * 5 + c;
@@ -520,6 +522,8 @@ function buildScheduleTableDOM() {
           sup.type = "number";
           sup.min = "0";
           sup.disabled = !isCommander;
+          sup.title = "Số mũ: số ngày làm liên tiếp";
+          sup.setAttribute("aria-label", "Số mũ (số ngày làm liên tiếp)");
 
           const k = (caIdx * 3 + slotIdx) * 5 + c;
 

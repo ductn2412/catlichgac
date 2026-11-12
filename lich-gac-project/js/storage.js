@@ -1254,6 +1254,7 @@ function getPersonDayWorkDetails(dateStr, personName) {
             const isNightShift = isNightShiftForPerson(ca, slot, val);
             if (isNightShift) result.nightShifts++;
             else result.dayShifts++;
+            const cellIdx = row * 5 + col;
             result.shiftsDetail.push({
               ca: ca + 1,
               slot: slot + 1,
@@ -1261,7 +1262,11 @@ function getPersonDayWorkDetails(dateStr, personName) {
               isNight: isNightShift,
               isNightOnly: isNightOnlyPerson(val),
               position: posNames[col],
-              col: col
+              col: col,
+              cellIndex: cellIdx,
+              streak: (dayData.streaks && dayData.streaks[cellIdx] != null)
+                ? dayData.streaks[cellIdx]
+                : getPersonStreak(dateStr, val)
             });
           }
         }
@@ -1675,4 +1680,39 @@ function renderPersonHoverLinkHTML(personLabel) {
   const p = (personLabel || "").trim();
   if (!p || p === "-") return "-";
   return `<a href="tim-kiem.html?q=${encodeURIComponent(cleanName(p))}" class="person-hover-link" data-person="${escHTML(p)}" onmouseenter="showPersonnelHoverCard(event, this.dataset.person)" onmousemove="movePersonnelHoverCard(event)" onmouseleave="hidePersonnelHoverCard()"><b>${escHTML(p)}</b></a>`;
+}
+
+// "Số mũ" = số ngày làm liên tiếp của một người tính đến ngày dateStr.
+// Ưu tiên giá trị đã lưu trong day.streaks; nếu chưa có thì tự đếm lùi các ngày.
+function getPersonStreak(dateStr, personName) {
+  const cName = cleanName(personName);
+  if (!cName) return "";
+  let d = dateStr;
+  let count = 0;
+  while (S.days[d]) {
+    const day = S.days[d];
+    let idx = -1;
+    if (Array.isArray(day.cells)) {
+      for (let i = 0; i < day.cells.length; i++) {
+        const v = (day.cells[i] || "").trim();
+        if (v && cleanName(v) === cName) { idx = i; break; }
+      }
+    }
+    if (idx < 0) break;
+    if (day.streaks && day.streaks[idx] != null) return count + day.streaks[idx];
+    count++;
+    d = addDay(d, -1);
+  }
+  return count;
+}
+
+// Tên kèm "số mũ" dùng cho các bảng lịch chỉ đọc (xem lịch, tra cứu...).
+function renderPersonWithStreakHTML(personLabel, dateStr) {
+  const p = (personLabel || "").trim();
+  if (!p || p === "-") return "-";
+  const streak = getPersonStreak(dateStr, p);
+  const sup = (streak === "" || streak == null)
+    ? ""
+    : `<sup class="streak-sup" title="Số ngày làm liên tiếp (mũ ${escHTML(String(streak))})">${escHTML(String(streak))}</sup>`;
+  return `<span class="person-with-streak">${renderPersonHoverLinkHTML(p)}${sup}</span>`;
 }

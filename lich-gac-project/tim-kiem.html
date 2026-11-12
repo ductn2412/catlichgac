@@ -229,7 +229,7 @@
         for (let c = 0; c < 5; c++) {
           const p = day.cells[rowIdx * 5 + c] || "-";
           if (p !== "-") {
-            html += `<td>${renderPersonHoverLinkHTML(p)}</td>`;
+            html += `<td>${renderPersonWithStreakHTML(p, dStr)}</td>`;
           } else {
             html += `<td style="color:var(--muted);">Chưa xếp</td>`;
           }
@@ -300,7 +300,7 @@
                   <td><b>Ca ${sh.ca}</b></td>
                   <td><b>${sh.time}</b></td>
                   <td>${sh.isNight ? `<span style="color:#e65100;font-weight:bold;">🌙 Ca đêm (${sh.isNightOnly ? "18h–06h" : "22h–06h"} sáng)</span>` : '<span style="color:var(--primary-green);font-weight:bold;">☀️ Ca ngày</span>'}</td>
-                  <td><b>${sh.position}</b></td>
+                  <td><b>${sh.position}</b>${sh.streak !== "" && sh.streak != null ? ` <sup class="streak-sup" title="Số ngày làm liên tiếp">${escHTML(String(sh.streak))}</sup>` : ""}</td>
                 </tr>
               `).join("")}
             </tbody>
@@ -361,7 +361,7 @@
         }
         statusCell = `<span style="color:var(--primary-green);font-weight:bold;">🟢 Đi làm (Gác)</span>`;
         shiftsCell = det.shiftsDetail.map(s =>
-          `<b>Ca ${s.ca}</b> (${s.time} - ${s.position}${s.isNight ? ' - 🌙 Ca đêm' : ''})`
+          `<b>Ca ${s.ca}</b> (${s.time} - ${s.position}${s.streak !== "" && s.streak != null ? ` - mũ ${s.streak}` : ""}${s.isNight ? ' - 🌙 Ca đêm' : ''})`
         ).join(" · ");
       } else {
         monthRestUnitDays++;

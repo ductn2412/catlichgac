@@ -4,6 +4,14 @@ function exportToExcel(dateStr) {
     return;
   }
   const day = getDayData(dateStr);
+  // Kèm "số mũ" (số ngày làm liên tiếp) vào tên để bản Excel cũng thể hiện
+  // đầy đủ thông tin như bảng lịch trên màn hình.
+  const cellText = (idx) => {
+    const raw = (day.cells[idx] || "").trim();
+    if (!raw) return "";
+    const streak = getPersonStreak(dateStr, raw);
+    return (streak === "" || streak == null) ? raw : `${raw} (mũ ${streak})`;
+  };
   const data = [
     ["LỊCH GÁC NGÀY " + vnFormat(dateStr)],
     [],
@@ -16,11 +24,11 @@ function exportToExcel(dateStr) {
       const row = [
         slotIdx === 0 ? `Ca ${caIdx + 1}` : "",
         timeStr,
-        day.cells[rowIdx * 5] || "",
-        day.cells[rowIdx * 5 + 1] || "",
-        day.cells[rowIdx * 5 + 2] || "",
-        day.cells[rowIdx * 5 + 3] || "",
-        day.cells[rowIdx * 5 + 4] || ""
+        cellText(rowIdx * 5),
+        cellText(rowIdx * 5 + 1),
+        cellText(rowIdx * 5 + 2),
+        cellText(rowIdx * 5 + 3),
+        cellText(rowIdx * 5 + 4)
       ];
       data.push(row);
     });
@@ -51,8 +59,10 @@ function buildPdfExportClone(dateStr) {
   clone.querySelectorAll("button").forEach(n => n.remove());
 
   // Hiện tiêu đề/footer chuẩn của bản in.
+  // Footer dùng display:table thay vì flex vì html2canvas không vẽ đúng khoảng
+  // trống ký tên bên trong flex container (footer bị co lại khi xuất PDF).
   clone.querySelectorAll(".military-print-header, .military-print-footer").forEach(n => {
-    n.style.display = "flex";
+    n.style.display = n.classList.contains("military-print-footer") ? "table" : "flex";
   });
 
   // Bỏ thanh cuộn, cho bảng tràn đầy trang A4 ngang.
@@ -67,15 +77,11 @@ function buildPdfExportClone(dateStr) {
     t.style.borderCollapse = "collapse";
   });
 
-  // Bảng lịch nằm riêng trang 1; phần còn lại (quân số, vắng mặt, chữ ký)
-  // bắt đầu trang 2 để bản PDF gọn và đúng bố cục.
+  // Xác định "Phần 2" (quân số, vắng mặt, chữ ký) để tách sang trang riêng.
   const phan2Heading = Array.from(clone.querySelectorAll("h2"))
     .find(h => /Phần\s*2/i.test(h.textContent || ""));
   const phan2Section = phan2Heading ? phan2Heading.closest("section") : null;
-  if (phan2Section) {
-    phan2Section.style.pageBreakBefore = "always";
-    phan2Section.style.breakBefore = "page";
-  }
+  if (phan2Section) phan2Section.style.marginTop = "0";
 
   // Rút gọn danh sách vắng mặt thành các dòng chữ (thay cho bộ chọn chip)
   // để phần còn lại của bản PDF gọn trong 1 trang.
@@ -116,6 +122,19 @@ function buildPdfExportClone(dateStr) {
     restEl.replaceWith(summary);
   }
 
+  // "Số mũ" (streak) → superscript thật sự, không dính liền vào tên.
+  clone.querySelectorAll("input.sup").forEach(el => {
+    const val = (el.value || "").trim();
+    if (!val) {
+      el.remove();
+      return;
+    }
+    const sup = document.createElement("sup");
+    sup.className = "pdf-sup";
+    sup.textContent = val;
+    el.replaceWith(sup);
+  });
+
   // Ô nhập liệu → chữ tĩnh để bản PDF không bị cắt chữ.
   clone.querySelectorAll("input, textarea, select").forEach(el => {
     const span = document.createElement("span");
@@ -126,6 +145,40 @@ function buildPdfExportClone(dateStr) {
     span.textContent = val;
     el.replaceWith(span);
   });
+
+  // Gom nội dung thành 2 trang in riêng: trang 1 = tiêu đề + bảng lịch,
+  // trang 2 = quân số/vắng mặt + chữ ký. Mỗi trang cao 189mm và căn giữa
+  // nội dung theo chiều dọc bằng CSS (display:table + table-cell).
+  const headerEl = clone.querySelector(".military-print-header");
+  const scheduleEl = clone.querySelector(".scroll");
+  const footerEl = clone.querySelector(".military-print-footer");
+
+  const page1 = document.createElement("div");
+  page1.className = "pdf-page pdf-page-1";
+  const inner1 = document.createElement("div");
+  inner1.className = "pdf-page-inner";
+  page1.appendChild(inner1);
+  if (headerEl) inner1.appendChild(headerEl);
+  if (scheduleEl) inner1.appendChild(scheduleEl);
+
+  const page2 = document.createElement("div");
+  page2.className = "pdf-page pdf-page-2";
+  const inner2 = document.createElement("div");
+  inner2.className = "pdf-page-inner";
+  page2.appendChild(inner2);
+  if (phan2Section) {
+    inner2.appendChild(phan2Section);
+    if (footerEl) inner2.appendChild(footerEl);
+    page2.style.pageBreakBefore = "always";
+    page2.style.breakBefore = "page";
+  } else if (footerEl) {
+    // Trang xem lịch không có "Phần 2": giữ chữ ký chung một trang với bảng lịch.
+    inner1.appendChild(footerEl);
+  }
+
+  while (clone.firstChild) clone.removeChild(clone.firstChild);
+  clone.appendChild(page1);
+  if (inner2.childElementCount > 0) clone.appendChild(page2);
 
   const wrapper = document.createElement("div");
   wrapper.className = "pdf-export";
@@ -189,11 +242,19 @@ function printSchedule(dateStr) {
   document.body.appendChild(wrapper);
   document.body.classList.add("printing-clone");
 
+  // Bản in lịch dùng khổ A4 ngang, lề 10mm để vừa đúng khung 277mm (giống PDF).
+  // Phải chèn động vì @page toàn cục đang là A4 dọc cho các trang in khác.
+  const pageStyle = document.createElement("style");
+  pageStyle.id = "print-clone-page-style";
+  pageStyle.textContent = "@page { size: A4 landscape; margin: 10mm; }";
+  document.head.appendChild(pageStyle);
+
   let cleaned = false;
   const cleanup = () => {
     if (cleaned) return;
     cleaned = true;
     wrapper.remove();
+    pageStyle.remove();
     document.body.classList.remove("printing-clone");
     window.removeEventListener("afterprint", cleanup);
   };

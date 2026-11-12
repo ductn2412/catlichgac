@@ -57,6 +57,15 @@ function renderDashboard() {
   document.getElementById("kpiHocTapKhac").textContent = countNghiBu + countHocTap + countKhac;
 
   const dutyListEl = document.getElementById("dashDutyList");
+  const withStreak = (name) => {
+    const n = (name || "").trim();
+    if (!n || n === "-" || n === "Chưa xếp") return escHTML(n || "");
+    const streak = getPersonStreak(dStr, n);
+    const sup = (streak === "" || streak == null)
+      ? ""
+      : ` <sup class="streak-sup" title="Số ngày làm liên tiếp (mũ ${streak})">${streak}</sup>`;
+    return escHTML(n) + sup;
+  };
   let listHtml = "";
   for (let ca = 0; ca < 4; ca++) {
     const docGac = day.cells[(ca * 3) * 5 + 0] || "Chưa xếp";
@@ -68,8 +77,8 @@ function renderDashboard() {
       <li class="duty-item" style="cursor:pointer;" onclick="window.location.href='tim-kiem.html?q=Ca+${ca + 1}'">
         <span class="duty-avatar">C${ca + 1}</span>
         <div class="duty-info">
-          <span class="duty-name">Ca ${ca + 1}: Đốc gác ${escHTML(docGac)}</span>
-          <span class="duty-sub">Khung giờ: ${escHTML(CA[ca].join(" · "))} | Vọng: ${escHTML(vong9)}, ${escHTML(vong10)}...</span>
+          <span class="duty-name">Ca ${ca + 1}: Đốc gác ${withStreak(docGac)}</span>
+          <span class="duty-sub">Khung giờ: ${escHTML(CA[ca].join(" · "))} | Vọng: ${withStreak(vong9)}, ${withStreak(vong10)}...</span>
         </div>
         <span class="duty-pct">${pct}%</span>
       </li>

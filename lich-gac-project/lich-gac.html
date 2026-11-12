@@ -103,12 +103,12 @@
         <div class="military-print-footer">
           <div>
             <b>ĐỘI 3</b><br>
-            <i>(Ký, ghi rõ họ tên)</i><br><br><br><br>
+            <i>(Ký, ghi rõ họ tên)</i><div class="signature-space"></div>
           </div>
           <div>
             <i>Hà Nội, ngày ..... tháng ..... năm 20...</i><br>
             <b>CHỈ HUY ĐỘI 3 DUYỆT</b><br>
-            <i>(Ký tên, đóng dấu)</i><br><br><br><br>
+            <i>(Ký tên, đóng dấu)</i><div class="signature-space"></div>
           </div>
         </div>
       </div>
@@ -181,7 +181,7 @@
         if (dayHasAnySplit) html += extraTimeCellHtml;
         for (let c = 0; c < 5; c++) {
           const person = (day.cells[(caIdx * 3) * 5 + c] || "").trim() || "-";
-          html += `<td>${person !== "-" ? renderPersonHoverLinkHTML(person) : "-"}</td>`;
+          html += `<td>${person !== "-" ? renderPersonWithStreakHTML(person, dStr) : "-"}</td>`;
         }
         html += `</tr>`;
       } else {
@@ -205,11 +205,11 @@
 
             if (isSamePerson) {
               if (slotIdx === 0) {
-                html += `<td rowspan="3">${p0 ? renderPersonHoverLinkHTML(p0) : "-"}</td>`;
+                html += `<td rowspan="3">${p0 ? renderPersonWithStreakHTML(p0, dStr) : "-"}</td>`;
               }
             } else {
               const curP = (day.cells[rowIdx * 5 + c] || "").trim();
-              html += `<td style="background:#fffdf5;">${curP ? renderPersonHoverLinkHTML(curP) : "-"}</td>`;
+              html += `<td style="background:#fffdf5;">${curP ? renderPersonWithStreakHTML(curP, dStr) : "-"}</td>`;
             }
           }
           html += `</tr>`;

@@ -652,6 +652,9 @@ td input.nm.borrowed:not(.bad) {
 
 /* MILITARY PRINT HEADER & FOOTER */
 .military-print-header, .military-print-footer { display: none; }
+/* Khoảng trống ký tên cố định: html2canvas không vẽ các thẻ <br> cuối khối,
+   nên dùng khối có chiều cao thật để chữ ký không bị dồn lên trong PDF. */
+.military-print-footer .signature-space { display: block; height: 18mm; }
 
 @media print {
   .top-navbar, .sub-navbar, .left-sidebar, .bar, .roster, .import-bar, .no-print, .modal-backdrop { display: none !important; }
@@ -689,6 +692,18 @@ td input.nm.borrowed:not(.bad) {
 }
 .person-hover-link:hover {
   color: var(--primary-green);
+}
+/* "Số mũ" (số ngày làm liên tiếp) hiển thị cạnh tên trong các bảng lịch. */
+.person-with-streak { white-space: nowrap; }
+.streak-sup {
+  display: inline-block;
+  margin-left: 3px;
+  font-size: 0.72em;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--primary-green);
+  vertical-align: super;
+  text-decoration: none;
 }
 .personnel-hover-popover {
   position: fixed;
@@ -1111,10 +1126,44 @@ td.extra-time-col { width: 92px; }
 }
 .pdf-export th, .pdf-export td { padding: 6px 8px; }
 .pdf-export td input.nm { font-size: 13px; padding: 6px 26px 6px 6px; }
+.pdf-export .pdf-sup {
+  display: inline;
+  margin-left: 3px;
+  font-size: 0.7em;
+  font-weight: 800;
+  line-height: 1;
+  color: #000;
+  vertical-align: super;
+}
+/* Ô gộp cả ca đang dùng flex (dành cho nút thao tác trên màn hình). Trong bản
+   in, chuyển về block để <sup> giữ được vertical-align: super. */
+.pdf-export .single-ca-box { display: block; }
+.pdf-export .cell { position: static; }
+.pdf-export .military-print-footer { width: 100%; table-layout: fixed; }
+.pdf-export .military-print-footer > div {
+  display: table-cell;
+  width: 50%;
+  text-align: center;
+  vertical-align: top;
+}
 .pdf-export .split-slot-time { width: 68px; font-size: 10.5px; }
 .pdf-export .btn-split-slot, .pdf-export .btn-merge-slot { display: none !important; }
 
-/* Bản in PDF: bảng lịch gọn trên 1 trang, phần còn lại sang trang sau. */
+/* Bản in PDF: bảng lịch gọn trên 1 trang, phần còn lại sang trang sau.
+   Mỗi trang là một khối cao gần đúng vùng in (189mm) và canh giữa nội dung
+   theo chiều dọc, nhờ đó nội dung nằm chính giữa tờ giấy và không bị cắt. */
+.pdf-export .pdf-page {
+  display: table;
+  width: 100%;
+  height: 189mm;
+  box-sizing: border-box;
+}
+.pdf-export .pdf-page-inner {
+  display: table-cell;
+  width: 100%;
+  vertical-align: middle;
+}
+.pdf-export .pdf-page-2 { page-break-before: always; break-before: page; }
 .pdf-export .pdf-absence-summary {
   display: grid;
   grid-template-columns: 1fr 1fr;
