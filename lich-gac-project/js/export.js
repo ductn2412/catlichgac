@@ -201,6 +201,15 @@ function exportToPDF(dateStr) {
   }
   document.body.appendChild(wrapper);
 
+  // html2pdf đặt bản sao vào một container 277mm và canh giữa theo chiều rộng
+  // cửa sổ (windowWidth). Nếu windowWidth lớn hơn 277mm (màn hình rộng, Windows
+  // scale 125%...) container sẽ bị đẩy sang phải và vùng chụp lệch: mất cột
+  // bên trái, cắt cột bên phải. Luôn ghim windowWidth/windowHeight đúng bằng
+  // khích thước bản sao để container nằm gọn ở gốc (x=0, y=0).
+  const cloneBox = wrapper.getBoundingClientRect();
+  const cloneW = Math.ceil(cloneBox.width);
+  const cloneH = Math.ceil(cloneBox.height);
+
   const opt = {
     margin: [10, 10, 10, 10],
     filename: `LichGac_${dateStr || fmtDate(new Date())}.pdf`,
@@ -209,13 +218,13 @@ function exportToPDF(dateStr) {
       scale: 2,
       useCORS: true,
       backgroundColor: "#ffffff",
-      // Bắt buộc neo về gốc tài liệu: nếu trang đang cuộn ngang (do nội dung rộng),
-      // html2canvas sẽ lấy pageXOffset làm mốc và cắt mất phần bên trái của bảng.
+      // Neo vùng chụp về gốc (x=0, y=0) của khung chụp đúng 277mm.
       scrollX: 0,
       scrollY: 0,
       x: 0,
       y: 0,
-      windowWidth: Math.max(document.documentElement.clientWidth, wrapper.scrollWidth)
+      windowWidth: cloneW,
+      windowHeight: cloneH
     },
     jsPDF: { unit: "mm", format: "a4", orientation: "landscape" },
     pagebreak: { mode: ["css", "legacy"], avoid: ["tr", "td", "th", ".card"] }
