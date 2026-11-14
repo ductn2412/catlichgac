@@ -69,7 +69,7 @@
 <div class="app-shell">
   <aside class="left-sidebar">
     <a href="dashboard.html" class="side-link" id="navDash"><span class="side-icon">📊</span><span>Màn hình Dashboard</span></a>
-    <a href="quan-ly-tai-khoan.html" class="side-link" id="navAccounts"><span class="side-icon">👥</span><span>Quản lý Tài khoản Quân nhân</span></a>
+    <a href="quan-ly-tai-khoan.html" class="side-link" id="navAccounts"><span class="side-icon">👥</span><span>Quản lý Tài khoản</span></a>
     <a href="quan-ly-lich.html" class="side-link" id="navManage"><span class="side-icon">📋</span><span>Quản lý lập lịch</span></a>
     <a href="lich-gac.html" class="side-link" id="navView"><span class="side-icon">📄</span><span>Trang hiển thị lịch gác</span></a>
     <a href="cham-cong.html" class="side-link active" id="navMonthly"><span class="side-icon">🗓️</span><span>Bảng chấm công tháng</span></a>
@@ -90,11 +90,37 @@
         📌 <b>Quy tắc tính công:</b> Làm đủ 3 ca/ngày = <b>X (1,0 công)</b> · Chiến sĩ làm <b>2 ca ngày</b> hoặc <b>1 ca đêm (22h–06h sáng hôm sau)</b> = <b>0,5 công</b>. Đồng chí học tập buổi sáng chỉ làm ca đêm <b>18h–06h</b> nên các khung 18h–22h cũng tính là ca đêm.<br>
         📌 <b>Ký hiệu nghỉ/vắng:</b> <b>H</b> (Học tập), <b>CT</b> (Công tác), <b>O</b> (Ốm), <b>OV</b> (Ốm viện), <b>P</b> (Nghỉ phép), <b>NB</b> (Nghỉ bù), <b>K</b> (Khác). Có thể gõ trực tiếp <code>X</code>, <code>0.5</code>, <code>P</code>, <code>CT</code>, <code>O</code>, <code>OV</code>, <code>H</code>, <code>NB</code>.
       </p>
+      <!-- QUỐC HIỆU + TIÊU ĐỀ: chỉ hiện khi in -->
+      <div class="military-print-header">
+        <div>
+          <b>BỘ TƯ LỆNH CẢNH VỆ</b><br>
+          <b>TRUNG ĐOÀN 375 — ĐỘI 3</b><br>
+          <span>***</span>
+        </div>
+        <div>
+          <b>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</b><br>
+          <b>Độc lập - Tự do - Hạnh phúc</b><br>
+          <span>-----------------</span>
+        </div>
+      </div>
+      <h3 class="print-only-title">BẢNG CHẤM CÔNG THÁNG <span id="printMonthLabel"></span></h3>
       <div class="scroll">
         <table id="monthlyTable" class="monthly-tbl">
           <thead id="monthlyHead"></thead>
           <tbody id="monthlyBody"></tbody>
         </table>
+      </div>
+      <!-- CHỮ KÝ: chỉ hiện khi in -->
+      <div class="military-print-footer">
+        <div>
+          <b>ĐỘI 3</b><br>
+          <i>(Ký, ghi rõ họ tên)</i><div class="signature-space"></div>
+        </div>
+        <div>
+          <i>Hà Nội, ngày ..... tháng ..... năm 20...</i><br>
+          <b>CHỈ HUY ĐỘI 3 DUYỆT</b><br>
+          <i>(Ký tên, đóng dấu)</i><div class="signature-space"></div>
+        </div>
       </div>
     </div>
   </main>
@@ -128,6 +154,8 @@
     }
     headHtml += `<th>Tổng công</th><th>Ca đêm</th><th>Ca T7/CN</th><th>Ngày nghỉ</th></tr>`;
     document.getElementById("monthlyHead").innerHTML = headHtml;
+    const printMonthEl = document.getElementById("printMonthLabel");
+    if (printMonthEl) printMonthEl.textContent = `${pad(month)}/${year}`;
 
     let bodyHtml = "";
     allPeople.forEach(name => {
@@ -154,7 +182,8 @@
           totalLeaveDays++;
         } else if (details.credit > 0) {
           totalWorkCredits += details.credit;
-          totalNightShifts += details.nightShifts;
+          // "Ca đêm" đếm theo CA (một ca có thể gồm nhiều khung giờ đêm).
+          totalNightShifts += (details.nightCas != null ? details.nightCas : details.nightShifts);
           if (isWeekend) totalWeekendDays++;
           if (details.credit === 0.5) {
             status = "0,5";

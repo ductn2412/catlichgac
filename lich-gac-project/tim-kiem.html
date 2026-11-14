@@ -167,9 +167,13 @@
     const qLower = rawQ.toLowerCase();
 
     // KIỂM TRA NẾU NGƯỜI DÙNG TÌM KIẾM CA GÁC (VD: "ca 1", "ca 2", "ca 3", "ca 4", "ca")
-    const caMatch = qLower.match(/^ca\s*([1-4])?$/i) || qLower.match(/vọng\s*(x9|x10|x11|x12)/i);
-    if (caMatch) {
-      renderShiftSearchResult(rawQ, dStr, caMatch);
+    const caOnlyMatch = qLower.match(/^ca\s*([1-4])?$/i);
+    const posMatch = qLower.match(/vọng\s*(x9|x10|x11|x12)/i) || qLower.match(/v?ng\s*(x9|x10|x11|x12)/i);
+    if (caOnlyMatch || posMatch) {
+      renderShiftSearchResult(rawQ, dStr, {
+        caNum: caOnlyMatch ? (caOnlyMatch[1] ? parseInt(caOnlyMatch[1], 10) : null) : null,
+        positionCol: posMatch ? { "x9": 1, "x10": 2, "x11": 3, "x12": 4 }[posMatch[1].toLowerCase()] : null
+      });
       return;
     }
 
@@ -189,15 +193,21 @@
   }
 
   // 1. HIỂN THỊ KẾT QUẢ TÌM KIẾM CA GÁC HÔM NAY
-  function renderShiftSearchResult(queryText, dStr, caMatch) {
+  // opts: { caNum: 1..4 | null, positionCol: 1..4 | null }
+  function renderShiftSearchResult(queryText, dStr, opts) {
     const day = getDayData(dStr);
-    const targetCaNum = caMatch[1] ? parseInt(caMatch[1], 10) : null;
+    const targetCaNum = (opts && opts.caNum) || null;
+    const positionCol = (opts && opts.positionCol) || null;
     const container = document.getElementById("searchResultsContainer");
+
+    const scopeText = targetCaNum
+      ? `Ca ${targetCaNum}`
+      : (positionCol ? `Vọng gác x${8 + positionCol} (tất cả các ca)` : "Tất cả các ca");
 
     let html = `<section class="card">
       <div class="unit-total-header">
         <span>🛡️ KẾT QUẢ TÌM KIẾM CA GÁC TRONG NGÀY ${vnFormat(dStr)} (${DOW[parseDate(dStr).getDay()]})</span>
-        <span class="unit-sub">Từ khóa: "${escHTML(queryText)}"</span>
+        <span class="unit-sub">Từ khóa: "${escHTML(queryText)}" · Phạm vi: ${escHTML(scopeText)}</span>
       </div>
       <div class="scroll">
         <table>
@@ -227,11 +237,13 @@
         html += `<td class="slot-time"><b>${timeStr}</b></td>`;
         html += `<td>${isNight ? '<span style="color:#e65100;font-weight:bold;">🌙 Ca đêm (22h-6h)</span>' : '<span style="color:var(--primary-green);font-weight:bold;">☀️ Ca ngày</span>'}</td>`;
         for (let c = 0; c < 5; c++) {
+          const isTargetCol = positionCol === c;
           const p = day.cells[rowIdx * 5 + c] || "-";
+          const highlight = isTargetCol ? ' style="background:#fff8e1;font-weight:700;"' : ' style="color:var(--muted);"';
           if (p !== "-") {
-            html += `<td>${renderPersonWithStreakHTML(p, dStr)}</td>`;
+            html += `<td${isTargetCol ? highlight : ""}>${renderPersonWithStreakHTML(p, dStr)}</td>`;
           } else {
-            html += `<td style="color:var(--muted);">Chưa xếp</td>`;
+            html += `<td${highlight}>Chưa xếp</td>`;
           }
         }
         html += `</tr>`;
@@ -349,11 +361,12 @@
       } else if (det.totalSlots > 0) {
         monthWorkDaysCount++;
         monthTotalCredits += det.credit;
-        monthNightShiftsCount += det.nightShifts;
+        // "Ca đêm" đếm theo CA (một ca có thể gồm nhiều khung giờ đêm).
+        monthNightShiftsCount += (det.nightCas != null ? det.nightCas : det.nightShifts);
         if (det.credit === 0.5) {
           monthHalfCreditDays++;
           rowStyle = "background:#fff8e1;";
-          creditCell = `<b style="color:#e65100;">0,5 công</b> <span style="font-size:11px;color:var(--muted);">(${det.dayShifts} ca ngày, ${det.nightShifts} ca đêm)</span>`;
+          creditCell = `<b style="color:#e65100;">0,5 công</b> <span style="font-size:11px;color:var(--muted);">(${det.dayShifts} khung ngày, ${det.nightShifts} khung đêm)</span>`;
         } else {
           monthFullCreditDays++;
           rowStyle = "background:#e8f5e9;";

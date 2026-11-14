@@ -609,6 +609,8 @@ function applyRolePermissions() {
 
   if (genBtn) genBtn.style.display = isCommander ? "inline-block" : "none";
   if (genWeekBtn) genWeekBtn.style.display = isCommander ? "inline-block" : "none";
+  const genMonthBtn = document.getElementById("genMonth");
+  if (genMonthBtn) genMonthBtn.style.display = isCommander ? "inline-block" : "none";
   if (leaveCard) leaveCard.style.display = isCommander ? "block" : "none";
   if (nightOnlyCard) nightOnlyCard.style.display = isCommander ? "block" : "none";
   if (NIGHT_ONLY_PICKER) NIGHT_ONLY_PICKER.setDisabled(!isCommander);
@@ -1377,6 +1379,67 @@ function generateWeekSchedule() {
   let msg = `✅ Đã cắt lịch 7 ngày (từ ${vnFormat(startDate)} đến ${vnFormat(dates[6])}) thành công!`;
   if (totalBorrowed > 0) {
     msg += `\n🔁 Đã mượn tạm thời ${totalBorrowed} lượt quân số từ Tổ khác trong 7 ngày.`;
+  }
+  if (totalSwaps > 0) {
+    msg += `\n🔄 Đã đổi ${totalSwaps} lượt người làm quá ${getBorrowRules().maxConsecutiveDays} ngày liên tiếp.`;
+  }
+  if (totalUnfilled > 0) {
+    msg += `\n⚠️ Có ${totalUnfilled} khung giờ ban ngày chưa bố trí được người thay (thiếu quân số không học buổi sáng).`;
+  }
+  alert(msg);
+}
+
+// Cắt lịch cả tháng (từ ngày mai đến hết tháng hiện tại).
+function generateMonthSchedule() {
+  if (getCurrentRole() !== "commander") {
+    alert("Chỉ có Chỉ huy / Trưởng ban mới được cắt lịch!");
+    return;
+  }
+  if (!ensureNoPendingAbsenceEdits()) return;
+
+  const [y, m] = curDate.split("-").map(Number);
+  const daysInMonth = new Date(y, m, 0).getDate();
+  const dates = [];
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${y}-${pad(m)}-${pad(d)}`;
+    if (dateStr <= curDate) continue; // chỉ cắt các ngày sau ngày đang xem
+    dates.push(dateStr);
+  }
+  if (!dates.length) {
+    alert("Không còn ngày nào trong tháng để cắt lịch.");
+    return;
+  }
+
+  const existing = dates.filter(dayHasSchedule);
+  if (existing.length && !confirm(`Đã có lịch cho ${existing.length}/${dates.length} ngày trong tháng. Ghi đè toàn bộ?`)) {
+    return;
+  }
+
+  createSnapshot(`Trước khi cắt lịch tháng ${pad(m)}/${y}`);
+  let prevDay = getDayData(curDate);
+  let teamMap = nextTeamMap(detectTeamsInCa(prevDay));
+  let totalUnfilled = 0;
+  let totalBorrowed = 0;
+  let totalSwaps = 0;
+
+  dates.forEach(dStr => {
+    const built = buildGeneratedDay(dStr, teamMap, prevDay);
+    totalUnfilled += built.unfilled;
+    totalBorrowed += built.borrowed.length;
+    totalSwaps += built.overworkSwaps.length;
+    prevDay = built.day;
+    teamMap = nextTeamMap(teamMap);
+  });
+
+  saveStorage();
+  curDate = dates[0];
+  expandedCells = {};
+  buildScheduleTableDOM();
+  render();
+
+  let msg = `✅ Đã cắt lịch tháng ${pad(m)}/${y} (${dates.length} ngày, từ ${vnFormat(dates[0])} đến ${vnFormat(dates[dates.length - 1])}) thành công!`;
+  if (totalBorrowed > 0) {
+    msg += `\n🔁 Đã mượn tạm thời ${totalBorrowed} lượt quân số từ Tổ khác.`;
   }
   if (totalSwaps > 0) {
     msg += `\n🔄 Đã đổi ${totalSwaps} lượt người làm quá ${getBorrowRules().maxConsecutiveDays} ngày liên tiếp.`;

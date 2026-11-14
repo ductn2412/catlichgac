@@ -67,11 +67,20 @@ function renderDashboard() {
     return escHTML(n) + sup;
   };
   let listHtml = "";
+  // Ca lẻ (tách khung giờ) có thể có người khác nhau ở từng khung:
+  // mỗi vị trí được coi là có người nếu ít nhất một trong 3 khung có tên.
+  const firstFilled = (day, ca, col) => {
+    for (let s = 0; s < 3; s++) {
+      const v = (day.cells[(ca * 3 + s) * 5 + col] || "").trim();
+      if (v) return v;
+    }
+    return "";
+  };
   for (let ca = 0; ca < 4; ca++) {
-    const docGac = day.cells[(ca * 3) * 5 + 0] || "Chưa xếp";
-    const vong9 = day.cells[(ca * 3) * 5 + 1] || "-";
-    const vong10 = day.cells[(ca * 3) * 5 + 2] || "-";
-    const filledCount = [0,1,2,3,4].filter(c => (day.cells[(ca * 3) * 5 + c] || "").trim() !== "").length;
+    const docGac = firstFilled(day, ca, 0) || "Chưa xếp";
+    const vong9 = firstFilled(day, ca, 1) || "-";
+    const vong10 = firstFilled(day, ca, 2) || "-";
+    const filledCount = [0, 1, 2, 3, 4].filter(c => firstFilled(day, ca, c) !== "").length;
     const pct = Math.round((filledCount / 5) * 100);
     listHtml += `
       <li class="duty-item" style="cursor:pointer;" onclick="window.location.href='tim-kiem.html?q=Ca+${ca + 1}'">
@@ -115,7 +124,7 @@ function renderDashboard() {
     data: {
       labels: ["Đi làm", "Ốm", "Ốm viện", "Nghỉ phép", "Công tác", "Nghỉ bù", "Học tập", "Công việc khác"],
       datasets: [{
-        label: "Số lượng quân nhân (người)",
+        label: "Số lượng đồng chí (người)",
         data: [countWorking, countOm, countOmVien, countPhep, countCongTac, countNghiBu, countHocTap, countKhac],
         backgroundColor: [
           "#1e90ff", "#ff5252", "#d32f2f", "#9c27b0", "#ff9800", "#4caf50", "#03a9f4", "#78909c"
@@ -205,7 +214,7 @@ function renderMonthlyFairness() {
       <td><b>${escHTML(r.name)}</b></td>
       <td style="text-align:center;">${r.days}</td>
       <td style="text-align:center;">${r.shifts}</td>
-      <td style="text-align:center;">${r.nightShifts}</td>
+      <td style="text-align:center;">${r.nightCas != null ? r.nightCas : r.nightShifts}</td>
       <td style="text-align:center;">${r.dayShifts}</td>
       <td style="text-align:center;">${r.weekendDays}</td>
       <td style="text-align:center;font-weight:700;color:${color || "inherit"};">${credit.toFixed(1)}</td>
@@ -230,7 +239,7 @@ function exportFairnessCSV() {
       r.name,
       r.days,
       r.shifts,
-      r.nightShifts,
+      r.nightCas != null ? r.nightCas : r.nightShifts,
       r.dayShifts,
       r.weekendDays,
       (Number(r.credit) || 0).toFixed(1)

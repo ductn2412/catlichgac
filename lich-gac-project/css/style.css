@@ -652,6 +652,8 @@ td input.nm.borrowed:not(.bad) {
 
 /* MILITARY PRINT HEADER & FOOTER */
 .military-print-header, .military-print-footer { display: none; }
+/* Tiêu đề chỉ hiện khi in (bản chấm công). */
+.print-only-title { display: none; }
 /* Khoảng trống ký tên cố định: html2canvas không vẽ các thẻ <br> cuối khối,
    nên dùng khối có chiều cao thật để chữ ký không bị dồn lên trong PDF. */
 .military-print-footer .signature-space { display: block; height: 18mm; }
@@ -676,6 +678,13 @@ td input.nm.borrowed:not(.bad) {
     margin-top: 24px;
     font-size: 13px;
     text-align: center;
+  }
+  .print-only-title {
+    display: block !important;
+    text-align: center;
+    font-size: 16px;
+    font-weight: 800;
+    margin: 0 0 12px;
   }
 }
 

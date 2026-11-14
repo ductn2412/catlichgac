@@ -9,9 +9,9 @@
 <body>
 <div class="auth-overlay">
   <div class="auth-box">
-    <div class="unit-badge">CÔNG AN NHÂN DÂN</div>
+    <div class="unit-badge">BỘ TƯ LỆNH CẢNH VỆ</div>
     <h1 class="auth-title">ĐỘI 3</h1>
-    <p class="auth-sub">Hệ thống Quản lý Quân số, Tài khoản Quân nhân, Dashboard Chỉ huy & Lịch gác</p>
+    <p class="auth-sub">Hệ thống Quản lý biên chế, Tài khoản, Dashboard Chỉ huy & Lịch gác</p>
 
     <div id="sessionExpiredNotice" class="login-error" style="display:none;color:#b45309;"></div>
 
@@ -23,8 +23,8 @@
       </button>
       <button class="auth-btn sol-btn" onclick="showSoldierLogin()">
         <span class="auth-icon">👤</span>
-        <span class="auth-label">Chiến sĩ / Quân nhân</span>
-        <span class="auth-desc">Đăng nhập bằng Tên kèm mã số quân nhân do Chỉ huy cấp</span>
+        <span class="auth-label">Chiến sĩ</span>
+        <span class="auth-desc">Đăng nhập bằng Họ tên kèm Mã số do Chỉ huy cấp</span>
       </button>
     </div>
 
@@ -49,9 +49,9 @@
 
     <!-- FORM ĐĂNG NHẬP CHIẾN SĨ (CHỈ ĐĂNG NHẬP ĐƯỢC KHI ĐƯỢC CHỈ HUY THÊM VÀO HỆ THỐNG) -->
     <form id="sol-login-form" class="login-form" onsubmit="handleSoldierLogin(event)" style="display:none;">
-      <h3>👤 Đăng nhập Chiến sĩ / Quân nhân</h3>
+      <h3>👤 Đăng nhập Chiến sĩ</h3>
       <div class="form-group">
-        <label for="solUser">Tên tài khoản (Họ tên kèm mã số quân nhân)</label>
+        <label for="solUser">Tên tài khoản (Họ tên kèm Mã số)</label>
         <input type="text" id="solUser" list="dlRegisteredSoldiers" placeholder="VD: Bùi Văn Hùng (CS01)" required autocomplete="off">
         <datalist id="dlRegisteredSoldiers"></datalist>
       </div>

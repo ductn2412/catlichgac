@@ -597,7 +597,9 @@ function seedDefaultDataIfEmpty() {
   }
 }
 
-function loadStorage() {
+// Đọc dữ liệu từ localStorage vào S (chỉ đọc, không seed/ghi).
+// Trả về true nếu có dữ liệu hợp lệ.
+function readStorageIntoS() {
   try {
     const raw = JSON.parse(localStorage.getItem(KEY) || "null");
     if (raw && raw.days) {
@@ -613,12 +615,34 @@ function loadStorage() {
       normalizeBorrowRules();
       if (!S.teams || S.teams.length < 4) S.teams = JSON.parse(JSON.stringify(DEFAULT_TEAMS));
       syncRanksFromAccounts();
+      return true;
     }
   } catch (e) {
     console.error("Lỗi khi tải localStorage:", e);
   }
+  return false;
+}
+
+function loadStorage() {
+  readStorageIntoS();
   seedDefaultDataIfEmpty();
   if (migrateLegacyPasswords()) saveStorage();
+}
+
+// Tab khác vừa ghi dữ liệu: nạp lại vào bộ nhớ và vẽ lại giao diện (không seed/ghi).
+function reloadFromStorage() {
+  if (!readStorageIntoS()) return;
+  try { if (typeof refresh === "function") refresh(); } catch (e) { /* trang không có refresh */ }
+  try { if (typeof renderStandaloneMonthly === "function") renderStandaloneMonthly(); } catch (e) {}
+  try { if (typeof renderDashboard === "function") renderDashboard(); } catch (e) {}
+  try { if (typeof renderAccountsTable === "function") renderAccountsTable(); } catch (e) {}
+}
+
+// Nhiều tab mở cùng lúc: khi tab khác lưu dữ liệu, tab này tự nạp lại để không ghi đè mất mốt nhau.
+if (typeof window !== "undefined" && window.addEventListener) {
+  window.addEventListener("storage", function (e) {
+    if (e.key === KEY || e.key === null) reloadFromStorage();
+  });
 }
 
 function saveStorage() {
@@ -1061,6 +1085,7 @@ function computeMonthlyFairness(monthStr) {
         days: 0,
         shifts: 0,
         nightShifts: 0,
+        nightCas: 0,
         dayShifts: 0,
         weekendDays: 0,
         credit: 0
@@ -1085,9 +1110,12 @@ function computeMonthlyFairness(monthStr) {
           const val = (dayData.cells[(ca * 3 + slot) * 5 + col] || "").trim();
           if (!val) continue;
           const key = cleanName(val).toLowerCase();
-          if (!perPerson[key]) perPerson[key] = { name: val, shifts: 0, night: 0, day: 0 };
+          if (!perPerson[key]) perPerson[key] = { name: val, shifts: 0, night: 0, day: 0, nightCaSet: new Set() };
           perPerson[key].shifts++;
-          if (isNightShiftForPerson(ca, slot, val)) perPerson[key].night++;
+          if (isNightShiftForPerson(ca, slot, val)) {
+            perPerson[key].night++;
+            perPerson[key].nightCaSet.add(ca);
+          }
           else perPerson[key].day++;
         }
       }
@@ -1099,6 +1127,7 @@ function computeMonthlyFairness(monthStr) {
       st.days++;
       st.shifts += p.shifts;
       st.nightShifts += p.night;
+      st.nightCas += p.nightCaSet.size;
       st.dayShifts += p.day;
       if (isWeekend) st.weekendDays++;
       const detail = getPersonDayWorkDetails(dStr, p.name);
@@ -1110,7 +1139,7 @@ function computeMonthlyFairness(monthStr) {
 
   const rows = Object.keys(stats).map(k => stats[k]).sort((a, b) =>
     (b.credit - a.credit) ||
-    (b.nightShifts - a.nightShifts) ||
+    (b.nightCas - a.nightCas) ||
     (b.shifts - a.shifts) ||
     a.name.localeCompare(b.name)
   );
@@ -1323,6 +1352,8 @@ function getPersonDayWorkDetails(dateStr, personName) {
     absentLabel: "",
     dayShifts: 0,
     nightShifts: 0,
+    // Số CA (1..4) có ít nhất một khung giờ đêm, dùng để hiển thị "Số ca đêm".
+    nightCas: 0,
     totalSlots: 0,
     credit: 0,
     shiftsDetail: []
@@ -1340,6 +1371,7 @@ function getPersonDayWorkDetails(dateStr, personName) {
   }
 
   const posNames = ["Đốc gác 1", "Vọng x9", "Vọng x10", "Vọng x11", "Vọng x12"];
+  const nightCaSet = new Set();
   if (dayData.cells) {
     for (let ca = 0; ca < 4; ca++) {
       for (let slot = 0; slot < 3; slot++) {
@@ -1349,7 +1381,10 @@ function getPersonDayWorkDetails(dateStr, personName) {
           if (val && cleanName(val) === cName) {
             result.totalSlots++;
             const isNightShift = isNightShiftForPerson(ca, slot, val);
-            if (isNightShift) result.nightShifts++;
+            if (isNightShift) {
+              result.nightShifts++;
+              nightCaSet.add(ca + 1);
+            }
             else result.dayShifts++;
             const cellIdx = row * 5 + col;
             result.shiftsDetail.push({
@@ -1375,6 +1410,8 @@ function getPersonDayWorkDetails(dateStr, personName) {
     result.credit = 0;
     return result;
   }
+
+  result.nightCas = nightCaSet.size;
 
   if (dayData.manualCredits && dayData.manualCredits[cName] != null) {
     result.credit = dayData.manualCredits[cName];
@@ -1725,7 +1762,7 @@ function showPersonnelHoverCard(ev, personIdentifier) {
 
   const fullName = acc ? acc.fullName : cleanName(personIdentifier);
   const code = acc ? acc.code : extractCode(personIdentifier);
-  const position = acc ? (acc.position || "Chiến sĩ nghĩa vụ") : "Quân nhân";
+  const position = acc ? (acc.position || "Chiến sĩ nghĩa vụ") : "Chiến sĩ";
   const roleGroup = acc
     ? `${acc.roleType === "officer" ? "Đốc gác (Sĩ quan)" : "Chiến sĩ Vọng gác"} — Tổ ${acc.teamId || teamId || 1}`
     : (teamId ? `Tổ ${teamId}` : "Chưa phân tổ");
@@ -1746,7 +1783,7 @@ function showPersonnelHoverCard(ev, personIdentifier) {
       </div>
     </div>
     <div class="pop-row"><span class="pop-label">Họ và tên:</span><span class="pop-val">${escHTML(fullName)}</span></div>
-    <div class="pop-row"><span class="pop-label">Mã số quân nhân:</span><span class="pop-val">${escHTML(code)}</span></div>
+    <div class="pop-row"><span class="pop-label">Mã số:</span><span class="pop-val">${escHTML(code)}</span></div>
     <div class="pop-row"><span class="pop-label">Tổ biên chế cố định:</span><span class="pop-val" style="color:var(--primary-green);">Tổ ${escHTML(teamNo)}</span></div>
     <div class="pop-row"><span class="pop-label">Chức vụ:</span><span class="pop-val">${escHTML(position)}</span></div>
     <div class="pop-row"><span class="pop-label">Cấp bậc hàm:</span><span class="pop-val" style="color:var(--primary-green);">${escHTML(rankText)}</span></div>
