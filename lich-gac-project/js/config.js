@@ -20,6 +20,32 @@ const KEY = "lich-gac-v12";
 const ROLE_KEY = "lich-gac-role";
 const USER_KEY = "lich-gac-current-user";
 
+// ===== CẤP BẬC HÀM =====
+// Mã cấp bậc dùng thống nhất toàn hệ thống (lưu ở S.ranks / hồ sơ quân nhân).
+const RANK_LABELS = {
+  T4: "Đại tá",
+  T3: "Thượng tá",
+  T2: "Trung tá",
+  T1: "Thiếu tá",
+  U4: "Đại úy",
+  U3: "Thượng úy",
+  U2: "Trung úy",
+  U1: "Thiếu úy",
+  H3: "Thượng sĩ",
+  H2: "Trung sĩ",
+  H1: "Hạ sĩ",
+  B2: "Binh nhì"
+};
+
+// Thứ tự hiển thị trong ô chọn cấp bậc (từ cao xuống thấp).
+const RANK_OPTIONS = {
+  officer: ["T4", "T3", "T2", "T1", "U4", "U3", "U2", "U1", "H3", "H2"],
+  soldier: ["H1", "B2"]
+};
+
+// Số ngày liên tục bắt buộc đi làm khi bị phạt (kỷ luật).
+const PUNISH_DAYS = 7;
+
 // Mật khẩu Chỉ huy mặc định đã được băm SHA-256 + salt (không lưu plaintext).
 // Tài khoản: chihuy / doi3, truongban / doi3, admin / 123456.
 // Nên đổi mật khẩu ngay sau lần đăng nhập đầu tiên.

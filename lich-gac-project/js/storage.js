@@ -11,7 +11,9 @@ let S = {
   // Sổ bàn giao trực ban: { "YYYY-MM-DD": [ { id, ca, from, to, content, status, createdAt, createdBy } ] }
   handoverNotes: {},
   // Chế độ cảnh báo & mượn quân số tạm thời giữa các Tổ
-  borrowRules: { enabled: true, maxAbsentSoldiers: 3, maxConsecutiveDays: 5 }
+  borrowRules: { enabled: true, maxAbsentSoldiers: 3, maxConsecutiveDays: 5 },
+  // Kỷ luật: danh sách người bị phạt làm 7 ngày liên tục
+  punishments: []
 };
 
 // ===== SAO LƯU TỰ ĐỘNG (SNAPSHOT) =====
@@ -413,6 +415,88 @@ function syncAccountsFromRosterStrings() {
   syncFromTeamsToRosterAndAccounts();
 }
 
+// ===== CẤP BẬC HÀM =====
+// Lưu ở 2 nơi để luôn tra được: S.ranks (theo tên chuẩn hóa) và hồ sơ quân nhân (acc.rank).
+function normalizeRankCode(code) {
+  const c = String(code || "").trim().toUpperCase();
+  return RANK_LABELS[c] ? c : "";
+}
+
+function getRankLabel(code) {
+  const c = normalizeRankCode(code);
+  return c ? RANK_LABELS[c] : "";
+}
+
+// Chuỗi hiển thị đầy đủ: "B2 (Binh nhì)"
+function formatRankFull(code) {
+  const c = normalizeRankCode(code);
+  return c ? `${c} (${RANK_LABELS[c]})` : "";
+}
+
+function findPersonnelAccountByName(personName) {
+  const key = cleanName(personName || "").toLowerCase();
+  if (!key) return null;
+  return (S.personnelAccounts || []).find(a => cleanName(a.fullName || "").toLowerCase() === key) || null;
+}
+
+function getPersonRank(personName) {
+  const key = cleanName(personName || "").toLowerCase();
+  if (!key) return "";
+  const acc = findPersonnelAccountByName(personName);
+  return normalizeRankCode(acc && acc.rank) || normalizeRankCode(S.ranks && S.ranks[key]) || "";
+}
+
+function setPersonRank(personName, rankCode) {
+  const key = cleanName(personName || "").toLowerCase();
+  if (!key) return;
+  const code = normalizeRankCode(rankCode);
+  if (!S.ranks || typeof S.ranks !== "object") S.ranks = {};
+  if (code) S.ranks[key] = code;
+  else delete S.ranks[key];
+  const acc = findPersonnelAccountByName(personName);
+  if (acc) {
+    if (code) acc.rank = code;
+    else delete acc.rank;
+  }
+}
+
+function syncRanksFromAccounts() {
+  if (!S.ranks || typeof S.ranks !== "object") S.ranks = {};
+  (S.personnelAccounts || []).forEach(acc => {
+    const code = normalizeRankCode(acc && acc.rank);
+    const key = cleanName((acc && acc.fullName) || "").toLowerCase();
+    if (code && key) S.ranks[key] = code;
+  });
+}
+
+// ===== KỶ LUẬT: NGƯỜI BỊ PHẠT LÀM 7 NGÀY LIÊN TỤC =====
+// Mỗi bản ghi: { id, person, start, days }. Trong khoảng start..start+days-1
+// người này luôn được xếp gác (trừ khi đang vắng) và không bị đổi ra nghỉ.
+function getPunishments() {
+  if (!Array.isArray(S.punishments)) S.punishments = [];
+  return S.punishments.filter(p => p && p.person);
+}
+
+function punishmentRange(p) {
+  const days = Math.max(1, parseInt(p && p.days, 10) || PUNISH_DAYS);
+  const start = (p && p.start) || "";
+  return { start, end: start ? addDay(start, days - 1) : "", days };
+}
+
+function findPunishment(person, dateStr) {
+  const key = cleanName(person || "").toLowerCase();
+  if (!key || !dateStr) return null;
+  return getPunishments().find(p => {
+    if (cleanName(p.person).toLowerCase() !== key) return false;
+    const r = punishmentRange(p);
+    return !!r.start && dateStr >= r.start && dateStr <= r.end;
+  }) || null;
+}
+
+function isPunishedOn(person, dateStr) {
+  return !!findPunishment(person, dateStr);
+}
+
 // Tra cứu một quân nhân thuộc Tổ mấy (1..4)
 function getPersonTeamId(personName) {
   const cName = cleanName(personName).toLowerCase();
@@ -523,8 +607,12 @@ function loadStorage() {
       if (!S.personnelAccounts) S.personnelAccounts = [];
       if (typeof S.nightOnly !== "string") S.nightOnly = "";
       if (!S.handoverNotes || typeof S.handoverNotes !== "object" || Array.isArray(S.handoverNotes)) S.handoverNotes = {};
+      if (!S.ranks || typeof S.ranks !== "object") S.ranks = {};
+      if (!S.absenceDraft || typeof S.absenceDraft !== "object") S.absenceDraft = {};
+      if (!Array.isArray(S.punishments)) S.punishments = [];
       normalizeBorrowRules();
       if (!S.teams || S.teams.length < 4) S.teams = JSON.parse(JSON.stringify(DEFAULT_TEAMS));
+      syncRanksFromAccounts();
     }
   } catch (e) {
     console.error("Lỗi khi tải localStorage:", e);
@@ -1074,7 +1162,7 @@ function findAbsenceSource(dateStr) {
   let d = addDay(dateStr, -1);
   for (let i = 0; i < 90; i++) {
     const day = S.days && S.days[d];
-    if (day && (day.absentTouched === true || dayHasAnyAbsence(day))) return day;
+    if (day && (day.absentTouched === true || dayHasAnyAbsence(day))) return { date: d, day };
     d = addDay(d, -1);
   }
   return null;
@@ -1085,13 +1173,22 @@ function findAbsenceSource(dateStr) {
 function applyInheritedAbsence(dateStr, targetDay) {
   if (!targetDay) return false;
   if (targetDay.absentTouched === true) return false;
-  if (dayHasAnyAbsence(targetDay)) return false;
   const src = findAbsenceSource(dateStr);
-  if (!src || !src.absent) return false;
+  if (!src || !src.day || !src.day.absent) return false;
+  // Ngày đã kế thừa đúng bản mới nhất rồi thì không cần làm lại.
+  const srcSig = absenceCategoryKeys().map(k => (src.day.absent[k] || "").trim()).join("|");
+  if (targetDay.absentInheritedFrom === src.date && targetDay.absentInheritedSig === srcSig) return false;
+  // Ngày chưa chỉnh tay luôn lấy danh sách vắng mặt MỚI NHẤT. Trước đây nếu ngày
+  // đã có sẵn danh sách kế thừa cũ (do cắt lịch tuần) thì bị bỏ qua, khiến người
+  // vừa được đánh dấu vắng (VD: đi học tập buổi sáng) vẫn bị xếp gác ngày hôm sau.
   targetDay.absent = {};
+  targetDay.absentInherited = {};
   absenceCategoryKeys().forEach(k => {
-    targetDay.absent[k] = (src.absent[k] || "").trim();
+    targetDay.absent[k] = (src.day.absent[k] || "").trim();
+    targetDay.absentInherited[k] = targetDay.absent[k];
   });
+  targetDay.absentInheritedFrom = src.date;
+  targetDay.absentInheritedSig = srcSig;
   return dayHasAnyAbsence(targetDay);
 }
 
@@ -1635,6 +1732,8 @@ function showPersonnelHoverCard(ev, personIdentifier) {
   const username = acc ? (acc.username || formatFullAccountName(fullName, code)) : formatFullAccountName(fullName, code);
   const dob = acc && acc.dob ? vnFormat(acc.dob) : "Chưa cập nhật";
   const hometown = acc && acc.hometown ? acc.hometown : "Chưa cập nhật";
+  const rank = getPersonRank(personIdentifier);
+  const rankText = rank ? formatRankFull(rank) : "Chưa cập nhật";
   const initials = fullName.split(" ").pop().charAt(0).toUpperCase() || "Q";
   const teamNo = acc && acc.teamId ? acc.teamId : (teamId || 1);
 
@@ -1650,6 +1749,7 @@ function showPersonnelHoverCard(ev, personIdentifier) {
     <div class="pop-row"><span class="pop-label">Mã số quân nhân:</span><span class="pop-val">${escHTML(code)}</span></div>
     <div class="pop-row"><span class="pop-label">Tổ biên chế cố định:</span><span class="pop-val" style="color:var(--primary-green);">Tổ ${escHTML(teamNo)}</span></div>
     <div class="pop-row"><span class="pop-label">Chức vụ:</span><span class="pop-val">${escHTML(position)}</span></div>
+    <div class="pop-row"><span class="pop-label">Cấp bậc hàm:</span><span class="pop-val" style="color:var(--primary-green);">${escHTML(rankText)}</span></div>
     <div class="pop-row"><span class="pop-label">Nhóm cắt gác:</span><span class="pop-val">${escHTML(roleGroup)}</span></div>
     <div class="pop-row"><span class="pop-label">Tên TK đăng nhập:</span><span class="pop-val" style="color:var(--primary-green);">${escHTML(username)}</span></div>
     <div class="pop-row"><span class="pop-label">Ngày tháng năm sinh:</span><span class="pop-val">${escHTML(dob)}</span></div>
@@ -1714,5 +1814,9 @@ function renderPersonWithStreakHTML(personLabel, dateStr) {
   const sup = (streak === "" || streak == null)
     ? ""
     : `<sup class="streak-sup" title="Số ngày làm liên tiếp (mũ ${escHTML(String(streak))})">${escHTML(String(streak))}</sup>`;
-  return `<span class="person-with-streak">${renderPersonHoverLinkHTML(p)}${sup}</span>`;
+  const rank = getPersonRank(p);
+  const rankTag = rank
+    ? `<span class="rank-tag" title="Cấp bậc hàm: ${escHTML(formatRankFull(rank))}">${escHTML(rank)}</span> `
+    : "";
+  return `<span class="person-with-streak">${rankTag}${renderPersonHoverLinkHTML(p)}${sup}</span>`;
 }

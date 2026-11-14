@@ -695,6 +695,56 @@ td input.nm.borrowed:not(.bad) {
 }
 /* "Số mũ" (số ngày làm liên tiếp) hiển thị cạnh tên trong các bảng lịch. */
 .person-with-streak { white-space: nowrap; }
+.rank-tag {
+  display: inline-block;
+  margin-right: 4px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  border: 1px solid #e0b84c;
+  background: #fff3cd;
+  color: #8a5a00;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.2;
+  vertical-align: middle;
+  text-decoration: none;
+}
+/* Cấp bậc hàm hiển thị ngay trong ô lịch đang sửa. */
+.rank-badge {
+  position: absolute;
+  top: 50%;
+  left: 3px;
+  transform: translateY(-50%);
+  z-index: 2;
+  padding: 1px 3px;
+  border-radius: 3px;
+  border: 1px solid #e0b84c;
+  background: #fff3cd;
+  color: #8a5a00;
+  font-size: 9.5px;
+  font-weight: 800;
+  line-height: 1.1;
+  pointer-events: none;
+}
+.cell.has-rank input.nm { padding-left: 30px; }
+.pdf-export .cell.has-rank > span:not(.rank-badge) { padding-left: 30px; }
+/* Thanh xác nhận chỉnh sửa vắng mặt trước khi cắt lịch. */
+.absence-confirm-bar {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 10px 0;
+  padding: 10px 12px;
+  border: 1px solid #e0b84c;
+  border-left: 5px solid #d97706;
+  border-radius: 8px;
+  background: #fffbea;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #8a5a00;
+}
 .streak-sup {
   display: inline-block;
   margin-left: 3px;
@@ -705,6 +755,67 @@ td input.nm.borrowed:not(.bad) {
   vertical-align: super;
   text-decoration: none;
 }
+/* KỶ LUẬT: người bị phạt làm 7 ngày liên tục */
+.punish-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+  min-height: 26px;
+}
+.punish-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 6px 3px 8px;
+  border: 1px solid #e0b84c;
+  border-radius: 999px;
+  background: #fffbea;
+  color: #8a5a00;
+  font-size: 12px;
+  line-height: 1.25;
+}
+.punish-chip b { font-weight: 800; }
+.punish-chip .punish-range {
+  font-size: 11px;
+  font-weight: 600;
+  opacity: 0.85;
+  white-space: nowrap;
+}
+.punish-chip.active {
+  border-color: #c2410c;
+  background: #fff1e6;
+  color: #9a3412;
+  box-shadow: 0 0 0 2px rgba(194, 65, 12, 0.12);
+}
+.punish-x {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+}
+.punish-x:hover { background: rgba(154, 52, 18, 0.15); }
+/* Dấu ⚖ trong ô lịch của người đang trong thời hạn phạt. */
+.cell.punished::after {
+  content: "⚖";
+  position: absolute;
+  right: 3px;
+  bottom: 1px;
+  z-index: 2;
+  font-size: 11px;
+  line-height: 1;
+  color: #c2410c;
+  pointer-events: none;
+}
+.cell.punished input.nm { padding-right: 20px; }
+.pdf-export .cell.punished::after { display: none; }
 .personnel-hover-popover {
   position: fixed;
   z-index: 9999;
@@ -1139,6 +1250,23 @@ td.extra-time-col { width: 92px; }
    in, chuyển về block để <sup> giữ được vertical-align: super. */
 .pdf-export .single-ca-box { display: block; }
 .pdf-export .cell { position: static; }
+.pdf-export .cell.has-rank { position: relative; }
+/* Tiêu đề 2 cột của bản PDF: phải tách đều 2 bên, nếu không hai khối chữ dài
+   sẽ chạy vào nhau (BỘ TƯ LỆNH CẢNH VỆ / CỘNG HÒA XÃ HỘI...). */
+.pdf-export .military-print-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  margin-bottom: 14px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid #000;
+  font-size: 13px;
+  line-height: 1.35;
+  text-align: center;
+}
+.pdf-export .military-print-header > div { flex: 1 1 0; }
+.pdf-export .military-print-header b { font-size: 13.5px; }
 .pdf-export .military-print-footer { width: 100%; table-layout: fixed; }
 .pdf-export .military-print-footer > div {
   display: table-cell;

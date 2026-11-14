@@ -75,6 +75,7 @@ function toggleSplitCell(caIdx, col, split) {
   if (getCurrentRole() !== "commander") return;
   const key = `${caIdx}_${col}`;
   const day = getDayData(curDate);
+  day.manualEdited = true;
   if (!split) {
     // Gộp lại thành 1 người đầu tiên cho cả 3 khung giờ
     const p0 = day.cells[(caIdx * 3 + 0) * 5 + col] || "";
@@ -449,6 +450,7 @@ function buildScheduleTableDOM() {
           d.cells[k0] = inp.value;
           d.cells[k1] = inp.value;
           d.cells[k2] = inp.value;
+          d.manualEdited = true;
           delete d.streaks[k0];
           d.manualCredits = {};
           d.teamInCa = detectTeamsInCa(d);
@@ -482,6 +484,12 @@ function buildScheduleTableDOM() {
         SUP[k1] = sup;
         SUP[k2] = sup;
 
+        const rankBadge = document.createElement("span");
+        rankBadge.className = "rank-badge";
+        rankBadge.dataset.k = String(k0);
+        rankBadge.style.display = "none";
+
+        wrapper.appendChild(rankBadge);
         wrapper.appendChild(inp);
         wrapper.appendChild(sup);
 
@@ -530,6 +538,7 @@ function buildScheduleTableDOM() {
           const onSplitInput = () => {
             const d = getDayData(curDate);
             d.cells[k] = inp.value;
+            d.manualEdited = true;
             delete d.streaks[k];
             d.manualCredits = {};
             d.teamInCa = detectTeamsInCa(d);
@@ -551,6 +560,12 @@ function buildScheduleTableDOM() {
           IN[k] = inp;
           SUP[k] = sup;
 
+          const rankBadge = document.createElement("span");
+          rankBadge.className = "rank-badge";
+          rankBadge.dataset.k = String(k);
+          rankBadge.style.display = "none";
+
+          cellWrap.appendChild(rankBadge);
           cellWrap.appendChild(inp);
           cellWrap.appendChild(sup);
           rowDiv.appendChild(cellWrap);
@@ -583,6 +598,9 @@ function applyRolePermissions() {
   const genWeekBtn = document.getElementById("genWeek");
   const leaveCard = document.getElementById("multiDayLeaveCard");
   const nightOnlyCard = document.getElementById("nightOnlyCard");
+  const punishCard = document.getElementById("punishCard");
+  const punishPerson = document.getElementById("punishPerson");
+  const punishStart = document.getElementById("punishStart");
   const borrowCard = document.getElementById("borrowCard");
   const borrowEnabled = document.getElementById("borrowEnabled");
   const borrowMaxAbsent = document.getElementById("borrowMaxAbsent");
@@ -594,6 +612,8 @@ function applyRolePermissions() {
   if (leaveCard) leaveCard.style.display = isCommander ? "block" : "none";
   if (nightOnlyCard) nightOnlyCard.style.display = isCommander ? "block" : "none";
   if (NIGHT_ONLY_PICKER) NIGHT_ONLY_PICKER.setDisabled(!isCommander);
+  if (punishCard) punishCard.style.display = isCommander ? "block" : "none";
+  [punishPerson, punishStart].forEach(el => { if (el) el.disabled = !isCommander; });
   if (borrowCard) borrowCard.style.display = isCommander ? "block" : "none";
   [borrowEnabled, borrowMaxAbsent, borrowMaxDays].forEach(el => { if (el) el.disabled = !isCommander; });
   if (restoreLabel) restoreLabel.style.display = isCommander ? "" : "none";
@@ -676,6 +696,10 @@ function pickOfficerForTeam(team, teamId, prevDay, ab, dateStr) {
   const list = (team.officers || []).filter(Boolean);
   if (!list.length) return "";
 
+  // Người đang bị phạt làm 7 ngày liên tục được ưu tiên trực (nếu không vắng).
+  const punished = list.find(n => !isPersonAbsentIn(ab, n) && isPunishedOn(n, dateStr));
+  if (punished) return punished;
+
   const prev = findPreviousOfficerForTeam(prevDay, teamId);
   let start = 0;
   if (prev) {
@@ -720,13 +744,22 @@ function pickSoldiersForTeam(team, ab, dateStr, excludeFn) {
 
   const picked = [];
   const usedCols = new Set();
+  // Người đang bị phạt làm 7 ngày liên tục luôn được xếp trước tiên,
+  // không phụ thuộc vào nhóm công bằng (tránh bị nhóm đông hơn loại ra).
+  cands.filter(c => c.punished === 0).forEach(c => {
+    if (picked.length >= need) return;
+    picked.push(c.name);
+    if (c.wantCol) usedCols.add(c.wantCol);
+  });
+
+  const rest = cands.filter(c => c.punished !== 0);
   let i = 0;
-  while (picked.length < need && i < cands.length) {
-    const key = `${cands[i].dutyStreak}|${cands[i].recent}|${cands[i].restStreak}`;
+  while (picked.length < need && i < rest.length) {
+    const key = `${rest[i].dutyStreak}|${rest[i].recent}|${rest[i].restStreak}`;
     const group = [];
-    while (i < cands.length &&
-      `${cands[i].dutyStreak}|${cands[i].recent}|${cands[i].restStreak}` === key) {
-      group.push(cands[i]);
+    while (i < rest.length &&
+      `${rest[i].dutyStreak}|${rest[i].recent}|${rest[i].restStreak}` === key) {
+      group.push(rest[i]);
       i++;
     }
 
@@ -821,13 +854,24 @@ function consecutiveRestDays(person, dateStr) {
 
 // Hồ sơ công bằng của 1 chiến sĩ: ai làm ít ngày liên tiếp / ít ngày gần đây / nghỉ lâu hơn
 // thì được xếp đi làm trước, người đã làm "mũ 2" bị đẩy xuống sau "mũ 1".
+// Cấp bậc hàm: B2 được ưu tiên làm "mũ 2" (xếp đi làm trước), H1 được ưu tiên nghỉ trước.
+function rankWorkPriority(person) {
+  const rank = typeof getPersonRank === "function" ? getPersonRank(person) : "";
+  if (rank === "B2") return 0; // đi làm trước → nhận "mũ 2" khi phải làm liên tiếp
+  if (rank === "H1") return 2; // nghỉ trước
+  return 1;
+}
+
 function soldierFairness(person, dateStr, turn) {
   return {
     name: person,
     turn: Number.isFinite(turn) ? turn : 0,
     dutyStreak: consecutiveDutyDays(person, dateStr),
     restStreak: consecutiveRestDays(person, dateStr),
-    recent: dutyDaysInRecent(person, dateStr, 7)
+    recent: dutyDaysInRecent(person, dateStr, 7),
+    rankPriority: rankWorkPriority(person),
+    // 0 = đang bị phạt (phải đi làm), 1 = bình thường.
+    punished: (typeof isPunishedOn === "function" && isPunishedOn(person, dateStr)) ? 0 : 1
   };
 }
 
@@ -835,6 +879,7 @@ function compareSoldierFairness(a, b) {
   return (a.dutyStreak - b.dutyStreak) ||
     (a.recent - b.recent) ||
     (b.restStreak - a.restStreak) ||
+    (a.rankPriority - b.rankPriority) ||
     (a.turn - b.turn);
 }
 
@@ -870,7 +915,8 @@ function pickBorrowedSoldier(dateStr, targetTeamId, dayUsed, ab, nightSet, caIdx
         teamId: t,
         surplus,
         streak: consecutiveDutyDays(n, dateStr),
-        recent: dutyDaysInRecent(n, dateStr, 7)
+        recent: dutyDaysInRecent(n, dateStr, 7),
+        rankPriority: rankWorkPriority(n)
       });
     });
   }
@@ -878,6 +924,7 @@ function pickBorrowedSoldier(dateStr, targetTeamId, dayUsed, ab, nightSet, caIdx
     (b.surplus - a.surplus) ||
     (a.streak - b.streak) ||
     (a.recent - b.recent) ||
+    (a.rankPriority - b.rankPriority) ||
     (a.teamId - b.teamId)
   );
   return cands[0] || null;
@@ -1083,8 +1130,10 @@ function buildGeneratedDay(dateStr, teamMap, prevDay) {
 
     rotated.forEach(s => {
       if (!s) return;
+      // Người đang bị phạt làm 7 ngày liên tục không bị đổi ra nghỉ dù vượt ngưỡng.
       const over = rules.enabled &&
         !isNightOnlyInSet(nightSet, s) &&
+        !isPunishedOn(s, dateStr) &&
         consecutiveDutyDays(s, dateStr) >= rules.maxConsecutiveDays;
       if (over) overworked.push(s);
       else finalList.push({ name: s, type: "team" });
@@ -1255,6 +1304,7 @@ function generateSchedule() {
     alert("Chỉ có Chỉ huy / Trưởng ban mới được cắt lịch!");
     return;
   }
+  if (!ensureNoPendingAbsenceEdits()) return;
 
   const targetDate = addDay(curDate, 1);
   if (dayHasSchedule(targetDate) && !confirm(`Ngày ${vnFormat(targetDate)} đã có lịch. Cắt lại lịch cho ngày mai?`)) {
@@ -1291,6 +1341,7 @@ function generateWeekSchedule() {
     alert("Chỉ có Chỉ huy / Trưởng ban mới được cắt lịch!");
     return;
   }
+  if (!ensureNoPendingAbsenceEdits()) return;
 
   const startDate = addDay(curDate, 1);
   const dates = [];
@@ -1359,14 +1410,118 @@ function populateNightOnlyTextarea() {
       emptyText: "Chưa có đồng chí nào được đánh dấu.",
       getNames: () => parseNames(S.nightOnly || ""),
       onChange: (arr) => {
+        const before = parseNames(S.nightOnly || "");
         S.nightOnly = arr.join(", ");
         saveStorage();
         updateNightOnlyMsg();
+        const changed = nightOnlyDiff(before, arr);
+        const days = propagateNightOnlyChange(changed);
+        if (days > 0) {
+          const msg = document.getElementById("nightOnlyMsg");
+          if (msg) msg.textContent += ` Đã cập nhật lại ${days} ngày đã cắt sẵn.`;
+        }
       }
     });
   }
   NIGHT_ONLY_PICKER.sync();
   updateNightOnlyMsg();
+}
+
+// Danh sách tên thay đổi giữa 2 lần nhập (thêm hoặc bớt).
+// Chấp nhận cả chuỗi "A, B" lẫn mảng tên.
+function nightOnlyDiff(beforeArr, afterArr) {
+  const toList = (v) => Array.isArray(v)
+    ? v.map(n => (n || "").trim()).filter(Boolean)
+    : parseNames(v || "");
+  const beforeList = toList(beforeArr);
+  const afterList = toList(afterArr);
+  const beforeSet = new Set(beforeList.map(n => cleanName(n).toLowerCase()));
+  const afterSet = new Set(afterList.map(n => cleanName(n).toLowerCase()));
+  const out = [];
+  const seen = new Set();
+  [...beforeList, ...afterList].forEach(n => {
+    const key = cleanName(n).toLowerCase();
+    if (!key || seen.has(key)) return;
+    if (beforeSet.has(key) === afterSet.has(key)) return;
+    seen.add(key);
+    out.push(n);
+  });
+  return out;
+}
+
+// Khi danh sách "chỉ làm ca đêm" thay đổi, cập nhật ngay các ngày đã cắt sẵn
+// từ ngày mai trở đi để lịch không còn giữ tình trạng cũ.
+// - Thêm vào danh sách: khung ban ngày nhường cho người cùng Tổ, chỉ giữ khung đêm.
+// - Bỏ khỏi danh sách (học xong buổi sáng): trả lại đủ 3 khung giờ của ca.
+function propagateNightOnlyChange(changedNames) {
+  const names = (changedNames || []).filter(Boolean);
+  if (!names.length) return 0;
+  const nightSet = getNightOnlySet();
+  let changedDays = 0;
+  let d = addDay(curDate, 1);
+  for (let i = 0; i < 90; i++, d = addDay(d, 1)) {
+    const day = S.days && S.days[d];
+    if (!day || !Array.isArray(day.cells)) continue;
+    if (!day.cells.some(c => (c || "").trim())) continue;
+    const ab = absSet(day.absent || {});
+    let touched = false;
+
+    names.forEach(name => {
+      const key = cleanName(name).toLowerCase();
+      if (!key) return;
+      const isNightOnly = isNightOnlyInSet(nightSet, name);
+      const teamId = getPersonTeamId(name);
+      const team = teamId && S.teams ? S.teams[teamId - 1] : null;
+
+      for (let ca = 0; ca < 4; ca++) {
+        const nightSlots = nightWindowSlotsForCa(ca);
+        for (let col = 0; col < 5; col++) {
+          const keys = [0, 1, 2].map(s => (ca * 3 + s) * 5 + col);
+          const hit = keys.map(k => cleanName(day.cells[k] || "").toLowerCase() === key);
+          if (!hit.some(Boolean)) continue;
+
+          if (isNightOnly) {
+            keys.forEach((k, s) => {
+              if (nightSlots.indexOf(s) >= 0 || !hit[s]) return;
+              const usedNow = new Set(day.cells.map(x => cleanName(x).toLowerCase()).filter(Boolean));
+              const pool = col === 0 ? (team ? team.officers : []) : (team ? team.soldiers : []);
+              let repl = "";
+              for (const cand of pool) {
+                const ck = cleanName(cand).toLowerCase();
+                if (!ck || ck === key || usedNow.has(ck)) continue;
+                if (isPersonAbsentIn(ab, cand)) continue;
+                if (isNightOnlyInSet(nightSet, cand)) continue;
+                repl = cand;
+                break;
+              }
+              day.cells[k] = repl;
+              delete day.streaks[k];
+              touched = true;
+            });
+          } else {
+            // Đã học xong: trả lại đủ 3 khung giờ trong ca (gộp 1 người).
+            // Lấy đúng nhãn của người này ở khung đêm, không lấy nhãn người thay ban ngày.
+            const ownLabel = keys.filter((k, s) => hit[s]).map(k => (day.cells[k] || "").trim()).find(Boolean) || name;
+            keys.forEach(k => {
+              if ((day.cells[k] || "").trim() !== ownLabel) {
+                day.cells[k] = ownLabel;
+                delete day.streaks[k];
+                touched = true;
+              }
+            });
+          }
+        }
+      }
+    });
+
+    if (touched) {
+      day.teamInCa = detectTeamsInCa(day);
+      if (!day.manualCredits) day.manualCredits = {};
+      changedDays++;
+    }
+  }
+  if (changedDays) saveStorage();
+  return changedDays;
 }
 
 function updateNightOnlyMsg() {
@@ -1385,6 +1540,218 @@ function saveNightOnlyList() {
   }
   if (NIGHT_ONLY_PICKER) NIGHT_ONLY_PICKER.sync();
   updateNightOnlyMsg();
+}
+
+// ===== KỶ LUẬT: NGƯỜI BỊ PHẠT LÀM 7 NGÀY LIÊN TỤC =====
+function resolvePersonName(raw) {
+  const key = cleanName(raw || "").toLowerCase();
+  if (!key) return "";
+  const found = getAllPersonNames().find(n => cleanName(n).toLowerCase() === key);
+  return found || (raw || "").trim();
+}
+
+function populatePunishmentForm() {
+  const nameEl = document.getElementById("punishPerson");
+  const startEl = document.getElementById("punishStart");
+  if (startEl && !startEl.value) startEl.value = curDate;
+  if (nameEl && !nameEl.dataset.attached) {
+    attachNameSuggestions(nameEl, getAllPersonNames);
+    nameEl.dataset.attached = "1";
+  }
+  renderPunishmentList();
+}
+
+function renderPunishmentList() {
+  const box = document.getElementById("punishList");
+  const msg = document.getElementById("punishMsg");
+  if (!box) return;
+  const list = getPunishments().slice().sort((a, b) => {
+    const ra = punishmentRange(a), rb = punishmentRange(b);
+    return (ra.start || "").localeCompare(rb.start || "") ||
+      cleanName(a.person).localeCompare(cleanName(b.person));
+  });
+
+  box.innerHTML = list.length ? list.map(p => {
+    const r = punishmentRange(p);
+    const active = isPunishedOn(p.person, curDate);
+    const label = cleanName(p.person);
+    return `<span class="punish-chip${active ? " active" : ""}" title="${escHTML(label)} — từ ${escHTML(vnFormat(r.start))} đến ${escHTML(vnFormat(r.end))}">` +
+      `<span class="punish-icon">⚖️</span>` +
+      `<b>${escHTML(label)}</b>` +
+      `<span class="punish-range">${escHTML(vnFormat(r.start))} → ${escHTML(vnFormat(r.end))}</span>` +
+      `<button type="button" class="punish-x" title="Bỏ khỏi danh sách phạt" onclick="removePunishment('${escHTML(String(p.id))}')">×</button>` +
+      `</span>`;
+  }).join("") : `<span class="empty">Chưa có ai bị phạt làm ${PUNISH_DAYS} ngày liên tục.</span>`;
+
+  if (msg) {
+    const activeCount = list.filter(p => isPunishedOn(p.person, curDate)).length;
+    msg.textContent = list.length
+      ? `⚖️ Đang có ${list.length} đồng chí bị phạt làm ${PUNISH_DAYS} ngày liên tục` +
+        (activeCount ? ` (${activeCount} đồng chí đang trong thời hạn phạt hôm nay).` : ".")
+      : `Chưa có đồng chí nào bị phạt làm ${PUNISH_DAYS} ngày liên tục.`;
+  }
+}
+
+function addPunishment() {
+  if (getCurrentRole() !== "commander") {
+    alert("Chỉ có Chỉ huy / Trưởng ban mới được nhập danh sách phạt!");
+    return;
+  }
+  const nameEl = document.getElementById("punishPerson");
+  const startEl = document.getElementById("punishStart");
+  const raw = (nameEl && nameEl.value ? nameEl.value : "").trim();
+  if (!raw) {
+    alert("Hãy chọn hoặc nhập tên đồng chí bị phạt.");
+    return;
+  }
+  const start = (startEl && startEl.value) || curDate || fmtDate(new Date());
+  const startAbs = absSet(getDayData(start).absent || {});
+  const rawNames = raw.split(/[,;\n]+/).map(s => s.trim()).filter(Boolean);
+
+  const added = [];
+  const skipped = [];
+  rawNames.forEach(rawName => {
+    const person = resolvePersonName(rawName) || rawName;
+    if (!getPersonTeamId(person)) {
+      skipped.push(`${cleanName(person)} (không thuộc biên chế 4 Tổ)`);
+      return;
+    }
+    const existed = getPunishments().some(p =>
+      cleanName(p.person).toLowerCase() === cleanName(person).toLowerCase() &&
+      punishmentRange(p).start === start);
+    if (existed) {
+      skipped.push(`${cleanName(person)} (đã có từ ${vnFormat(start)})`);
+      return;
+    }
+    if (isPersonAbsentIn(startAbs, person)) {
+      skipped.push(`${cleanName(person)} (đang vắng ngày ${vnFormat(start)})`);
+      return;
+    }
+    const p = {
+      id: "p" + Date.now() + Math.floor(Math.random() * 1000) + added.length,
+      person,
+      start,
+      days: PUNISH_DAYS
+    };
+    if (!Array.isArray(S.punishments)) S.punishments = [];
+    S.punishments.push(p);
+    added.push(p);
+  });
+
+  if (!added.length) {
+    alert("Không thêm được đồng chí nào:\n- " + skipped.join("\n- "));
+    return;
+  }
+
+  saveStorage();
+  let totalChanged = 0;
+  added.forEach(p => { totalChanged += propagatePunishment(p); });
+  totalChanged += rebuildAutoUpcomingDays();
+  if (nameEl) nameEl.value = "";
+  if (startEl) startEl.value = curDate;
+  renderPunishmentList();
+  refresh();
+
+  const r = punishmentRange(added[0]);
+  let msg = added.length === 1
+    ? `⚖️ Đã thêm ${cleanName(added[0].person)} vào danh sách bị phạt làm ${PUNISH_DAYS} ngày liên tục ` +
+      `(${vnFormat(r.start)} → ${vnFormat(r.end)}).`
+    : `⚖️ Đã thêm ${added.length} đồng chí vào danh sách bị phạt làm ${PUNISH_DAYS} ngày liên tục ` +
+      `(${vnFormat(r.start)} → ${vnFormat(r.end)}): ${added.map(p => cleanName(p.person)).join(", ")}.`;
+  if (totalChanged) msg += `\nĐã cập nhật ${totalChanged} ngày đã cắt sẵn.`;
+  if (skipped.length) msg += `\nBỏ qua:\n- ${skipped.join("\n- ")}`;
+  alert(msg);
+}
+
+function removePunishment(id) {
+  if (getCurrentRole() !== "commander") return;
+  const p = getPunishments().find(x => String(x.id) === String(id));
+  if (!p) return;
+  if (!confirm(`Bỏ ${cleanName(p.person)} khỏi danh sách bị phạt làm ${PUNISH_DAYS} ngày liên tục?`)) return;
+  S.punishments = getPunishments().filter(x => String(x.id) !== String(id));
+  saveStorage();
+  const rebuilt = rebuildAutoUpcomingDays();
+  renderPunishmentList();
+  refresh();
+  if (rebuilt) alert(`Đã cập nhật lại ${rebuilt} ngày đã cắt sẵn sau khi bỏ khỏi danh sách phạt.`);
+}
+
+// Đưa người bị phạt vào các ngày đã cắt sẵn trong thời hạn phạt:
+// thay người cùng Tổ đang làm nhiều ngày liên tiếp nhất (trừ người cũng bị phạt).
+function propagatePunishment(p) {
+  if (!p || !p.person) return 0;
+  const range = punishmentRange(p);
+  if (!range.start) return 0;
+  const person = p.person;
+  const key = cleanName(person).toLowerCase();
+  const teamId = getPersonTeamId(person);
+  const nightSet = getNightOnlySet();
+  if (!teamId) return 0;
+  const team = (S.teams && S.teams[teamId - 1]) || {};
+  const isOfficer = (team.officers || []).some(n => cleanName(n).toLowerCase() === key);
+  const onlyNight = isNightOnlyInSet(nightSet, person);
+
+  let changed = 0;
+  for (let d = range.start; d <= range.end; d = addDay(d, 1)) {
+    const day = S.days && S.days[d];
+    if (!day || !Array.isArray(day.cells)) continue;
+    if (!day.cells.some(c => (c || "").trim())) continue;
+    if (day.cells.some(c => cleanName(c).toLowerCase() === key)) continue;
+    const ab = absSet(day.absent || {});
+    if (isPersonAbsentIn(ab, person)) continue;
+
+    const det = detectTeamsInCa(day);
+    const ca = det.indexOf(teamId);
+    if (ca < 0) continue; // Tổ không trực ngày này
+    const nightSlots = nightWindowSlotsForCa(ca);
+
+    if (isOfficer) {
+      // Đốc gác: thay sĩ quan của Tổ trong ca (chỉ khung đêm nếu đang học tập buổi sáng).
+      for (let slot = 0; slot < 3; slot++) {
+        if (onlyNight && nightSlots.indexOf(slot) < 0) continue;
+        const k = (ca * 3 + slot) * 5;
+        day.cells[k] = person;
+        if (day.streaks) delete day.streaks[k];
+      }
+      day.manualCredits = {};
+      day.teamInCa = detectTeamsInCa(day);
+      changed++;
+      continue;
+    }
+
+    if (onlyNight) continue; // Chiến sĩ chỉ làm ca đêm: đã được xếp khi cắt lịch.
+    let best = null;
+    for (let col = 1; col <= 4; col++) {
+      const cur = (day.cells[(ca * 3 + 0) * 5 + col] || "").trim();
+      if (!cur) { best = { col, streak: -1 }; break; }
+      if (getPersonTeamId(cur) !== teamId) continue;
+      if (isPunishedOn(cur, d)) continue;
+      if (isNightOnlyInSet(nightSet, cur)) continue;
+      const streak = consecutiveDutyDays(cur, d);
+      if (!best || streak > best.streak) best = { col, streak };
+    }
+    if (!best) continue;
+
+    for (let slot = 0; slot < 3; slot++) {
+      const k = (ca * 3 + slot) * 5 + best.col;
+      day.cells[k] = person;
+      if (day.streaks) delete day.streaks[k];
+    }
+    day.manualCredits = {};
+    day.teamInCa = detectTeamsInCa(day);
+    changed++;
+  }
+  if (changed) saveStorage();
+  return changed;
+}
+
+// Gắn dấu ⚖ cho các ô đang là người bị phạt trong ngày đang xem.
+function refreshPunishMarks() {
+  document.querySelectorAll("#body .cell").forEach(cell => {
+    const labels = Array.from(cell.querySelectorAll("input.nm")).map(inp => (inp.value || "").trim());
+    if (!labels.length) labels.push((cell.textContent || "").trim());
+    cell.classList.toggle("punished", labels.some(l => !!l && isPunishedOn(l, curDate)));
+  });
 }
 
 // ===== GIAO DIỆN CẢNH BÁO & MƯỢN QUÂN SỐ =====
@@ -1477,8 +1844,194 @@ function saveTeamsFromTextareas() {
   refresh();
 }
 
-function applyMultiDayAbsence() {
-  if (getCurrentRole() !== "commander") {
+// ===== XÁC NHẬN CHỈNH SỬA VẮNG MẶT TRƯỚC KHI CẮT LỊCH =====
+function markAbsenceDraft(dateStr) {
+  if (!S.absenceDraft || typeof S.absenceDraft !== "object") S.absenceDraft = {};
+  S.absenceDraft[dateStr || curDate] = true;
+}
+
+function hasPendingAbsenceEdits() {
+  return !!(S.absenceDraft && Object.keys(S.absenceDraft).length > 0);
+}
+
+function ensureNoPendingAbsenceEdits() {
+  if (!hasPendingAbsenceEdits()) return true;
+  alert("⚠️ Bạn đang có chỉnh sửa vắng mặt CHƯA XÁC NHẬN.\n" +
+    "Hãy bấm nút \"✅ Xác nhận chỉnh sửa vắng mặt\" ở Phần 2 rồi mới cắt lịch.");
+  return false;
+}
+
+function updateAbsenceConfirmBar() {
+  const bar = document.getElementById("absenceConfirmBar");
+  if (!bar) return;
+  const dates = Object.keys(S.absenceDraft || {}).sort();
+  bar.style.display = dates.length ? "flex" : "none";
+  if (!dates.length) return;
+  const text = bar.querySelector(".absence-confirm-text");
+  if (text) {
+    text.innerHTML = `⚠️ Có chỉnh sửa vắng mặt <b>chưa xác nhận</b>` +
+      (dates.length ? ` (${escHTML(dates.map(d => vnFormat(d)).join(", "))})` : "") +
+      `. Phải bấm xác nhận trước khi cắt lịch.`;
+  }
+}
+
+// Thay thế người đang vắng bằng người cùng Tổ còn trống trong các ngày đã cắt sẵn.
+function propagateAbsenceChange(absentNames) {
+  const names = (absentNames || []).filter(Boolean);
+  if (!names.length) return 0;
+  let changedDays = 0;
+  let d = curDate;
+  for (let i = 0; i < 120; i++, d = addDay(d, 1)) {
+    const day = S.days && S.days[d];
+    if (!day || !Array.isArray(day.cells)) continue;
+    if (!day.cells.some(c => (c || "").trim())) continue;
+    const ab = absSet(day.absent || {});
+    let touched = false;
+
+    names.forEach(name => {
+      const key = cleanName(name).toLowerCase();
+      if (!key || !isPersonAbsentIn(ab, name)) return;
+      const teamId = getPersonTeamId(name);
+      const team = teamId && S.teams ? S.teams[teamId - 1] : null;
+
+      for (let ca = 0; ca < 4; ca++) {
+        for (let col = 0; col < 5; col++) {
+          const keys = [0, 1, 2].map(s => (ca * 3 + s) * 5 + col);
+          if (!keys.some(k => cleanName(day.cells[k] || "").toLowerCase() === key)) continue;
+
+          const usedNow = new Set(day.cells.map(x => cleanName(x).toLowerCase()).filter(Boolean));
+          const pool = col === 0 ? (team ? team.officers : []) : (team ? team.soldiers : []);
+          const nightSet = getNightOnlySet();
+          let repl = "";
+          for (const cand of pool) {
+            const ck = cleanName(cand).toLowerCase();
+            if (!ck || ck === key || usedNow.has(ck)) continue;
+            if (isPersonAbsentIn(ab, cand)) continue;
+            if (isNightOnlyInSet(nightSet, cand)) continue;
+            repl = cand;
+            break;
+          }
+          keys.forEach(k => {
+            if (cleanName(day.cells[k] || "").toLowerCase() !== key) return;
+            day.cells[k] = repl;
+            delete day.streaks[k];
+            touched = true;
+          });
+        }
+      }
+    });
+
+    if (touched) {
+      day.teamInCa = detectTeamsInCa(day);
+      if (!day.manualCredits) day.manualCredits = {};
+      changedDays++;
+    }
+  }
+  if (changedDays) saveStorage();
+  return changedDays;
+}
+
+// Cắt lại tự động các ngày tương lai đã có lịch nhưng chưa bị chỉnh tay,
+// sau khi danh sách vắng mặt thay đổi (thêm hoặc bớt người vắng).
+function rebuildAutoUpcomingDays() {
+  const futureDates = Object.keys(S.days || {})
+    .filter(d => d > curDate && dayHasSchedule(d) && !S.days[d].manualEdited)
+    .sort();
+  if (!futureDates.length) return 0;
+  let prevDay = getDayData(curDate);
+  let teamMap = nextTeamMap(detectTeamsInCa(prevDay));
+  let count = 0;
+  futureDates.forEach(d => {
+    const built = buildGeneratedDay(d, teamMap, prevDay);
+    prevDay = built.day;
+    teamMap = nextTeamMap(teamMap);
+    count++;
+  });
+  saveStorage();
+  return count;
+}
+
+function confirmAbsenceEdits() {
+  const dates = Object.keys(S.absenceDraft || {});
+  if (!dates.length) {
+    alert("Không có chỉnh sửa vắng mặt nào cần xác nhận.");
+    return;
+  }
+  const affected = new Set();
+  dates.forEach(dStr => {
+    const day = getDayData(dStr);
+    day.absentTouched = true;
+    CATS.forEach(c => parseNames(day.absent[c[0]]).forEach(n => affected.add(n)));
+
+    // Danh sách vắng mặt có tính chất "giữ nguyên": chép sang các ngày sau
+    // để ngày hôm sau cập nhật đúng người đang vắng/đi học.
+    // - Ngày chưa chỉnh tay: lấy đúng danh sách mới nhất (thay toàn bộ).
+    // - Ngày đã chỉnh tay: giữ danh sách riêng nhưng vẫn đồng bộ phần đã kế thừa
+    //   từ ngày này (thêm người vắng mới, bỏ người đã đi làm/học lại).
+    let d = addDay(dStr, 1);
+    for (let i = 0; i < 90; i++, d = addDay(d, 1)) {
+      const fut = S.days && S.days[d];
+      if (!fut) break;
+      if (!fut.absent || typeof fut.absent !== "object") fut.absent = {};
+      if (fut.absentTouched === true) {
+        const prevSnap = (fut.absentInherited && typeof fut.absentInherited === "object")
+          ? fut.absentInherited : null;
+        absenceCategoryKeys().forEach(k => {
+          const today = parseNames(day.absent[k]);
+          const todayKeys = new Set(today.map(n => cleanName(n).toLowerCase()));
+          const prevKeys = new Set(parseNames(prevSnap ? prevSnap[k] : "").map(n => cleanName(n).toLowerCase()));
+          // Bỏ những người trước đây kế thừa từ ngày này nhưng nay đã đi làm lại.
+          const cur = parseNames(fut.absent[k]).filter(n => {
+            const key = cleanName(n).toLowerCase();
+            if (!key) return false;
+            return !(prevKeys.has(key) && !todayKeys.has(key));
+          });
+          const seen = new Set(cur.map(n => cleanName(n).toLowerCase()));
+          today.forEach(n => {
+            const key = cleanName(n).toLowerCase();
+            if (!key || seen.has(key)) return;
+            cur.push(n);
+            seen.add(key);
+            affected.add(n);
+          });
+          parseNames(prevSnap ? prevSnap[k] : "").forEach(n => {
+            const key = cleanName(n).toLowerCase();
+            if (key && !todayKeys.has(key) && !seen.has(key)) affected.add(n);
+          });
+          fut.absent[k] = cur.join(", ");
+        });
+        fut.absentInherited = {};
+        absenceCategoryKeys().forEach(k => {
+          fut.absentInherited[k] = (day.absent[k] || "").trim();
+        });
+        fut.absentInheritedFrom = dStr;
+        fut.absentInheritedSig = absenceCategoryKeys().map(k => (day.absent[k] || "").trim()).join("|");
+        continue;
+      }
+      fut.absent = {};
+      fut.absentInherited = {};
+      absenceCategoryKeys().forEach(k => {
+        fut.absent[k] = (day.absent[k] || "").trim();
+        fut.absentInherited[k] = fut.absent[k];
+        parseNames(fut.absent[k]).forEach(n => affected.add(n));
+      });
+      fut.absentInheritedFrom = dStr;
+      fut.absentInheritedSig = absenceCategoryKeys().map(k => (day.absent[k] || "").trim()).join("|");
+    }
+  });
+
+  const rebuilt = rebuildAutoUpcomingDays();
+  const changedDays = propagateAbsenceChange(Array.from(affected));
+  S.absenceDraft = {};
+  saveStorage();
+  render();
+  alert(`✅ Đã xác nhận chỉnh sửa vắng mặt` +
+    (affected.size ? ` cho ${affected.size} đồng chí` : "") +
+    (rebuilt || changedDays ? `, cập nhật ${Math.max(rebuilt, changedDays)} ngày đã cắt sẵn` : "") +
+    `. Bây giờ có thể cắt lịch.`);
+}
+
+function applyMultiDayAbsence() {  if (getCurrentRole() !== "commander") {
     alert("Chỉ có Chỉ huy mới được đăng ký vắng dài ngày!");
     return;
   }
@@ -1545,9 +2098,10 @@ function initUI() {
       onChange: (arr) => {
         const d = getDayData(curDate);
         d.absent[c[0]] = arr.join(", ");
-        // Đánh dấu ngày đã chỉnh tay: danh sách vắng mặt của ngày này sẽ không bị
-        // tự động kế thừa đè lên ở lần cắt lịch sau.
+        // Đánh dấu ngày đã chỉnh tay + chờ xác nhận: chỉ khi bấm "Xác nhận"
+        // thì thay đổi mới được áp dụng và mới cho phép cắt lịch.
         d.absentTouched = true;
+        markAbsenceDraft(curDate);
         saveStorage();
         refresh();
       }
@@ -1556,6 +2110,7 @@ function initUI() {
 
   populateTeamTextareas();
   populateNightOnlyTextarea();
+  populatePunishmentForm();
   populateBorrowRules();
   for (let t = 1; t <= 4; t++) {
     ["team" + t + "Off", "team" + t + "Sol"].forEach(id => {
@@ -1667,8 +2222,34 @@ function showRedAlert(warnings) {
   }, 0);
 }
 
+// Cập nhật nhãn cấp bậc hàm trong các ô lịch theo tên đang có trong ô.
+function refreshRankBadges() {
+  const day = getDayData(curDate);
+  document.querySelectorAll("#body .cell").forEach(cell => {
+    const badge = cell.querySelector(".rank-badge");
+    if (!badge) return;
+    const k = parseInt(badge.dataset.k, 10);
+    if (!Number.isFinite(k)) return;
+    const rank = typeof getPersonRank === "function" ? getPersonRank(day.cells[k] || "") : "";
+    if (rank) {
+      badge.textContent = rank;
+      badge.title = `Cấp bậc hàm: ${getRankLabel(rank)}`;
+      badge.style.display = "";
+      cell.classList.add("has-rank");
+    } else {
+      badge.textContent = "";
+      badge.removeAttribute("title");
+      badge.style.display = "none";
+      cell.classList.remove("has-rank");
+    }
+  });
+  refreshPunishMarks();
+  renderPunishmentList();
+}
+
 function refresh() {
   const day = getDayData(curDate);
+  if (document.getElementById("body")) refreshRankBadges();
   const off = parseNames(S.officers);
   const sol = parseNames(S.soldiers);
   const ab = absSet(day.absent);
@@ -1894,6 +2475,8 @@ function refresh() {
       const n = (day.cells[k] || "").trim();
       if (!n) continue;
       if (isNightOnlyInSet(nightSet, n)) continue;
+      // Người đang bị phạt làm 7 ngày liên tục: không cảnh báo "cần nghỉ".
+      if (isPunishedOn(n, curDate)) continue;
       const key = cleanName(n).toLowerCase();
       if (overNames[key]) continue;
       const streak = calculateStreak(n, curDate);
@@ -1937,6 +2520,16 @@ function refresh() {
     });
   }
 
+  // 6) Người đang bị phạt làm 7 ngày liên tục trong ngày đang xem
+  getPunishments().forEach(p => {
+    if (!isPunishedOn(p.person, curDate)) return;
+    const r = punishmentRange(p);
+    notes.push({
+      level: "info",
+      text: `⚖️ KỶ LUẬT: ${cleanName(p.person)} bị phạt làm ${r.days} ngày liên tục (từ ${vnFormat(r.start)} đến ${vnFormat(r.end)}) — luôn được xếp gác, không đổi ra nghỉ.`
+    });
+  });
+
   notes.forEach(n => {
     const div = document.createElement("div");
     div.className = n.level === "warn" ? "note-warn" : "note-info";
@@ -1954,6 +2547,7 @@ function refresh() {
   }
 
   updateHistoryDropdown();
+  updateAbsenceConfirmBar();
 }
 
 function render() {
@@ -1964,6 +2558,7 @@ function render() {
   for (let k = 0; k < 60; k++) {
     if (IN[k]) IN[k].value = day.cells[k] || "";
   }
+  refreshRankBadges();
   CATS.forEach(c => {
     if (ABS_PICKERS[c[0]]) ABS_PICKERS[c[0]].sync();
   });

@@ -10,7 +10,9 @@ function exportToExcel(dateStr) {
     const raw = (day.cells[idx] || "").trim();
     if (!raw) return "";
     const streak = getPersonStreak(dateStr, raw);
-    return (streak === "" || streak == null) ? raw : `${raw} (mũ ${streak})`;
+    const rank = typeof getPersonRank === "function" ? getPersonRank(raw) : "";
+    const name = rank ? `${rank} ${raw}` : raw;
+    return (streak === "" || streak == null) ? name : `${name} (mũ ${streak})`;
   };
   const data = [
     ["LỊCH GÁC NGÀY " + vnFormat(dateStr)],

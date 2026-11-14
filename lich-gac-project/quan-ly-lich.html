@@ -202,48 +202,6 @@
         </table>
       </div>
 
-      <!-- CHỈ LÀM CA ĐÊM (ĐANG HỌC TẬP BUỔI SÁNG) -->
-      <section class="card no-print" id="nightOnlyCard" data-html2canvas-ignore="true" style="margin-top:12px;">
-        <h2>🌙 Danh sách chỉ làm ca đêm (đang học tập buổi sáng)</h2>
-        <p class="sub" style="margin-top:0;">
-          Nhập tên những đồng chí chỉ có thể làm ca đêm, cách nhau bằng dấu phẩy hoặc xuống dòng.
-          Khi cắt lịch, hệ thống chỉ xếp họ vào khung giờ đêm <b>(18:00 – 06:00 sáng hôm sau)</b>;
-          các khung giờ ban ngày (06:00 – 18:00) sẽ do đồng chí khác cùng Tổ đảm nhiệm.
-          <b>Lưu ý:</b> Không đánh dấu các đồng chí này vào mục vắng mặt cả ngày.
-        </p>
-        <div id="nightOnlyPicker" class="name-picker"></div>
-        <div id="nightOnlyMsg" style="font-size:12.5px;color:var(--primary-green);font-weight:700;margin-top:6px;"></div>
-      </section>
-
-      <!-- CẢNH BÁO & MƯỢN QUÂN SỐ TẠM THỜI GIỮA CÁC TỔ -->
-      <section class="card no-print" id="borrowCard" data-html2canvas-ignore="true" style="margin-top:12px;">
-        <h2>⚖️ Cảnh báo & mượn quân số tạm thời giữa các Tổ</h2>
-        <p class="sub" style="margin-top:0;">
-          Khi một Tổ <b>vắng quá số chiến sĩ cho phép</b> hoặc có đồng chí <b>làm liên tiếp quá số ngày cho phép</b>,
-          hệ thống sẽ cảnh báo và tự mượn chiến sĩ từ Tổ khác (hoặc cho nghỉ, thay người cùng Tổ) để bảo đảm đủ 4 vọng gác.
-          Người được mượn sẽ hiện viền cam trong bảng lịch.
-        </p>
-        <div style="display:flex;flex-wrap:wrap;gap:14px 22px;align-items:center;font-size:13.5px;">
-          <label style="display:flex;align-items:center;gap:6px;font-weight:700;cursor:pointer;">
-            <input type="checkbox" id="borrowEnabled" onchange="saveBorrowRules()" checked>
-            Bật cảnh báo &amp; tự động mượn quân số
-          </label>
-          <label style="display:flex;align-items:center;gap:6px;">
-            Vắng tối đa/Tổ:
-            <input type="number" id="borrowMaxAbsent" min="0" max="30" step="1" value="3"
-                   style="width:70px;" onchange="saveBorrowRules()">
-            chiến sĩ
-          </label>
-          <label style="display:flex;align-items:center;gap:6px;">
-            Làm liên tiếp tối đa:
-            <input type="number" id="borrowMaxDays" min="1" max="60" step="1" value="5"
-                   style="width:70px;" onchange="saveBorrowRules()">
-            ngày
-          </label>
-        </div>
-        <div id="borrowMsg" style="font-size:12.5px;color:var(--primary-green);font-weight:700;margin-top:6px;"></div>
-      </section>
-
       <!-- KIỂM TRA NỐI NGÀY D-1 → D -->
       <section class="card no-print" id="crossDayCard" data-html2canvas-ignore="true" style="margin-top:12px;">
         <h2>🔎 Kiểm tra nối ngày D-1 → D</h2>
@@ -258,32 +216,12 @@
       <datalist id="dlO"></datalist>
       <datalist id="dlS"></datalist>
 
-      <!-- PHẦN 2: TỔNG QUÂN SỐ, TRỰC CƠ ĐỘNG & ĐĂNG KÝ VẮNG MẶT DÀI NGÀY -->
+      <!-- PHẦN 2: ĐĂNG KÝ VẮNG MẶT, TỔNG QUÂN SỐ, TRỰC CƠ ĐỘNG & CẢNH BÁO -->
       <section class="card" style="margin-top:18px">
-        <h2>Phần 2: Tổng quân số đơn vị, Trực cơ động & Ghi chú vắng mặt</h2>
-        
-        <div class="unit-summary-box">
-          <div class="unit-total-header">
-            <span>* TỔNG QUÂN SỐ TOÀN ĐƠN VỊ (ĐỘI 3 - TRUNG ĐOÀN 375): <strong id="totalUnit">0</strong> đồng chí</span>
-            <span id="unitBreakdownSub" class="unit-sub"></span>
-          </div>
-          <div id="detailedStatGrid" class="stat-grid"></div>
-        </div>
+        <h2>Phần 2: Đăng ký vắng mặt, Tổng quân số đơn vị, Trực cơ động &amp; Cảnh báo</h2>
 
-        <div class="rest">
-          <b>Trực cơ động tại đơn vị (Chiến sĩ nghỉ gác tại đơn vị)</b>
-          <div class="part">
-            <div class="ph">Sĩ quan Đốc gác <span id="cntO"></span></div>
-            <div class="chips" id="listO"></div>
-          </div>
-          <div class="part">
-            <div class="ph">Chiến sĩ nghĩa vụ (Vọng gác x9, x10, x11, x12) <span id="cntS"></span></div>
-            <div class="chips" id="listS"></div>
-          </div>
-        </div>
-
-        <!-- ĐĂNG KÝ VẮNG MẶT DÀI NGÀY ĐƯỢC CHUYỂN XUỐNG PHẦN 2 -->
-        <div class="unit-summary-box no-print" id="multiDayLeaveCard" style="margin-top:12px;margin-bottom:14px;">
+        <!-- ƯU TIÊN 1: ĐĂNG KÝ VẮNG MẶT DÀI NGÀY -->
+        <div class="unit-summary-box no-print" id="multiDayLeaveCard" style="margin-top:0;margin-bottom:14px;">
           <div style="font-weight:700;color:var(--primary-green);margin-bottom:8px;font-size:14px;">
             📌 Đăng ký Vắng mặt Dài ngày (Từ ngày – Đến ngày)
           </div>
@@ -306,13 +244,102 @@
           </div>
           <datalist id="dlAll"></datalist>
         </div>
-        
-        <p class="sub" style="margin-top:0;">
+
+        <p class="sub no-print" style="margin-top:0;">
           📌 <b>Lưu ý vắng mặt:</b> Danh sách đã nhập được <b>giữ nguyên qua các lần cắt lịch</b> và chỉ mất khi bấm <b>×</b> để xóa tên.
           Người đang có tên trong bất kỳ mục nào dưới đây <b>sẽ không được cắt vào lịch đi làm</b>.
+          Sau khi chỉnh sửa vắng mặt phải bấm <b>✅ Xác nhận chỉnh sửa vắng mặt</b> rồi mới được cắt lịch.
         </p>
+
+        <!-- THANH XÁC NHẬN CHỈNH SỬA VẮNG MẶT -->
+        <div id="absenceConfirmBar" class="absence-confirm-bar no-print">
+          <span class="absence-confirm-text">⚠️ Có chỉnh sửa vắng mặt chưa xác nhận.</span>
+          <button type="button" class="pri" onclick="confirmAbsenceEdits()">✅ Xác nhận chỉnh sửa vắng mặt</button>
+        </div>
+
         <div id="cats"></div>
         <div class="warn" id="warn"></div>
+
+        <div class="unit-summary-box" style="margin-top:16px;">
+          <div class="unit-total-header">
+            <span>* TỔNG QUÂN SỐ TOÀN ĐƠN VỊ (ĐỘI 3 - TRUNG ĐOÀN 375): <strong id="totalUnit">0</strong> đồng chí</span>
+            <span id="unitBreakdownSub" class="unit-sub"></span>
+          </div>
+          <div id="detailedStatGrid" class="stat-grid"></div>
+        </div>
+
+        <div class="rest">
+          <b>Trực cơ động tại đơn vị (Chiến sĩ nghỉ gác tại đơn vị)</b>
+          <div class="part">
+            <div class="ph">Sĩ quan Đốc gác <span id="cntO"></span></div>
+            <div class="chips" id="listO"></div>
+          </div>
+          <div class="part">
+            <div class="ph">Chiến sĩ nghĩa vụ (Vọng gác x9, x10, x11, x12) <span id="cntS"></span></div>
+            <div class="chips" id="listS"></div>
+          </div>
+        </div>
+
+        <!-- CHỈ LÀM CA ĐÊM (ĐANG HỌC TẬP BUỔI SÁNG) — CHUYỂN XUỐNG PHẦN 2 -->
+        <section class="card no-print" id="nightOnlyCard" data-html2canvas-ignore="true" style="margin-top:16px;box-shadow:none;border:1px solid var(--line);">
+          <h2>🌙 Danh sách chỉ làm ca đêm (đang học tập buổi sáng)</h2>
+          <p class="sub" style="margin-top:0;">
+            Nhập tên những đồng chí chỉ có thể làm ca đêm, cách nhau bằng dấu phẩy hoặc xuống dòng.
+            Khi cắt lịch, hệ thống chỉ xếp họ vào khung giờ đêm <b>(18:00 – 06:00 sáng hôm sau)</b>;
+            các khung giờ ban ngày (06:00 – 18:00) sẽ do đồng chí khác cùng Tổ đảm nhiệm.
+            <b>Lưu ý:</b> Không đánh dấu các đồng chí này vào mục vắng mặt cả ngày.
+            Khi đồng chí học xong, bấm <b>×</b> để bỏ khỏi danh sách — lịch các ngày đã cắt sẵn sẽ tự cập nhật.
+          </p>
+          <div id="nightOnlyPicker" class="name-picker"></div>
+          <div id="nightOnlyMsg" style="font-size:12.5px;color:var(--primary-green);font-weight:700;margin-top:6px;"></div>
+        </section>
+
+        <!-- KỶ LUẬT: NGƯỜI BỊ PHẠT LÀM 7 NGÀY LIÊN TỤC -->
+        <section class="card no-print" id="punishCard" data-html2canvas-ignore="true" style="margin-top:12px;box-shadow:none;border:1px solid var(--line);border-left:4px solid #c2410c;">
+          <h2>⚖️ Người bị phạt làm 7 ngày liên tục</h2>
+          <p class="sub" style="margin-top:0;">
+            Nhập tên đồng chí bị kỷ luật (có thể nhập nhiều tên, cách nhau bằng dấu phẩy) và ngày bắt đầu. Trong <b>7 ngày liên tục</b> kể từ ngày đó,
+            đồng chí luôn được xếp gác (không bị đổi ra nghỉ dù vượt số ngày làm liên tiếp) và được ưu tiên
+            xếp trước người khác. Nếu đang vắng mặt (phép, ốm, công tác...) thì ngày đó vẫn nghỉ theo danh sách vắng mặt.
+          </p>
+          <div class="bar" style="margin-bottom:8px;">
+            <input type="text" id="punishPerson" list="dlAll" placeholder="Nhập một hoặc nhiều tên, cách nhau bằng dấu phẩy...">
+            <label style="font-size:13px;">Bắt đầu:</label>
+            <input type="date" id="punishStart">
+            <button class="pri" type="button" onclick="addPunishment()">+ Thêm vào danh sách phạt</button>
+          </div>
+          <div id="punishList" class="punish-list"></div>
+          <div id="punishMsg" style="font-size:12.5px;color:var(--primary-green);font-weight:700;margin-top:6px;"></div>
+        </section>
+
+        <!-- CẢNH BÁO & MƯỢN QUÂN SỐ TẠM THỜI GIỮA CÁC TỔ — CHUYỂN XUỐNG PHẦN 2 -->
+        <section class="card no-print" id="borrowCard" data-html2canvas-ignore="true" style="margin-top:12px;box-shadow:none;border:1px solid var(--line);">
+          <h2>⚖️ Cảnh báo &amp; mượn quân số tạm thời giữa các Tổ</h2>
+          <p class="sub" style="margin-top:0;">
+            Khi một Tổ <b>vắng quá số chiến sĩ cho phép</b> hoặc có đồng chí <b>làm liên tiếp quá số ngày cho phép</b>,
+            hệ thống sẽ cảnh báo và tự mượn chiến sĩ từ Tổ khác (hoặc cho nghỉ, thay người cùng Tổ) để bảo đảm đủ 4 vọng gác.
+            Người được mượn sẽ hiện viền cam trong bảng lịch.
+          </p>
+          <div style="display:flex;flex-wrap:wrap;gap:14px 22px;align-items:center;font-size:13.5px;">
+            <label style="display:flex;align-items:center;gap:6px;font-weight:700;cursor:pointer;">
+              <input type="checkbox" id="borrowEnabled" onchange="saveBorrowRules()" checked>
+              Bật cảnh báo &amp; tự động mượn quân số
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;">
+              Vắng tối đa/Tổ:
+              <input type="number" id="borrowMaxAbsent" min="0" max="30" step="1" value="3"
+                     style="width:70px;" onchange="saveBorrowRules()">
+              chiến sĩ
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;">
+              Làm liên tiếp tối đa:
+              <input type="number" id="borrowMaxDays" min="1" max="60" step="1" value="5"
+                     style="width:70px;" onchange="saveBorrowRules()">
+              ngày
+            </label>
+          </div>
+          <div id="borrowMsg" style="font-size:12.5px;color:var(--primary-green);font-weight:700;margin-top:6px;"></div>
+        </section>
       </section>
 
       <!-- CHỮ KÝ CHỈ HUY KHI IN -->

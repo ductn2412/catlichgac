@@ -112,11 +112,15 @@
               <option value="3">Tổ 3</option>
               <option value="4">Tổ 4</option>
             </select>
-            <select id="editRoleType" style="flex:1;">
+            <select id="editRoleType" style="flex:1;" onchange="refreshEditRankOptions()">
               <option value="soldier">Chiến sĩ (Vọng x9–x12)</option>
               <option value="officer">Sĩ quan (Đốc gác 1)</option>
             </select>
           </div>
+        </div>
+        <div class="form-group">
+          <label>Cấp bậc hàm</label>
+          <select id="editRank"></select>
         </div>
         <div class="form-group">
           <label>Chức vụ / Cấp bậc</label>
@@ -227,6 +231,19 @@
           </div>
           <div class="two">
             <div class="form-group">
+              <label>Cấp bậc hàm <span style="color:var(--muted);font-weight:400;">(Chiến sĩ nghĩa vụ: H1, B2 — Sĩ quan: T4…H2)</span></label>
+              <select id="accRank"></select>
+            </div>
+            <div class="form-group">
+              <label>&nbsp;</label>
+              <div style="font-size:12px;color:var(--muted);line-height:1.5;">
+                Khi cắt lịch: đồng chí <b>B2</b> được ưu tiên làm "mũ 2",
+                đồng chí <b>H1</b> được ưu tiên nghỉ trước.
+              </div>
+            </div>
+          </div>
+          <div class="two">
+            <div class="form-group">
               <label>Ngày tháng năm sinh</label>
               <input type="date" id="accDob" value="2004-01-01">
             </div>
@@ -301,6 +318,7 @@
               <th>Họ và tên (*)</th>
               <th>Mã số (*)</th>
               <th>Chức vụ</th>
+              <th>Cấp bậc hàm</th>
               <th>Nhóm cắt gác</th>
               <th>Ngày sinh</th>
               <th>Quê quán</th>
@@ -327,7 +345,29 @@
     updateTopBarShared();
     updatePreviewUsername();
     fillRandomPassword();
+    refreshAccRankOptions();
     renderAccountsTable();
+  }
+
+  // ===== CẤP BẬC HÀM =====
+  function fillRankOptions(selectEl, roleType, selected) {
+    if (!selectEl) return;
+    const list = (typeof RANK_OPTIONS !== "undefined" && RANK_OPTIONS[roleType]) || [];
+    const current = selected != null ? selected : selectEl.value;
+    let html = `<option value="">-- Chưa xếp cấp bậc --</option>`;
+    html += list.map(code => `<option value="${code}">${code} – ${RANK_LABELS[code] || code}</option>`).join("");
+    selectEl.innerHTML = html;
+    selectEl.value = list.indexOf(current) >= 0 ? current : "";
+  }
+
+  function refreshAccRankOptions() {
+    const rt = document.getElementById("accRoleType").value;
+    fillRankOptions(document.getElementById("accRank"), rt);
+  }
+
+  function refreshEditRankOptions() {
+    const rt = document.getElementById("editRoleType").value;
+    fillRankOptions(document.getElementById("editRank"), rt);
   }
 
   function onRoleTypeChange() {
@@ -339,6 +379,7 @@
     } else if (rt === "soldier" && posInp.value === "Sĩ quan Đốc gác") {
       posInp.value = "Chiến sĩ nghĩa vụ";
     }
+    refreshAccRankOptions();
   }
 
   function updatePreviewUsername() {
@@ -366,7 +407,7 @@
     if (el) el.value = generateRandomPassword(8);
   }
 
-  function addOrUpdateSingleAccount(fullName, code, roleType, position, password, dob, hometown, customUsername, teamId) {
+  function addOrUpdateSingleAccount(fullName, code, roleType, position, password, dob, hometown, customUsername, teamId, rank) {
     const fn = cleanName(fullName);
     const cd = (code || "").trim();
     if (!fn || !cd) return false; // Họ và tên & Mã số là bắt buộc
@@ -376,6 +417,8 @@
     const pw = (password || "").trim();
     const birth = (dob || "").trim() || "2004-01-01";
     const home = (hometown || "").trim() || "Chưa cập nhật";
+    const rankCode = normalizeRankCode(rank);
+    const rankProvided = rank !== undefined && rank !== null;
 
     if (!S.personnelAccounts) S.personnelAccounts = [];
     const existingIdx = S.personnelAccounts.findIndex(a =>
@@ -397,6 +440,7 @@
         hometown: home,
         active: true
       };
+      if (rankProvided) { if (rankCode) updated.rank = rankCode; else delete updated.rank; }
       if (pw) setAccountPassword(updated, pw);
       else copyCredentialFields(updated, prev);
       S.personnelAccounts[existingIdx] = updated;
@@ -413,9 +457,11 @@
         hometown: home,
         active: true
       };
+      if (rankProvided && rankCode) acc.rank = rankCode;
       setAccountPassword(acc, pw || generateRandomPassword(8));
       S.personnelAccounts.push(acc);
     }
+    if (rankProvided) setPersonRank(fn, rankCode);
     return true;
   }
 
@@ -433,19 +479,21 @@
     const dob = document.getElementById("accDob").value;
     const home = document.getElementById("accHometown").value.trim();
     const uName = document.getElementById("accPreviewUser").value.trim();
+    const rank = document.getElementById("accRank").value;
     let pw = document.getElementById("accPassword").value.trim();
     if (!pw) {
       pw = generateRandomPassword(8);
       document.getElementById("accPassword").value = pw;
     }
 
-    if (addOrUpdateSingleAccount(fn, cd, rt, pos, pw, dob, home, uName, tid)) {
+    if (addOrUpdateSingleAccount(fn, cd, rt, pos, pw, dob, home, uName, tid, rank)) {
       syncRosterStringsFromAccounts();
       saveStorage();
       renderAccountsTable();
       document.getElementById("accFullName").value = "";
       document.getElementById("accCode").value = "";
       document.getElementById("accHometown").value = "";
+      document.getElementById("accRank").value = "";
       document.getElementById("accPassword").value = generateRandomPassword(8);
       updatePreviewUsername();
       alert(`✅ Đã thêm Chiến Sĩ "${formatFullAccountName(fn, cd)}" vào hệ thống!\n🔑 Mật khẩu đăng nhập: ${pw}\n(Vui lòng thông báo cho đồng chí và yêu cầu đổi mật khẩu khi đăng nhập.)`);
@@ -461,6 +509,7 @@
     document.getElementById("editCode").value = acc.code || "";
     document.getElementById("editRoleType").value = acc.roleType || "soldier";
     if (document.getElementById("editTeamId")) document.getElementById("editTeamId").value = acc.teamId || getPersonTeamId(acc.fullName) || 1;
+    fillRankOptions(document.getElementById("editRank"), acc.roleType || "soldier", getPersonRank(acc.fullName));
     document.getElementById("editPosition").value = acc.position || "";
     document.getElementById("editDob").value = acc.dob || "2004-01-01";
     document.getElementById("editHometown").value = acc.hometown || "";
@@ -510,6 +559,11 @@
     const newPw = document.getElementById("editPassword").value.trim();
     if (newPw) setAccountPassword(acc, newPw);
     acc.active = true;
+
+    // Cấp bậc hàm: cập nhật theo hồ sơ và chuyển khóa lưu trữ nếu đổi tên.
+    const newRank = normalizeRankCode(document.getElementById("editRank").value);
+    if (S.ranks && oldClean) delete S.ranks[oldClean.toLowerCase()];
+    setPersonRank(newFn, newRank);
 
     // Đồng bộ tên mới sang toàn bộ lịch gác các ngày & danh sách quân số
     cascadeUpdatePersonnelName(oldLabel, oldClean, newLabel);
@@ -688,7 +742,7 @@
 
     const tbody = document.getElementById("accountsTableBody");
     if (!filtered.length) {
-      tbody.innerHTML = `<tr><td colspan="10" class="empty">Không tìm thấy hồ sơ Chiến Sĩ nào.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="11" class="empty">Không tìm thấy hồ sơ Chiến Sĩ nào.</td></tr>`;
       return;
     }
 
@@ -696,6 +750,10 @@
       const fullLabel = formatFullAccountName(a.fullName, a.code);
       const uName = a.username || fullLabel;
       const teamNo = escHTML(a.teamId || 1);
+      const rank = getPersonRank(a.fullName);
+      const rankCell = rank
+        ? `<span class="rank-tag" title="${escHTML(formatRankFull(rank))}">${escHTML(rank)}</span><br><span style="font-size:11.5px;color:var(--muted);">${escHTML(getRankLabel(rank))}</span>`
+        : `<span style="color:var(--muted);">Chưa xếp</span>`;
       const badge = a.roleType === "officer"
         ? `<span style="background:#e8f5e9;color:#149a16;padding:3px 8px;border-radius:999px;font-weight:bold;font-size:11.5px;">⭐ Đốc gác - Tổ ${teamNo}</span>`
         : `<span style="background:#e3f2fd;color:#1976d2;padding:3px 8px;border-radius:999px;font-weight:bold;font-size:11.5px;">👤 Chiến sĩ - Tổ ${teamNo}</span>`;
@@ -716,6 +774,7 @@
         </td>
         <td><b>${escHTML(a.code)}</b></td>
         <td>${escHTML(a.position || "-")}</td>
+        <td>${rankCell}</td>
         <td>${badge}</td>
         <td>${a.dob ? escHTML(vnFormat(a.dob)) : "Chưa nhập"}</td>
         <td>${escHTML(a.hometown || "Chưa nhập")}</td>
