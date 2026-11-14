@@ -272,7 +272,6 @@
     const username = acc ? (acc.username || formatFullAccountName(cName, code)) : formatFullAccountName(cName, code);
     const dob = acc && acc.dob ? vnFormat(acc.dob) : "Chưa cập nhật";
     const hometown = acc && acc.hometown ? acc.hometown : "Chưa cập nhật";
-    const safeFull = formatFullAccountName(cName, code).replace(/'/g, "\'");
 
     // A. Trạng thái ngày đang kiểm tra (hôm nay): Đang nghỉ hay đi làm, làm ca nào?
     const todayDetails = getPersonDayWorkDetails(dStr, personFull);
