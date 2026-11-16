@@ -171,7 +171,7 @@ returns table (
   username text,
   full_name text,
   code text,
-  position text
+  "position" text
 )
 language sql stable security definer
 set search_path = public
