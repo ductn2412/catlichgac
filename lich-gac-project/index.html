@@ -166,18 +166,14 @@
 
     try {
       if (typeof backendEnabled === "function" && backendEnabled()) {
-        // ---- CHẾ ĐỘ CLOUD: tìm hồ sơ theo tên gõ vào (Họ tên kèm mã số) ----
+        // ---- CHẾ ĐỘ CLOUD: tìm hồ sơ qua RPC (không cần phiên trước), rồi đăng nhập ----
         const client = (typeof backendClient === "function") ? backendClient() : null;
         if (!client) throw new Error("Không khởi tạo được kết nối");
         const cName = cleanName(u).toLowerCase();
-        const { data: profiles, error: pfErr } = await client
-          .from("profiles").select("*").eq("active", true);
-        if (pfErr) throw new Error(pfErr.message);
-        const prof = (profiles || []).find(x =>
-          (x.username || "").toLowerCase() === cName ||
-          (x.full_name || "").toLowerCase() === cName ||
-          ((x.full_name || "") + " (" + (x.code || "") + ")").toLowerCase() === cName.toLowerCase()
-        );
+        const { data: prof, error: pfErr } = await client
+          .rpc("find_profile_by_name", { p_query: cName })
+          .maybeSingle();
+        if (pfErr) throw new Error("Lỗi tra cứu hồ sơ: " + pfErr.message);
         if (!prof) throw new Error("Tài khoản chưa được Chỉ huy thêm vào hệ thống!");
         const profile = await backendSignIn(prof.username, p);
         setCurrentRole("staff");

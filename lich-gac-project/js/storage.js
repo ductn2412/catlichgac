@@ -627,6 +627,11 @@ function loadStorage() {
   readStorageIntoS();
   seedDefaultDataIfEmpty();
   if (migrateLegacyPasswords()) saveStorage();
+  // Chế độ cloud (Supabase): nạp dữ liệu mới nhất từ cloud lên sau khi trang hiển thị,
+  // rồi vẽ lại giao diện. Chưa cấu hình backend thì hàm này tự thoát (chế độ cục bộ).
+  if (typeof backendBootAndSync === "function") {
+    try { backendBootAndSync(); } catch (e) { console.warn("backend boot:", e); }
+  }
 }
 
 // Tab khác vừa ghi dữ liệu: nạp lại vào bộ nhớ và vẽ lại giao diện (không seed/ghi).
@@ -650,6 +655,11 @@ function saveStorage() {
     localStorage.setItem(KEY, JSON.stringify(S));
   } catch (e) {
     console.error("Lỗi khi lưu localStorage:", e);
+  }
+  // Chế độ cloud: gom các lần lưu (debounce ~1.2s) rồi đẩy lên Supabase.
+  // Chưa cấu hình backend, hoặc người dùng không phải Chỉ huy → hàm tự thoát.
+  if (typeof backendQueueSave === "function") {
+    try { backendQueueSave(); } catch (e) { console.warn("backend save:", e); }
   }
 }
 

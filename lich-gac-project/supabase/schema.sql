@@ -161,7 +161,34 @@ create trigger trg_audit_app_state
   for each row execute function public.audit_app_state_change();
 
 -- ---------------------------------------------------------------
--- 7. KÍCH HOẠT REALTIME (tab/máy khác tự nạp lại khi có người lưu)
+-- 7.5. TÌM HỒ SƠ THEO TÊN (cho luồng đăng nhập Chiến sĩ)
+--     Người dùng gõ "Trần Văn Hiệp (CS01)" → hàm trả username tương ứng
+--     để đăng nhập bằng email ảo username@doi3.vn. security definer nên
+--     không cần phiên; KHÔNG trả cột nhạy cảm khác.
+-- ---------------------------------------------------------------
+create or replace function public.find_profile_by_name(p_query text)
+returns table (
+  username text,
+  full_name text,
+  code text,
+  position text
+)
+language sql stable security definer
+set search_path = public
+as $$
+  select p.username, p.full_name, p.code, p.position
+  from public.profiles p
+  where p.active = true
+    and (
+      lower(coalesce(p.username, ''))  = lower(trim(p_query))
+      or lower(coalesce(p.full_name, '')) = lower(trim(p_query))
+      or lower(coalesce(p.full_name, '') || ' (' || coalesce(p.code, '') || ')') = lower(trim(p_query))
+    )
+  limit 1;
+$$;
+
+-- ---------------------------------------------------------------
+-- 8. KÍCH HOẠT REALTIME (tab/máy khác tự nạp lại khi có người lưu)
 --    (phần client đã có sẵn cơ chế storage event — Supabase Realtime
 --     thêm vào sau nếu cần; hiện tại không bắt buộc)
 -- ---------------------------------------------------------------

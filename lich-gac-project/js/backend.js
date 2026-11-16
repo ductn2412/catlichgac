@@ -13,8 +13,8 @@
 
 // ===== 1. CẤU HÌNH (điền sau khi tạo Supabase project — xem docs/BACKEND-SETUP.md) =====
 const BACKEND_CONFIG = {
-  url: "",      // vd: "https://abcdefghijk.supabase.co"
-  anonKey: "",  // anon/public key (Settings → API → anon public)
+  url: "https://zhcailtiwjaiomayrmed.supabase.co",      // Project URL / API URL (không kèm /rest/v1/)
+  anonKey: "sb_publishable_d_uHUEPWb6KCrgNqS-GWkw_JJOY5w1g", // anon/publishable key (an toàn để public)
 };
 
 // Email ảo dùng cho Supabase Auth (username của đồng chí vẫn như cũ)
@@ -109,7 +109,7 @@ async function backendLoadState() {
     // Mất mạng / lỗi khác → dùng cache gần nhất
     const cached = backendReadCache();
     if (cached) {
-      return { ok: true, data: cached.data, version: cached.version, fromCache: true, offline: true };
+      return { ok: true, data: cached.data, version: cached.version, fromCache: true, offline: true, savedAt: cached.savedAt };
     }
     return { ok: false, reason: String(e && e.message ? e.message : e) };
   }
@@ -117,14 +117,15 @@ async function backendLoadState() {
 
 // ===== 4. LƯU TRẠNG THÁI (chỉ Chỉ huy; có chống ghi đè theo version) =====
 // Trả về { ok: true, version } hoặc { ok: false, conflict: true, reason }
-async function backendSaveState(stateObj) {
+// versionOverride (tùy chọn): dùng khi di trú lần đầu (biết chính xác version của dòng trống).
+async function backendSaveState(stateObj, versionOverride) {
   const client = backendClient();
   if (!client) return { ok: false, reason: "disabled" };
 
   try {
     const { data, error } = await client.rpc("update_app_state", {
       p_data: stateObj,
-      p_version: _backendVersion,
+      p_version: versionOverride != null ? versionOverride : _backendVersion,
     });
     if (error) {
       const conflict = String(error.message || "").indexOf("CONFLICT") >= 0;
@@ -175,7 +176,8 @@ async function backendMigrateLocalState() {
     return { ok: false, reason: "local-không-có-dữ-liệu" };
   }
 
-  const res = await backendSaveState(localS);
+  // Dòng trống có version = 1 (schema default) — truyền tường minh để RPC khớp
+  const res = await backendSaveState(localS, row ? row.version : 1);
   return res;
 }
 
@@ -237,4 +239,131 @@ function backendSubscribeRealtime(onChange) {
     console.warn("Realtime không khả dụng:", e);
     return null;
   }
+}
+
+/* =====================================================================
+   10. KHỐI ĐỒNG BỘ — nối chế độ cloud vào vòng đời của app
+   =====================================================================
+   - loadStorage() → backendBootAndSync(): nạp dữ liệu mới nhất từ cloud,
+     đè lên bản local (cloud là nguồn chính thức), rồi vẽ lại giao diện.
+   - saveStorage() → backendQueueSave(): gộp (debounce ~1.2s) rồi đẩy lên
+     cloud, tránh gọi API mỗi ký tự gõ.
+   - Chỉ Chỉ huy được lưu (RLS chặn sẵn ở DB — bên này chỉ tránh call vô ích).
+   ===================================================================== */
+
+let _backendBooted = false;
+let _backendSaveTimer = null;
+let _backendSaving = false;
+let _backendDirtyAfterSave = false;
+
+// Được loadStorage() gọi (mỗi trang gọi loadStorage đúng 1 lần lúc mở)
+function backendBootAndSync() {
+  if (_backendBooted) return;
+  _backendBooted = true;
+  if (!backendEnabled()) return;
+
+  backendLoadState().then(res => {
+    if (res.ok) {
+      if (res.offline) {
+        backendShowBanner(
+          "📴 Không kết nối được server — đang xem bản lịch lưu gần nhất (" +
+          backendShortTime(res.savedAt) + "). Thay đổi tạm thời chỉ lưu tại máy này.",
+          "warn"
+        );
+        return; // offline: không đè dữ liệu máy
+      }
+      // Cloud là nguồn chính thức: áp dữ liệu mới nhất rồi vẽ lại
+      try {
+        applyStateFromParsed(res.data);
+        if (typeof reloadFromStorage === "function") reloadFromStorage();
+      } catch (e) {
+        console.error("Lỗi áp dữ liệu cloud:", e);
+      }
+    }
+    // res.reason === "empty" → cloud trống: vẫn chạy dữ liệu cục bộ,
+    // Chỉ huy đăng nhập lần đầu sẽ được hỏi di trú (xem index.html).
+  });
+
+  // Máy khác lưu → nạp lại sau 1 nhịp ngắn (gom nhiều sự kiện liên tiếp)
+  backendSubscribeRealtime(() => {
+    setTimeout(() => { backendApplyRemoteState(); }, 500);
+  });
+}
+
+// Được saveStorage() gọi sau mỗi lần ghi localStorage
+function backendQueueSave() {
+  if (!backendEnabled()) return;
+  if (typeof getCurrentRole === "function" && getCurrentRole() !== "commander") return; // soldier không lưu cloud
+  if (_backendSaveTimer) clearTimeout(_backendSaveTimer);
+  _backendSaveTimer = setTimeout(backendFlushSave, 1200);
+}
+
+async function backendFlushSave() {
+  _backendSaveTimer = null;
+  if (_backendSaving) { _backendDirtyAfterSave = true; return; }
+  _backendSaving = true;
+  try {
+    const res = await backendSaveState(S);
+    if (!res.ok) {
+      if (res.conflict) {
+        backendShowBanner(
+          "⚠️ Máy khác vừa lưu dữ liệu mới hơn. Đang nạp bản mới nhất — thay đổi vừa rồi của máy này chưa lên cloud, hãy kiểm tra lại rồi lưu thêm lần nữa.",
+          "warn"
+        );
+        await backendApplyRemoteState();
+      } else if (String(res.reason || "").indexOf("FORBIDDEN") >= 0) {
+        backendShowBanner("⚠️ Tài khoản hiện tại không có quyền lưu dữ liệu lên cloud (chỉ Chỉ huy).", "warn");
+      } else {
+        backendShowBanner("⚠️ Không lưu được lên cloud: " + (res.reason || "lỗi mạng") + " — dữ liệu vẫn an toàn tại máy này.", "bad");
+      }
+    }
+  } catch (e) {
+    backendShowBanner("⚠️ Lỗi lưu cloud: " + e, "bad");
+  } finally {
+    _backendSaving = false;
+    if (_backendDirtyAfterSave) {
+      _backendDirtyAfterSave = false;
+      backendQueueSave();
+    }
+  }
+}
+
+// Nạp bản mới nhất từ cloud → áp vào S → vẽ lại giao diện của trang hiện tại
+async function backendApplyRemoteState() {
+  const res = await backendLoadState();
+  if (!res.ok) return;
+  try {
+    applyStateFromParsed(res.data);
+    if (typeof reloadFromStorage === "function") reloadFromStorage();
+    else if (typeof refresh === "function") refresh();
+  } catch (e) {
+    console.error("Lỗi nạp dữ liệu từ cloud:", e);
+  }
+}
+
+// ===== 11. BANNER THÔNG BÁO (nổi ở đáy màn hình mọi trang) =====
+function backendShowBanner(message, kind) {
+  if (typeof document === "undefined") return;
+  try {
+    let el = document.getElementById("backendBanner");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "backendBanner";
+      el.style.cssText =
+        "position:fixed;left:0;right:0;bottom:0;z-index:99998;padding:10px 16px;font-size:13.5px;" +
+        "font-weight:600;color:#fff;box-shadow:0 -2px 8px rgba(0,0,0,.25);white-space:pre-line;";
+      document.body.appendChild(el);
+    }
+    el.style.background = kind === "bad" ? "#b71c1c" : "#e65100";
+    el.textContent = message;
+    // Tự ẩn sau 12 giây với banner cảnh báo nhẹ
+    if (kind !== "bad") {
+      clearTimeout(el._hideTimer);
+      el._hideTimer = setTimeout(() => { if (el.parentNode) el.parentNode.removeChild(el); }, 12000);
+    }
+  } catch (e) { /* trang chưa sẵn sàng DOM */ }
+}
+
+function backendShortTime(iso) {
+  try { return new Date(iso).toLocaleTimeString("vi-VN"); } catch (e) { return "?"; }
 }
