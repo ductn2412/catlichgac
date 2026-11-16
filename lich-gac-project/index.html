@@ -72,6 +72,8 @@
 </div>
 
 <script src="js/config.js"></script>
+<script src="vendor/supabase.js"></script>
+<script src="js/backend.js"></script>
 <script src="js/storage.js"></script>
 <script>
   loadStorage();
@@ -111,34 +113,92 @@
     document.getElementById("role-buttons").style.display = "grid";
   }
 
-  function handleCommanderLogin(ev) {
+  async function handleCommanderLogin(ev) {
     ev.preventDefault();
     const u = (document.getElementById("cmdUser").value || "").trim().toLowerCase();
     const p = (document.getElementById("cmdPass").value || "").trim();
-    const accs = S.accounts || DEFAULT_COMMANDER_ACCOUNTS;
-    if (accs[u] && verifyPasswordRecord(String(accs[u]), p)) {
-      setCurrentRole("commander");
-      setCurrentUserLabel(u.toUpperCase());
-      window.location.href = "dashboard.html";
-    } else {
-      document.getElementById("loginError").textContent = "❌ Sai tài khoản hoặc mật khẩu Chỉ huy!";
+    const errEl = document.getElementById("loginError");
+    errEl.textContent = "Đang kiểm tra...";
+
+    try {
+      if (typeof backendEnabled === "function" && backendEnabled()) {
+        // ---- CHẾ ĐỘ CLOUD: đăng nhập qua Supabase Auth ----
+        const profile = await backendSignIn(u, p);
+        if (profile.role !== "commander") {
+          errEl.textContent = "Tài khoản này không có quyền Chỉ huy!";
+          return;
+        }
+        setCurrentRole("commander");
+        setCurrentUserLabel((profile.username || u).toUpperCase());
+
+        // Lần đầu đưa dữ liệu lên cloud: nếu cloud trống → di trú dữ liệu cục bộ
+        try {
+          const mig = await backendMigrateLocalState();
+          if (mig.ok) {
+            alert("✅ Đã di trú toàn bộ dữ liệu lịch cục bộ lên cloud. Từ giờ mọi máy đều dùng chung dữ liệu này.");
+          }
+        } catch (e) { /* không chặn đăng nhập */ }
+
+        window.location.href = "dashboard.html";
+        return;
+      }
+
+      // ---- CHẾ ĐỘ CỤC BỘ (chưa cấu hình backend) ----
+      const accs = S.accounts || DEFAULT_COMMANDER_ACCOUNTS;
+      if (accs[u] && verifyPasswordRecord(String(accs[u]), p)) {
+        setCurrentRole("commander");
+        setCurrentUserLabel(u.toUpperCase());
+        window.location.href = "dashboard.html";
+      } else {
+        errEl.textContent = "❌ Sai tài khoản hoặc mật khẩu Chỉ huy!";
+      }
+    } catch (e) {
+      errEl.textContent = "❌ " + (e && e.message ? e.message : "Lỗi đăng nhập");
     }
   }
 
-  function handleSoldierLogin(ev) {
+  async function handleSoldierLogin(ev) {
     ev.preventDefault();
     const u = (document.getElementById("solUser").value || "").trim();
     const p = (document.getElementById("solPass").value || "").trim();
+    const errEl = document.getElementById("solLoginError");
+    errEl.textContent = "Đang kiểm tra...";
 
-    const matchedAcc = authenticateSoldierLogin(u, p);
-    if (matchedAcc) {
-      const fullLabel = formatFullAccountName(matchedAcc.fullName, matchedAcc.code);
-      setCurrentRole("staff");
-      setCurrentUserLabel(`${fullLabel} - ${matchedAcc.position || "Chiến sĩ"}`);
-      window.location.href = "lich-gac.html";
-    } else {
-      document.getElementById("solLoginError").textContent =
-        "❌ Tài khoản chưa được Chỉ huy thêm vào hệ thống hoặc sai tên kèm mã số / mật khẩu!";
+    try {
+      if (typeof backendEnabled === "function" && backendEnabled()) {
+        // ---- CHẾ ĐỘ CLOUD: tìm hồ sơ theo tên gõ vào (Họ tên kèm mã số) ----
+        const client = (typeof backendClient === "function") ? backendClient() : null;
+        if (!client) throw new Error("Không khởi tạo được kết nối");
+        const cName = cleanName(u).toLowerCase();
+        const { data: profiles, error: pfErr } = await client
+          .from("profiles").select("*").eq("active", true);
+        if (pfErr) throw new Error(pfErr.message);
+        const prof = (profiles || []).find(x =>
+          (x.username || "").toLowerCase() === cName ||
+          (x.full_name || "").toLowerCase() === cName ||
+          ((x.full_name || "") + " (" + (x.code || "") + ")").toLowerCase() === cName.toLowerCase()
+        );
+        if (!prof) throw new Error("Tài khoản chưa được Chỉ huy thêm vào hệ thống!");
+        const profile = await backendSignIn(prof.username, p);
+        setCurrentRole("staff");
+        setCurrentUserLabel(`${profile.full_name || prof.full_name} (${prof.code || ""}) - ${prof.position || "Chiến sĩ"}`);
+        window.location.href = "lich-gac.html";
+        return;
+      }
+
+      // ---- CHẾ ĐỘ CỤC BỘ ----
+      const matchedAcc = authenticateSoldierLogin(u, p);
+      if (matchedAcc) {
+        const fullLabel = formatFullAccountName(matchedAcc.fullName, matchedAcc.code);
+        setCurrentRole("staff");
+        setCurrentUserLabel(`${fullLabel} - ${matchedAcc.position || "Chiến sĩ"}`);
+        window.location.href = "lich-gac.html";
+      } else {
+        errEl.textContent =
+          "❌ Tài khoản chưa được Chỉ huy thêm vào hệ thống hoặc sai tên kèm mã số / mật khẩu!";
+      }
+    } catch (e) {
+      errEl.textContent = "❌ " + (e && e.message ? e.message : "Lỗi đăng nhập");
     }
   }
 
