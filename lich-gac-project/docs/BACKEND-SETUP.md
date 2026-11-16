@@ -69,8 +69,19 @@ const BACKEND_CONFIG = {
 };
 ```
 
-**Lần đầu đăng nhập Chỉ huy sau khi điền key:** hệ thống tự hỏi di trú toàn bộ
-dữ liệu lịch cục bộ (localStorage cũ) lên cloud — bấm OK là xong.
+**Lần đầu đăng nhập Chỉ huy sau khi điền key** — hệ thống sẽ tự làm 1 việc gọi
+là "di trú dữ liệu" (chuyển kho lần đầu):
+
+1. Hệ thống kiểm tra Supabase còn trống lịch hay không.
+   - Cloud đã có sẵn lịch → **bỏ qua, không hỏi gì** (không bao giờ ghi đè nhầm).
+   - Cloud trống → hiện hộp thoại hỏi bro có đồng ý upload không.
+2. Bro bấm OK → toàn bộ lịch/biên chế/tài khoản đang có trong localStorage
+   của máy bro được đẩy lên Supabase.
+3. Từ đó mọi máy đăng nhập đều thấy đúng dữ liệu này — máy bro không còn là
+   nơi lưu chính nữa, chỉ còn là bản cache phòng mất mạng.
+
+⚠️ Di trú chỉ chạy đúng 1 lần và chỉ khi đăng nhập bằng Chỉ huy, tại máy
+**có dữ liệu lịch mới nhất** (thường là máy bro đang dùng hằng ngày).
 
 ## BƯỚC 6 — Deploy Edge Functions (quản lý tài khoản) (~10 phút)
 
