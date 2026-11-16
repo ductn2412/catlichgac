@@ -39,6 +39,56 @@ function getChronoIndex(rowIdx) {
   return slotIdx * 4 + caIdx;
 }
 
+// ===== LƯU LỊCH THẬT (nút "💾 Lưu lịch" cạnh nút Cắt lịch ngày mai) =====
+// Bấm: dữ liệu lịch hiện tại được COMMIT — tính cho chấm công, thống kê và
+// đồng bộ tới mọi máy ngay lập tức (trước đó các chỉnh sửa chỉ còn tại máy).
+async function saveScheduleNow() {
+  if (getCurrentRole() !== "commander") {
+    alert("Chỉ có Chỉ huy / Trưởng ban mới được lưu lịch!");
+    return;
+  }
+  const msgEl = document.getElementById("saveMsg");
+  saveStorage(); // ghi tại máy (nguồn dữ liệu cho chấm công trên máy này)
+
+  let ok = true, note = "";
+  if (typeof backendEnabled === "function" && backendEnabled()) {
+    const res = await backendSaveNow();
+    ok = !!(res && res.ok);
+    if (res && res.queued) note = " (đang đẩy lên cloud...)";
+    else if (res && res.conflict) note = " — máy khác vừa lưu trước, hệ thống đã nạp bản mới nhất, hãy kiểm tra rồi bấm Lưu lịch thêm lần nữa";
+    else if (!ok) note = " — kiểm tra mạng rồi thử lại (dữ liệu vẫn an toàn tại máy này)";
+  }
+
+  if (msgEl) {
+    msgEl.textContent = ok
+      ? `✅ Đã lưu lịch ${new Date().toLocaleTimeString("vi-VN")}${note} — lịch này được tính cho chấm công, thống kê & đồng bộ mọi máy`
+      : `⚠️ Chưa lưu được lên cloud${note}`;
+    msgEl.style.color = ok ? "var(--primary-green)" : "#b71c1c";
+    clearTimeout(msgEl._t);
+    msgEl._t = setTimeout(() => { msgEl.textContent = ""; }, 8000);
+  }
+  updateSaveBadge();
+}
+
+// Chấm đỏ trên nút Lưu lịch khi còn thay đổi chưa commit lên cloud
+function updateSaveBadge() {
+  const btn = document.getElementById("saveSchedule");
+  if (!btn) return;
+  let dirty = false;
+  try { dirty = typeof backendHeldDirtyState === "function" && backendHeldDirtyState().dirty; } catch (e) {}
+  btn.textContent = dirty ? "💾 Lưu lịch ●" : "💾 Lưu lịch";
+  btn.title = dirty ? "Có thay đổi chưa lưu lên cloud — bấm để lưu" : "Lưu lịch hiện tại lên hệ thống";
+}
+
+// Các thao tác tạo lịch (cắt ngày/tuần/tháng, xác nhận vắng mặt) là hành động
+// COMMIT rõ ràng — đẩy lên cloud ngay sau khi xong.
+function commitScheduleToCloud() {
+  if (typeof backendSaveNow === "function") {
+    try { backendSaveNow(); } catch (e) {}
+  }
+  updateSaveBadge();
+}
+
 function hasConsecutiveShift(day, person, cellIndex) {
   const cName = cleanName(person);
   if (!cName) return false;
@@ -1340,6 +1390,7 @@ function generateSchedule() {
     msg += `\n⚠️ Có ${built.unfilled} khung giờ ban ngày chưa bố trí được người thay (thiếu quân số không học buổi sáng).`;
   }
   alert(msg);
+  commitScheduleToCloud();
 }
 
 function generateWeekSchedule() {
@@ -1391,6 +1442,7 @@ function generateWeekSchedule() {
     msg += `\n⚠️ Có ${totalUnfilled} khung giờ ban ngày chưa bố trí được người thay (thiếu quân số không học buổi sáng).`;
   }
   alert(msg);
+  commitScheduleToCloud();
 }
 
 // Cắt lịch cả tháng (từ ngày mai đến hết tháng hiện tại).
@@ -1452,6 +1504,7 @@ function generateMonthSchedule() {
     msg += `\n⚠️ Có ${totalUnfilled} khung giờ ban ngày chưa bố trí được người thay (thiếu quân số không học buổi sáng).`;
   }
   alert(msg);
+  commitScheduleToCloud();
 }
 
 function populateTeamTextareas() {
@@ -2096,6 +2149,7 @@ function confirmAbsenceEdits() {
     (affected.size ? ` cho ${affected.size} đồng chí` : "") +
     (rebuilt || changedDays ? `, cập nhật ${Math.max(rebuilt, changedDays)} ngày đã cắt sẵn` : "") +
     `. Bây giờ có thể cắt lịch.`);
+  commitScheduleToCloud();
 }
 
 function applyMultiDayAbsence() {  if (getCurrentRole() !== "commander") {
@@ -2147,6 +2201,20 @@ function applyMultiDayAbsence() {  if (getCurrentRole() !== "commander") {
 function initUI() {
   loadStorage();
   if (!requireRole()) return;
+
+  // Chế độ soạn thảo lịch: chỉnh sửa chỉ còn tại máy cho tới khi bấm "💾 Lưu lịch".
+  // Giúp máy khác không thấy lịch dở dang; bấm Lưu lịch (hoặc rời trang) mới lên cloud.
+  if (typeof backendHoldCloudSave === "function") {
+    try {
+      backendHoldCloudSave(true);
+      window.onBackendHeldDirty = updateSaveBadge;
+      window.onBackendFlushed = updateSaveBadge;
+      // Lưu chuẩn hóa lúc boot (không phải chỉnh sửa của người dùng) → đẩy lên ngay,
+      // để nút Lưu lịch bắt đầu ở trạng thái sạch và chỉ nháy ● khi người dùng sửa.
+      if (backendHeldDirtyState().dirty) backendSaveNow();
+      updateSaveBadge();
+    } catch (e) {}
+  }
 
   const catsContainer = document.getElementById("cats");
   catsContainer.innerHTML = "";

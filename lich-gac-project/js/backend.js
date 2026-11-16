@@ -259,6 +259,12 @@ let _backendDirtyAfterSave = false;
 // Cờ chặn lưu phản hồi: khi áp dữ liệu cloud về máy (applyStateFromParsed tự gọi
 // saveStorage), KHÔNG được đẩy ngược lên cloud — tránh vòng lặp lưu vô hạn.
 let _backendApplyingRemote = false;
+// Chế độ soạn thảo (draft): các trang chỉnh sửa lịch gọi backendHoldCloudSave(true)
+// để GIỮ thay đổi tại máy, chỉ đẩy lên cloud khi người dùng bấm "💾 Lưu lịch"
+// (hoặc rời trang). Giúp máy khác không thấy lịch "dở dang" đang sửa dở.
+let _backendHoldSave = false;
+let _backendHeldDirty = false;
+let _backendHoldToken = null;
 
 // Được loadStorage() gọi (mỗi trang gọi loadStorage đúng 1 lần lúc mở)
 function backendBootAndSync() {
@@ -291,8 +297,17 @@ function backendBootAndSync() {
     // Chỉ huy đăng nhập lần đầu sẽ được hỏi di trú (xem index.html).
   });
 
-  // Máy khác lưu → nạp lại sau 1 nhịp ngắn (gom nhiều sự kiện liên tiếp)
+  // Máy khác lưu → nạp lại sau 1 nhịp ngắn (gom nhiều sự kiện liên tiếp).
+  // Đang ở chế độ soạn thảo thì KHÔNG nạp đè (tránh xóa mất lịch đang sửa dở),
+  // chỉ báo hiệu để nút "💾 Lưu lịch" hiện chấm đỏ — khi bấm lưu sẽ tự xử lý conflict.
   backendSubscribeRealtime(() => {
+    if (_backendHoldSave) {
+      _backendHeldDirty = true;
+      if (typeof window !== "undefined" && typeof window.onBackendHeldDirty === "function") {
+        try { window.onBackendHeldDirty(); } catch (e) {}
+      }
+      return;
+    }
     setTimeout(() => { backendApplyRemoteState(); }, 500);
   });
 }
@@ -301,6 +316,14 @@ function backendBootAndSync() {
 function backendQueueSave() {
   if (!backendEnabled()) return;
   if (_backendApplyingRemote) return; // đang áp dữ liệu cloud về máy — không đẩy ngược
+  // Chế độ soạn thảo: chỉ đánh dấu "có thay đổi", chờ người dùng bấm Lưu lịch
+  if (_backendHoldSave) {
+    _backendHeldDirty = true;
+    if (typeof window !== "undefined" && typeof window.onBackendHeldDirty === "function") {
+      try { window.onBackendHeldDirty(); } catch (e) {}
+    }
+    return;
+  }
   if (typeof getCurrentRole === "function" && getCurrentRole() !== "commander") return; // soldier không lưu cloud
   if (_backendSaveTimer) clearTimeout(_backendSaveTimer);
   _backendSaveTimer = setTimeout(backendFlushSave, 1200);
@@ -308,10 +331,11 @@ function backendQueueSave() {
 
 async function backendFlushSave() {
   _backendSaveTimer = null;
-  if (_backendSaving) { _backendDirtyAfterSave = true; return; }
+  if (_backendSaving) { _backendDirtyAfterSave = true; return null; }
   _backendSaving = true;
+  let res = null;
   try {
-    const res = await backendSaveState(S);
+    res = await backendSaveState(S);
     if (!res.ok) {
       if (res.conflict) {
         backendShowBanner(
@@ -326,14 +350,19 @@ async function backendFlushSave() {
       }
     }
   } catch (e) {
+    res = { ok: false, reason: String(e && e.message ? e.message : e) };
     backendShowBanner("⚠️ Lỗi lưu cloud: " + e, "bad");
   } finally {
     _backendSaving = false;
+    if (typeof window !== "undefined" && typeof window.onBackendFlushed === "function") {
+      try { window.onBackendFlushed(res); } catch (e) {}
+    }
     if (_backendDirtyAfterSave) {
       _backendDirtyAfterSave = false;
       backendQueueSave();
     }
   }
+  return res;
 }
 
 // Nạp bản mới nhất từ cloud → áp vào S → vẽ lại giao diện của trang hiện tại
@@ -377,4 +406,77 @@ function backendShowBanner(message, kind) {
 
 function backendShortTime(iso) {
   try { return new Date(iso).toLocaleTimeString("vi-VN"); } catch (e) { return "?"; }
+}
+
+/* =====================================================================
+   12. CHẾ ĐỘ SOẠN THẢO — "💾 Lưu lịch" là khoảnh khắc COMMIT
+   =====================================================================
+   - Trang Quản lý lập lịch gọi backendHoldCloudSave(true) khi mở: mọi
+     chỉnh sửa chỉ còn tại máy (localStorage), máy khác KHÔNG thấy.
+   - Bấm "💾 Lưu lịch" → backendSaveNow(): đẩy ngay lên cloud → từ đó
+     lịch được tính cho chấm công & đồng bộ tới mọi máy.
+   - Rời trang mà chưa bấm → tự đẩy lần cuối (fallback, không mất dữ liệu).
+   ===================================================================== */
+
+// Bật/tắt chế độ giữ thay đổi tại máy
+function backendHoldCloudSave(hold) {
+  if (!backendEnabled()) return;
+  _backendHoldSave = !!hold;
+  if (hold) {
+    // Hủy hẹn giờ lưu đang chờ (từ lúc boot) — chuyển thành "chờ bấm Lưu lịch"
+    if (_backendSaveTimer) {
+      clearTimeout(_backendSaveTimer);
+      _backendSaveTimer = null;
+      _backendHeldDirty = true;
+    }
+    // Giữ sẵn token để flush qua keepalive khi rời trang (fetch bất đồng bộ không kịp)
+    const client = backendClient();
+    client.auth.getSession().then(({ data: sess }) => {
+      _backendHoldToken = sess && sess.session ? sess.session.access_token : null;
+    }).catch(() => {});
+  } else if (_backendHeldDirty) {
+    _backendHeldDirty = false;
+    backendQueueSave(); // nhả giữ → đẩy bình thường (debounce 1.2s)
+  }
+}
+
+// Trạng thái hiện tại (nút "💾 Lưu lịch" dùng để hiện chấm đỏ báo có thay đổi)
+function backendHeldDirtyState() {
+  return { hold: _backendHoldSave, dirty: _backendHeldDirty || _backendSaveTimer != null };
+}
+
+// COMMIT NGAY: hủy hẹn giờ + đẩy lên cloud ngay lập tức, sau đó TỌ ĐỘNG BẬT LẠI
+// chế độ giữ — các chỉnh sửa tiếp theo lại là bản soạn thảo chờ lần "Lưu lịch" sau.
+// Trả về { ok, ... } (hoặc { ok: true, local: true } khi chưa cấu hình backend).
+async function backendSaveNow() {
+  if (!backendEnabled()) return { ok: true, local: true };
+  _backendHoldSave = false;
+  _backendHeldDirty = false;
+  if (_backendSaveTimer) { clearTimeout(_backendSaveTimer); _backendSaveTimer = null; }
+  if (_backendSaving) { _backendDirtyAfterSave = true; return { ok: true, queued: true }; }
+  const res = await backendFlushSave();
+  if (!_backendHeldDirty) _backendHoldSave = true; // re-arm: tiếp tục soạn thảo
+  return res || { ok: true };
+}
+
+// Fallback an toàn: rời trang mà còn thay đổi chưa lưu → đẩy 1 lần bằng
+// fetch keepalive (sống sót cả khi tab đã đóng).
+if (typeof window !== "undefined" && window.addEventListener) {
+  window.addEventListener("beforeunload", function () {
+    if (!_backendHoldSave || !_backendHeldDirty || !sb || !_backendHoldToken) return;
+    _backendHoldSave = false;
+    _backendHeldDirty = false;
+    try {
+      fetch(BACKEND_CONFIG.url + "/rest/v1/rpc/update_app_state", {
+        method: "POST",
+        keepalive: true,
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": BACKEND_CONFIG.anonKey,
+          "Authorization": "Bearer " + _backendHoldToken,
+        },
+        body: JSON.stringify({ p_data: S, p_version: _backendVersion }),
+      });
+    } catch (e) { /* bỏ qua — dữ liệu vẫn còn tại máy */ }
+  });
 }
