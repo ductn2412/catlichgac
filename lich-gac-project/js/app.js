@@ -458,8 +458,11 @@ function buildScheduleTableDOM() {
           refresh();
         };
 
-        inp.addEventListener("input", onSingleInput);
-        inp.addEventListener("change", onSingleInput);
+        // "input" = đang gõ từng ký tự: chỉ lưu + tô đỏ, KHÔNG bật hộp thoại báo đỏ.
+        // "change"/"blur" = đã kết thúc việc chọn tên: nếu chọn sai mới hiện hộp thoại.
+        inp.addEventListener("input", () => { suppressRedAlertWhileTyping(); onSingleInput(); });
+        inp.addEventListener("change", () => { onSingleInput(); showRedAlertAfterTyping(); });
+        inp.addEventListener("blur", showRedAlertAfterTyping);
         inp.addEventListener("mouseenter", (ev) => {
           if ((inp.value || "").trim()) showPersonnelHoverCard(ev, inp.value);
         });
@@ -546,8 +549,9 @@ function buildScheduleTableDOM() {
             refresh();
           };
 
-          inp.addEventListener("input", onSplitInput);
-          inp.addEventListener("change", onSplitInput);
+          inp.addEventListener("input", () => { suppressRedAlertWhileTyping(); onSplitInput(); });
+          inp.addEventListener("change", () => { onSplitInput(); showRedAlertAfterTyping(); });
+          inp.addEventListener("blur", showRedAlertAfterTyping);
           inp.addEventListener("mouseenter", (ev) => {
             if ((inp.value || "").trim()) showPersonnelHoverCard(ev, inp.value);
           });
@@ -2264,9 +2268,23 @@ function renderChips(el, arr, emptyText) {
 
 // ===== ALERT BÁO ĐỎ =====
 // Hiển thị hộp thoại cảnh báo khi phát hiện lỗi đỏ (lịch sai, vắng vẫn xếp gác,
-// trùng ca, lẫn Tổ, nối ngày...). Hộp thoại tồn tại cho tới khi người dùng bấm OK.
+// trùng ca, nối ngày...). Hộp thoại tồn tại cho tới khi người dùng bấm OK.
 // Cùng một nhóm lỗi chỉ hiện một lần để không chặn thao tác liên tục.
 let lastRedAlertSignature = "";
+
+// Khi Chỉ huy đang GÕ tên vào ô lịch (sự kiện "input" chạy từng ký tự), KHÔNG hiện
+// hộp thoại báo đỏ — chỉ tô đỏ ô và hiển thị dòng cảnh báo trong khung #warn.
+// Hộp thoại chỉ xuất hiện khi việc chọn người đã kết thúc (sự kiện blur/change):
+// nếu tên chọn sai thì báo, gõ đúng thì im lặng.
+let redAlertSuppressed = false;
+
+function suppressRedAlertWhileTyping() { redAlertSuppressed = true; }
+
+function showRedAlertAfterTyping() {
+  if (!redAlertSuppressed) return;
+  redAlertSuppressed = false;
+  refresh();
+}
 
 function showRedAlert(warnings) {
   const reds = (warnings || []).filter(w => String(w).indexOf("❌") >= 0);
@@ -2276,6 +2294,8 @@ function showRedAlert(warnings) {
   }
   const signature = reds.map(w => String(w).split(":")[0]).join("\n");
   if (signature === lastRedAlertSignature) return;
+  // Đang gõ dở tên trong ô lịch: chỉ tô đỏ, chưa bật hộp thoại.
+  if (redAlertSuppressed) return;
   lastRedAlertSignature = signature;
   // Trì hoãn 1 nhịp để DOM kịp cập nhật trước khi alert chặn giao diện.
   setTimeout(() => {
@@ -2330,33 +2350,13 @@ function refresh() {
     if (badgeEl) badgeEl.textContent = `Tổ ${detectedTeams[ca] || (ca + 1)}`;
   }
 
-  const absIn = [], wrong = [], consecutiveErrors = [], crossTeamErrors = [];
+  const absIn = [], wrong = [], consecutiveErrors = [], crossTeamNotes = [];
   const workingOfficers = {}, workingSoldiers = {}, allWorking = {};
 
   // ===== Thông tin cảnh báo & mượn quân số của ngày đang xem =====
   const borrowRules = getBorrowRules();
   const nightSet = getNightOnlySet();
   const dayBorrowed = Array.isArray(day.borrowed) ? day.borrowed : [];
-  const borrowedKey = {};
-  dayBorrowed.forEach(b => {
-    if (!b || !b.person) return;
-    borrowedKey[cleanName(b.person).toLowerCase()] = true;
-  });
-  // Tổ nào đang vắng quá ngưỡng chiến sĩ
-  const shortTeamCa = {};
-  for (let ca = 0; ca < 4; ca++) {
-    const tid = detectedTeams[ca] || (ca + 1);
-    shortTeamCa[ca] = countAbsentSoldiersOfTeam(tid, curDate) > borrowRules.maxAbsentSoldiers;
-  }
-  const isBorrowAllowed = (n, caIdx) => {
-    if (!n) return false;
-    if (shortTeamCa[caIdx]) return true;
-    const cName = cleanName(n).toLowerCase();
-    return dayBorrowed.some(b =>
-      b && b.person && b.ca === caIdx + 1 &&
-      cleanName(b.person).toLowerCase() === cName
-    );
-  };
 
   for (let k = 0; k < 60; k++) {
     const n = (day.cells[k] || "").trim();
@@ -2367,7 +2367,8 @@ function refresh() {
 
     let wg = false;
     let isCon = false;
-    let isWrongTeam = false;
+    let isCrossTeam = false;
+    let personTeamId = null;
 
     if (n) {
       allWorking[cName] = 1;
@@ -2386,14 +2387,12 @@ function refresh() {
         }
       }
 
-      const personTeamId = getPersonTeamId(n);
+      // Chỉ huy được phép điều động người từ Tổ khác sang làm (lấy người khẩn cấp):
+      // đây KHÔNG còn là lỗi đỏ mà chỉ là cảnh báo vàng, ô được viền cam kèm ghi chú.
+      personTeamId = getPersonTeamId(n);
       if (personTeamId && expectedTeamId && personTeamId !== expectedTeamId) {
-        if (isBorrowAllowed(n, caIdx)) {
-          // Người được mượn / giao nhiệm vụ từ Tổ khác: không tính là lỗi đỏ
-        } else {
-          isWrongTeam = true;
-          crossTeamErrors.push(`${n} thuộc Tổ ${personTeamId} nhưng đang xếp vào Ca ${caIdx + 1} của Tổ ${expectedTeamId}`);
-        }
+        isCrossTeam = true;
+        crossTeamNotes.push(`${n} (Tổ ${personTeamId} → Ca ${caIdx + 1} của Tổ ${expectedTeamId})`);
       }
 
       if (hasConsecutiveShift(day, n, k)) {
@@ -2402,14 +2401,16 @@ function refresh() {
       }
     }
 
-    const isBad = !!(n && (ab[cName] || ab[n] || wg || isCon || isWrongTeam));
+    const isBad = !!(n && (ab[cName] || ab[n] || wg || isCon));
     if (IN[k]) {
       IN[k].classList.toggle("bad", isBad);
       const mark = day.borrowMarks && day.borrowMarks[k];
-      IN[k].classList.toggle("borrowed", !!mark);
-      if (mark) {
+      IN[k].classList.toggle("borrowed", !!mark || isCrossTeam);
+      if (isCrossTeam) {
+        IN[k].title = `Điều động từ Tổ ${personTeamId} sang làm cho Tổ ${expectedTeamId} (theo lệnh Chỉ huy)`;
+      } else if (mark) {
         IN[k].title = `Mượn từ Tổ ${mark.fromTeam}${mark.reason ? " — " + mark.reason : ""}`;
-      } else if (IN[k].title && IN[k].title.indexOf("Mượn từ Tổ") === 0) {
+      } else if (IN[k].title && (IN[k].title.indexOf("Mượn từ Tổ") === 0 || IN[k].title.indexOf("Điều động từ Tổ") === 0)) {
         IN[k].title = "";
       }
     }
@@ -2471,7 +2472,6 @@ function refresh() {
     const col = k % 5;
     const caIdx = Math.floor(Math.floor(k / 5) / 3);
     const expectedTeamId = detectedTeams[caIdx];
-    const personTeamId = getPersonTeamId(n);
 
     if (ab[cName] || ab[n]) {
       hasCriticalError = true;
@@ -2484,17 +2484,13 @@ function refresh() {
     if ((col === 0 && !oS[cName] && !oS[n]) || (col > 0 && !sS[cName] && !sS[n])) {
       hasCriticalError = true;
     }
-    if (personTeamId && expectedTeamId && personTeamId !== expectedTeamId) {
-      if (!isBorrowAllowed(n, caIdx)) {
-        hasCriticalError = true;
-      }
-    }
   }
 
   if (absIn.length) warnings.push("❌ BÁO ĐỎ: Chiến sĩ đang trong danh sách nghỉ/vắng (phép, ốm, công tác...) vẫn bị xếp gác: " + Array.from(new Set(absIn)).join(", "));
   if (consecutiveErrors.length) warnings.push("❌ BÁO ĐỎ: Có chiến sĩ làm 2 ca liền giờ nhau: " + Array.from(new Set(consecutiveErrors)).join(", "));
   if (wrong.length) warnings.push("❌ BÁO ĐỎ SAI CHỨC DANH (Đốc gác không thay cho Chiến sĩ và ngược lại): " + Array.from(new Set(wrong)).join(" | "));
-  if (crossTeamErrors.length) warnings.push("❌ BÁO ĐỎ LẪN TỔ GÁC (Chiến sĩ chỉ thay thế trong cùng 1 Tổ cố định): " + Array.from(new Set(crossTeamErrors)).join(" | "));
+  // Điều động liên Tổ do Chỉ huy tự tay gõ: chỉ là cảnh báo vàng, không chặn, không alert.
+  if (crossTeamNotes.length) warnings.push("⚠️ ĐIỀU ĐỘNG LIÊN TỔ (Chỉ huy lấy người từ Tổ khác sang làm — hợp lệ, hãy kiểm tra lại nếu không có chủ ý): " + Array.from(new Set(crossTeamNotes)).join(" | "));
 
   // Kiểm tra nối ngày D-1 → D cho ngày đang xem (Ca 4 · 04:00–06:00 → Ca 1 · 06:00–08:00)
   const crossDayNow = auditCrossDayConflicts().filter(c => c.from === curDate || c.to === curDate);
