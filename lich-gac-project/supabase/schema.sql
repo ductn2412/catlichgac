@@ -144,7 +144,7 @@ begin
     v_name,
     'app_state.update',
     jsonb_build_object(
-      'days',            jsonb_array_length(coalesce(NEW.data -> 'days' -> 'keys', '[]'::jsonb)),
+      'days',            coalesce((SELECT count(*) FROM jsonb_object_keys(NEW.data -> 'days')), 0),
       'absenceEditCount', coalesce(jsonb_array_length(coalesce(NEW.data -> 'absenceEdits', '[]'::jsonb)), 0),
       'punishCount',      coalesce(jsonb_array_length(coalesce(NEW.data -> 'punishments', '[]'::jsonb)), 0),
       'swapCount',        coalesce(jsonb_array_length(coalesce(NEW.data -> 'swapRequests', '[]'::jsonb)), 0)

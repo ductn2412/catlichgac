@@ -230,7 +230,8 @@ function backendSubscribeRealtime(onChange) {
         { event: "UPDATE", schema: "public", table: "app_state" },
         (payload) => {
           const nextVersion = payload && payload.new ? payload.new.version : null;
-          if (nextVersion && nextVersion === _backendVersion) return; // chính mình vừa lưu
+          // Bỏ qua nếu chính mình vừa lưu (hoặc đã có bản mới hơn trong bộ nhớ)
+          if (nextVersion != null && nextVersion <= _backendVersion) return;
           if (typeof onChange === "function") onChange(nextVersion);
         })
       .subscribe();
@@ -255,6 +256,9 @@ let _backendBooted = false;
 let _backendSaveTimer = null;
 let _backendSaving = false;
 let _backendDirtyAfterSave = false;
+// Cờ chặn lưu phản hồi: khi áp dữ liệu cloud về máy (applyStateFromParsed tự gọi
+// saveStorage), KHÔNG được đẩy ngược lên cloud — tránh vòng lặp lưu vô hạn.
+let _backendApplyingRemote = false;
 
 // Được loadStorage() gọi (mỗi trang gọi loadStorage đúng 1 lần lúc mở)
 function backendBootAndSync() {
@@ -274,10 +278,13 @@ function backendBootAndSync() {
       }
       // Cloud là nguồn chính thức: áp dữ liệu mới nhất rồi vẽ lại
       try {
+        _backendApplyingRemote = true;
         applyStateFromParsed(res.data);
         if (typeof reloadFromStorage === "function") reloadFromStorage();
       } catch (e) {
         console.error("Lỗi áp dữ liệu cloud:", e);
+      } finally {
+        _backendApplyingRemote = false;
       }
     }
     // res.reason === "empty" → cloud trống: vẫn chạy dữ liệu cục bộ,
@@ -293,6 +300,7 @@ function backendBootAndSync() {
 // Được saveStorage() gọi sau mỗi lần ghi localStorage
 function backendQueueSave() {
   if (!backendEnabled()) return;
+  if (_backendApplyingRemote) return; // đang áp dữ liệu cloud về máy — không đẩy ngược
   if (typeof getCurrentRole === "function" && getCurrentRole() !== "commander") return; // soldier không lưu cloud
   if (_backendSaveTimer) clearTimeout(_backendSaveTimer);
   _backendSaveTimer = setTimeout(backendFlushSave, 1200);
@@ -333,11 +341,14 @@ async function backendApplyRemoteState() {
   const res = await backendLoadState();
   if (!res.ok) return;
   try {
+    _backendApplyingRemote = true;
     applyStateFromParsed(res.data);
     if (typeof reloadFromStorage === "function") reloadFromStorage();
     else if (typeof refresh === "function") refresh();
   } catch (e) {
     console.error("Lỗi nạp dữ liệu từ cloud:", e);
+  } finally {
+    _backendApplyingRemote = false;
   }
 }
 
