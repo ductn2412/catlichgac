@@ -12,9 +12,10 @@
 9. **Danh sách chỉ làm ca đêm**: Đồng chí đang học tập buổi sáng chỉ được xếp vào ca đêm **18:00 – 06:00** (gồm các khung 18–20, 20–22, 22–24, 00–02, 02–04, 04–06); các khung ban ngày 06:00 – 18:00 do người khác cùng Tổ đảm nhiệm.
 10. **Xác nhận chỉnh sửa vắng mặt**: Sửa danh sách vắng mặt phải bấm **✅ Xác nhận** rồi mới được cắt lịch; danh sách vắng được giữ nguyên qua các lần cắt lịch và tự đồng bộ sang các ngày sau.
 11. **Cấp bậc hàm**: Nhập cấp bậc (T4…H2, B2, H1) trong trang Quản lý tài khoản; hiển thị trong ô lịch, bảng đọc, Excel/PDF. Chiến sĩ **B2** được ưu tiên làm "mũ 2", **H1** được ưu tiên nghỉ trước.
-12. **Kỷ luật phạt làm 7 ngày liên tục**: Nhập người bị phạt (có thể nhiều tên cùng lúc) trong Phần 2 — trong 7 ngày họ luôn được xếp gác, không bị đổi ra nghỉ, trừ khi đang vắng mặt.
-13. **Cắt lịch ngày / tuần / tháng**: Nút "Cắt lịch cả tháng" cắt toàn bộ các ngày còn lại trong tháng hiện tại.
-14. **Sổ trực & bàn giao ca gác**: Ghi nhận tình hình ca, súng/đạn bàn giao, người giao–nhận, sự cố (`ban-giao.html`).
+12. **Người bị phạt**: Nhập người bị phạt (có thể nhiều tên cùng lúc) kèm **ngày bắt đầu – ngày kết thúc** trong Phần 2; trong khoảng đó họ luôn được xếp gác, không bị đổi ra nghỉ, trừ khi đang vắng mặt. Có công tắc bật/tắt cạnh tiêu đề.
+13. **Cắt lịch ngày / tuần / tháng**: Nút "Cắt lịch cả tháng" cắt toàn bộ các ngày còn lại trong tháng hiện tại. Chỉnh sửa lịch chỉ lưu lên cloud khi bấm **💾 Lưu lịch**.
+14. **Quản lý hồ sơ trực tiếp trên bảng**: Bấm **✏️ Sửa** để sửa ngay các ô thông tin trong bảng, bấm **💾 Lưu** để ghi lại. File Excel mẫu và file tải danh sách hồ sơ hiện tại đều có đủ 9 cột: Họ và tên (*), Mã số (*), Chức vụ, Cấp bậc hàm, Nhóm cắt gác, Ngày sinh, Quê quán, Tên TK đăng nhập, Mật khẩu.
+15. **Phần 2 trên trang hiển thị lịch gác**: Người xem thấy đầy đủ tổng quân số đơn vị, danh sách trực cơ động và ghi chú vắng mặt ngay dưới bảng lịch.
 
 ---
 
@@ -60,7 +61,6 @@ lich-gac-project/
 ├── lich-gac.html           # Xem lịch (chỉ đọc)
 ├── cham-cong.html          # Bảng chấm công tháng
 ├── so-truc.html            # Đăng ký & duyệt đổi ca
-├── ban-giao.html           # Sổ bàn giao trực ban
 ├── tim-kiem.html           # Tra cứu chiến sĩ & ca gác
 ├── dashboard.html          # Dashboard thống kê
 ├── quan-ly-tai-khoan.html  # Quản lý hồ sơ / tài khoản

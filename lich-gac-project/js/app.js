@@ -655,6 +655,8 @@ function applyRolePermissions() {
   const punishCard = document.getElementById("punishCard");
   const punishPerson = document.getElementById("punishPerson");
   const punishStart = document.getElementById("punishStart");
+  const punishEnd = document.getElementById("punishEnd");
+  const punishEnabledEl = document.getElementById("punishEnabled");
   const borrowCard = document.getElementById("borrowCard");
   const borrowEnabled = document.getElementById("borrowEnabled");
   const borrowMaxAbsent = document.getElementById("borrowMaxAbsent");
@@ -669,7 +671,7 @@ function applyRolePermissions() {
   if (nightOnlyCard) nightOnlyCard.style.display = isCommander ? "block" : "none";
   if (NIGHT_ONLY_PICKER) NIGHT_ONLY_PICKER.setDisabled(!isCommander);
   if (punishCard) punishCard.style.display = isCommander ? "block" : "none";
-  [punishPerson, punishStart].forEach(el => { if (el) el.disabled = !isCommander; });
+  [punishPerson, punishStart, punishEnd, punishEnabledEl].forEach(el => { if (el) el.disabled = !isCommander; });
   if (borrowCard) borrowCard.style.display = isCommander ? "block" : "none";
   [borrowEnabled, borrowMaxAbsent, borrowMaxDays].forEach(el => { if (el) el.disabled = !isCommander; });
   if (restoreLabel) restoreLabel.style.display = isCommander ? "" : "none";
@@ -1673,12 +1675,53 @@ function resolvePersonName(raw) {
 function populatePunishmentForm() {
   const nameEl = document.getElementById("punishPerson");
   const startEl = document.getElementById("punishStart");
+  const endEl = document.getElementById("punishEnd");
   if (startEl && !startEl.value) startEl.value = curDate;
+  if (endEl && !endEl.value) {
+    endEl.value = addDay((startEl && startEl.value) || curDate, PUNISH_DAYS - 1);
+  }
   if (nameEl && !nameEl.dataset.attached) {
     attachNameSuggestions(nameEl, getAllPersonNames);
     nameEl.dataset.attached = "1";
   }
+  applyPunishVisibility();
   renderPunishmentList();
+}
+
+// Chức năng "Người bị phạt" có công tắc bật/tắt (mặc định bật).
+function isPunishFeatureEnabled() {
+  return !(typeof S !== "undefined" && S && S.punishEnabled === false);
+}
+
+// Đổi ngày bắt đầu → tự gợi ý ngày kết thúc đủ 7 ngày nếu đang trống/không hợp lệ.
+function syncPunishEndDefault() {
+  const startEl = document.getElementById("punishStart");
+  const endEl = document.getElementById("punishEnd");
+  if (!startEl || !endEl) return;
+  const start = startEl.value || curDate;
+  if (!endEl.value || endEl.value < start) endEl.value = addDay(start, PUNISH_DAYS - 1);
+}
+
+// Ẩn/hiện toàn bộ nội dung theo công tắc (tắt = không hiện thông tin, không dùng chức năng).
+function applyPunishVisibility() {
+  const enabled = isPunishFeatureEnabled();
+  const enEl = document.getElementById("punishEnabled");
+  const body = document.getElementById("punishBody");
+  const note = document.getElementById("punishOffNote");
+  const state = document.getElementById("punishEnabledState");
+  if (enEl) enEl.checked = enabled;
+  if (body) body.hidden = !enabled;
+  if (note) note.hidden = enabled;
+  if (state) state.textContent = enabled ? "Bật" : "Tắt";
+}
+
+function togglePunishFeature() {
+  if (getCurrentRole() !== "commander") { applyPunishVisibility(); return; }
+  const enEl = document.getElementById("punishEnabled");
+  S.punishEnabled = !!(enEl && enEl.checked);
+  saveStorage();
+  applyPunishVisibility();
+  refresh();
 }
 
 function renderPunishmentList() {
@@ -1698,23 +1741,31 @@ function renderPunishmentList() {
     return `<span class="punish-chip${active ? " active" : ""}" title="${escHTML(label)} — từ ${escHTML(vnFormat(r.start))} đến ${escHTML(vnFormat(r.end))}">` +
       `<span class="punish-icon">⚖️</span>` +
       `<b>${escHTML(label)}</b>` +
-      `<span class="punish-range">${escHTML(vnFormat(r.start))} → ${escHTML(vnFormat(r.end))}</span>` +
+      `<span class="punish-range">${escHTML(vnFormat(r.start))} → ${escHTML(vnFormat(r.end))} (${r.days} ngày)</span>` +
       `<button type="button" class="punish-x" title="Bỏ khỏi danh sách phạt" onclick="removePunishment('${escHTML(String(p.id))}')">×</button>` +
       `</span>`;
-  }).join("") : `<span class="empty">Chưa có ai bị phạt làm ${PUNISH_DAYS} ngày liên tục.</span>`;
+  }).join("") : `<span class="empty">Chưa có ai trong danh sách người bị phạt.</span>`;
 
   if (msg) {
     const activeCount = list.filter(p => isPunishedOn(p.person, curDate)).length;
+    if (!isPunishFeatureEnabled()) {
+      msg.textContent = `⏸️ Chức năng người bị phạt đang tắt (${list.length} hồ sơ trong danh sách, không áp dụng khi cắt lịch).`;
+      return;
+    }
     msg.textContent = list.length
-      ? `⚖️ Đang có ${list.length} đồng chí bị phạt làm ${PUNISH_DAYS} ngày liên tục` +
+      ? `⚖️ Đang có ${list.length} đồng chí trong danh sách người bị phạt` +
         (activeCount ? ` (${activeCount} đồng chí đang trong thời hạn phạt hôm nay).` : ".")
-      : `Chưa có đồng chí nào bị phạt làm ${PUNISH_DAYS} ngày liên tục.`;
+      : `Chưa có đồng chí nào bị phạt.`;
   }
 }
 
 function addPunishment() {
   if (getCurrentRole() !== "commander") {
     alert("Chỉ có Chỉ huy / Trưởng ban mới được nhập danh sách phạt!");
+    return;
+  }
+  if (!isPunishFeatureEnabled()) {
+    alert("Chức năng người bị phạt đang tắt — hãy bật công tắc cạnh tiêu đề để sử dụng.");
     return;
   }
   const nameEl = document.getElementById("punishPerson");
@@ -1725,6 +1776,14 @@ function addPunishment() {
     return;
   }
   const start = (startEl && startEl.value) || curDate || fmtDate(new Date());
+  const endEl = document.getElementById("punishEnd");
+  let end = (endEl && endEl.value) || "";
+  if (!end) end = addDay(start, PUNISH_DAYS - 1);
+  if (end < start) {
+    alert("⚠️ Ngày kết thúc phải bằng hoặc sau ngày bắt đầu.");
+    return;
+  }
+  const punishDays = Math.round((parseDate(end) - parseDate(start)) / 86400000) + 1;
   const startAbs = absSet(getDayData(start).absent || {});
   const rawNames = raw.split(/[,;\n]+/).map(s => s.trim()).filter(Boolean);
 
@@ -1751,7 +1810,8 @@ function addPunishment() {
       id: "p" + Date.now() + Math.floor(Math.random() * 1000) + added.length,
       person,
       start,
-      days: PUNISH_DAYS
+      end,
+      days: punishDays
     };
     if (!Array.isArray(S.punishments)) S.punishments = [];
     S.punishments.push(p);
@@ -1769,15 +1829,16 @@ function addPunishment() {
   totalChanged += rebuildAutoUpcomingDays();
   if (nameEl) nameEl.value = "";
   if (startEl) startEl.value = curDate;
+  if (endEl) endEl.value = addDay(curDate, PUNISH_DAYS - 1);
   renderPunishmentList();
   refresh();
 
   const r = punishmentRange(added[0]);
   let msg = added.length === 1
-    ? `⚖️ Đã thêm ${cleanName(added[0].person)} vào danh sách bị phạt làm ${PUNISH_DAYS} ngày liên tục ` +
-      `(${vnFormat(r.start)} → ${vnFormat(r.end)}).`
-    : `⚖️ Đã thêm ${added.length} đồng chí vào danh sách bị phạt làm ${PUNISH_DAYS} ngày liên tục ` +
-      `(${vnFormat(r.start)} → ${vnFormat(r.end)}): ${added.map(p => cleanName(p.person)).join(", ")}.`;
+    ? `⚖️ Đã thêm ${cleanName(added[0].person)} vào danh sách người bị phạt ` +
+      `(${vnFormat(r.start)} → ${vnFormat(r.end)}, ${r.days} ngày).`
+    : `⚖️ Đã thêm ${added.length} đồng chí vào danh sách người bị phạt ` +
+      `(${vnFormat(r.start)} → ${vnFormat(r.end)}, ${r.days} ngày): ${added.map(p => cleanName(p.person)).join(", ")}.`;
   if (totalChanged) msg += `\nĐã cập nhật ${totalChanged} ngày đã cắt sẵn.`;
   if (skipped.length) msg += `\nBỏ qua:\n- ${skipped.join("\n- ")}`;
   alert(msg);
@@ -1787,7 +1848,7 @@ function removePunishment(id) {
   if (getCurrentRole() !== "commander") return;
   const p = getPunishments().find(x => String(x.id) === String(id));
   if (!p) return;
-  if (!confirm(`Bỏ ${cleanName(p.person)} khỏi danh sách bị phạt làm ${PUNISH_DAYS} ngày liên tục?`)) return;
+  if (!confirm(`Bỏ ${cleanName(p.person)} khỏi danh sách người bị phạt?`)) return;
   S.punishments = getPunishments().filter(x => String(x.id) !== String(id));
   saveStorage();
   const rebuilt = rebuildAutoUpcomingDays();
@@ -1884,6 +1945,7 @@ function populateBorrowRules() {
   if (ma) ma.value = r.maxAbsentSoldiers;
   if (md) md.value = r.maxConsecutiveDays;
   updateBorrowRulesMsg();
+  applyBorrowVisibility();
 }
 
 function updateBorrowRulesMsg() {
@@ -1893,6 +1955,17 @@ function updateBorrowRulesMsg() {
   msg.textContent = r.enabled
     ? `✅ Đang bật: Tổ vắng quá ${r.maxAbsentSoldiers} chiến sĩ hoặc có người làm liên tiếp quá ${r.maxConsecutiveDays} ngày sẽ được cảnh báo và tự mượn quân số tạm thời từ Tổ khác.`
     : "⏸️ Đang tắt chế độ cảnh báo & mượn quân số tạm thời.";
+}
+
+// Công tắc bật/tắt: tắt thì ẩn toàn bộ thông số và không dùng chức năng.
+function applyBorrowVisibility() {
+  const r = getBorrowRules();
+  const body = document.getElementById("borrowBody");
+  const note = document.getElementById("borrowOffNote");
+  const state = document.getElementById("borrowEnabledState");
+  if (body) body.hidden = !r.enabled;
+  if (note) note.hidden = r.enabled;
+  if (state) state.textContent = r.enabled ? "Bật" : "Tắt";
 }
 
 function saveBorrowRules() {
@@ -1911,6 +1984,35 @@ function saveBorrowRules() {
   saveStorage();
   populateBorrowRules();
   refresh();
+}
+
+// Nút "💾 Lưu phần 2": commit các thay đổi vắng mặt / phạt / mượn quân số lên cloud.
+async function savePart2Now() {
+  const msgEl = document.getElementById("part2Msg");
+  const show = (text, ok) => {
+    if (!msgEl) return;
+    msgEl.textContent = text;
+    msgEl.style.color = ok ? "var(--primary-green)" : "#b71c1c";
+    clearTimeout(msgEl._t);
+    msgEl._t = setTimeout(() => { msgEl.textContent = ""; }, 8000);
+  };
+  if (getCurrentRole() !== "commander") {
+    show("⚠️ Chỉ Chỉ huy / Trưởng ban mới được lưu phần này.", false);
+    return;
+  }
+  saveStorage();
+  let ok = true, note = "";
+  if (typeof backendEnabled === "function" && backendEnabled()) {
+    const res = await backendSaveNow();
+    ok = !!(res && res.ok);
+    if (res && res.queued) note = " (đang đẩy lên cloud...)";
+    else if (res && res.conflict) note = " — máy khác vừa lưu trước, hệ thống đã nạp bản mới nhất, hãy kiểm tra rồi lưu lại";
+    else if (!ok) note = " — kiểm tra mạng rồi thử lại (dữ liệu vẫn an toàn tại máy này)";
+  }
+  show(ok
+    ? `✅ Đã lưu phần 2 lúc ${new Date().toLocaleTimeString("vi-VN")}${note} — tính cho chấm công & đồng bộ mọi máy`
+    : `⚠️ Chưa lưu được lên cloud${note}`, ok);
+  updateSaveBadge();
 }
 
 function saveTeamsFromTextareas() {

@@ -1275,6 +1275,118 @@ td.extra-time-col { width: 92px; }
   text-align: center;
 }
 .pdf-export .military-print-header > div { flex: 1 1 0; }
+
+/* ==================== CÔNG TẮC BẬT/TẮT TÍNH NĂNG ==================== */
+.feature-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.feature-head h2 { margin: 0; }
+.feature-body[hidden],
+.feature-body.is-off { display: none; }
+.feature-off-note {
+  margin: 8px 0 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+}
+/* Công tắc dạng gạt: checkbox ẩn, nhãn là thanh trượt */
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+}
+.switch input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.switch .switch-track {
+  position: relative;
+  width: 46px;
+  height: 24px;
+  border-radius: 999px;
+  background: #cfd8dc;
+  transition: background 0.15s ease;
+  flex: 0 0 auto;
+}
+.switch .switch-track::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+  transition: transform 0.15s ease;
+}
+.switch input:checked + .switch-track { background: var(--primary-green); }
+.switch input:checked + .switch-track::after { transform: translateX(22px); }
+.switch input:focus-visible + .switch-track { outline: 2px solid var(--blue); outline-offset: 2px; }
+.switch .switch-state { min-width: 30px; color: var(--muted); }
+.switch input:checked ~ .switch-state { color: var(--primary-green); }
+.switch input:disabled + .switch-track { opacity: 0.5; }
+
+/* ==================== NÚT LƯU CUỐI PHẦN 2 ==================== */
+.part-save-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--line);
+}
+.part-save-bar .part-save-msg { font-size: 13.5px; font-weight: 700; }
+
+/* ==================== SỬA TRỰC TIẾP TRÊN BẢNG HỒ SƠ ==================== */
+.row-editing { background: #fffdf3; }
+.row-editing input,
+.row-editing select {
+  width: 100%;
+  min-width: 70px;
+  box-sizing: border-box;
+  padding: 5px 6px;
+  border: 1px solid #c9d6c9;
+  border-radius: 5px;
+  background: #fff;
+  color: var(--text);
+  font-size: 12.5px;
+}
+.row-editing input[type="date"] { min-width: 124px; }
+.inline-edit-stack { display: flex; flex-direction: column; gap: 4px; }
+.inline-edit-stack select { font-size: 12px; }
+.row-save-btn { background: #1b5e20 !important; }
+
+/* ==================== PHẦN 2 TRÊN TRANG HIỂN THỊ LỊCH GÁC ==================== */
+.view-part2 { margin-top: 16px; }
+.view-part2 h3 {
+  margin: 0 0 10px;
+  color: var(--primary-green);
+  font-size: 15.5px;
+}
+.view-part2 .part-block { margin-top: 12px; }
+.view-part2 .part-block h4 { margin: 0 0 6px; font-size: 14px; }
+.view-part2 .absence-note-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  font-size: 13px;
+  margin-top: 4px;
+}
+.view-part2 .absence-note-row b { color: var(--primary-green); }
 .pdf-export .military-print-header b { font-size: 13.5px; }
 .pdf-export .military-print-footer { width: 100%; table-layout: fixed; }
 .pdf-export .military-print-footer > div {

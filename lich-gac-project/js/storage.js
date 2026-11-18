@@ -417,9 +417,15 @@ function syncAccountsFromRosterStrings() {
 
 // ===== CẤP BẬC HÀM =====
 // Lưu ở 2 nơi để luôn tra được: S.ranks (theo tên chuẩn hóa) và hồ sơ quân nhân (acc.rank).
+// Chấp nhận cả mã (U3) lẫn tên cấp bậc (Thượng úy) — dùng khi nhập từ Excel.
 function normalizeRankCode(code) {
-  const c = String(code || "").trim().toUpperCase();
-  return RANK_LABELS[c] ? c : "";
+  const c = String(code || "").trim();
+  if (!c) return "";
+  const up = c.toUpperCase();
+  if (RANK_LABELS[up]) return up;
+  const low = c.toLowerCase();
+  const found = Object.keys(RANK_LABELS).find(k => RANK_LABELS[k].toLowerCase() === low);
+  return found || "";
 }
 
 function getRankLabel(code) {
@@ -469,21 +475,28 @@ function syncRanksFromAccounts() {
   });
 }
 
-// ===== KỶ LUẬT: NGƯỜI BỊ PHẠT LÀM 7 NGÀY LIÊN TỤC =====
-// Mỗi bản ghi: { id, person, start, days }. Trong khoảng start..start+days-1
+// ===== KỶ LUẬT: NGƯỜI BỊ PHẠT =====
+// Mỗi bản ghi: { id, person, start, end, days }. Trong khoảng start..end
 // người này luôn được xếp gác (trừ khi đang vắng) và không bị đổi ra nghỉ.
+// Dữ liệu cũ chỉ có { start, days } vẫn được hỗ trợ (tính end từ số ngày).
 function getPunishments() {
   if (!Array.isArray(S.punishments)) S.punishments = [];
   return S.punishments.filter(p => p && p.person);
 }
 
 function punishmentRange(p) {
-  const days = Math.max(1, parseInt(p && p.days, 10) || PUNISH_DAYS);
   const start = (p && p.start) || "";
+  if (p && p.end && start && p.end >= start) {
+    const days = Math.round((parseDate(p.end) - parseDate(start)) / 86400000) + 1;
+    return { start, end: p.end, days };
+  }
+  const days = Math.max(1, parseInt(p && p.days, 10) || PUNISH_DAYS);
   return { start, end: start ? addDay(start, days - 1) : "", days };
 }
 
 function findPunishment(person, dateStr) {
+  // Công tắc "Người bị phạt" đang tắt → không áp dụng chức năng khi cắt lịch.
+  if (S && S.punishEnabled === false) return null;
   const key = cleanName(person || "").toLowerCase();
   if (!key || !dateStr) return null;
   return getPunishments().find(p => {

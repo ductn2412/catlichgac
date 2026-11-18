@@ -71,7 +71,6 @@
     <a href="lich-gac.html" class="side-link active" id="navView"><span class="side-icon">📄</span><span>Trang hiển thị lịch gác</span></a>
     <a href="cham-cong.html" class="side-link" id="navMonthly"><span class="side-icon">🗓️</span><span>Bảng chấm công tháng</span></a>
     <a href="so-truc.html" class="side-link" id="navLog"><span class="side-icon">🔄</span><span>Đăng ký & Duyệt đổi ca</span></a>
-    <a href="ban-giao.html" class="side-link" id="navHandover"><span class="side-icon">📒</span><span>Sổ bàn giao trực ban</span></a>
     <a href="tim-kiem.html" class="side-link" id="navSearch"><span class="side-icon">🔍</span><span>Tra cứu Chiến sĩ & Ca gác</span></a>
   </aside>
 
@@ -99,6 +98,29 @@
         </div>
 
         <div id="viewScheduleContent" class="scroll"></div>
+
+        <!-- PHẦN 2: TỔNG QUÂN SỐ ĐƠN VỊ, TRỰC CƠ ĐỘNG & GHI CHÚ VẮNG MẶT -->
+        <div class="card view-part2" id="viewPart2">
+          <h3>Phần 2: Tổng quân số đơn vị, Trực cơ động &amp; Ghi chú vắng mặt</h3>
+          <div class="unit-summary-box" style="margin-bottom:0;">
+            <div class="unit-total-header">
+              <span>* TỔNG QUÂN SỐ TOÀN ĐƠN VỊ (ĐỘI 3 - TRUNG ĐOÀN 375): <strong id="viewTotalUnit">0</strong> đồng chí</span>
+              <span id="viewUnitSub" class="unit-sub"></span>
+            </div>
+            <div id="viewStatGrid" class="stat-grid"></div>
+          </div>
+          <div class="part-block">
+            <h4>Trực cơ động tại đơn vị (Chiến sĩ nghỉ gác tại đơn vị)</h4>
+            <div class="ph">Sĩ quan Đốc gác <span id="viewCntO"></span></div>
+            <div class="chips" id="viewListO"></div>
+            <div class="ph" style="margin-top:10px;">Chiến sĩ nghĩa vụ (Vọng gác x9, x10, x11, x12) <span id="viewCntS"></span></div>
+            <div class="chips" id="viewListS"></div>
+          </div>
+          <div class="part-block">
+            <h4>Ghi chú vắng mặt</h4>
+            <div id="viewAbsenceNotes"></div>
+          </div>
+        </div>
 
         <div class="military-print-footer">
           <div>
@@ -221,6 +243,73 @@
 
     html += `</tbody></table></div>`;
     document.getElementById("viewScheduleContent").innerHTML = html;
+    renderViewPart2(dStr);
+  }
+
+  // Phần 2: Tổng quân số đơn vị, Trực cơ động & Ghi chú vắng mặt của ngày đang xem.
+  function renderViewPart2(dStr) {
+    const day = getDayData(dStr);
+    const off = parseNames(S.officers);
+    const sol = parseNames(S.soldiers);
+    const ab = absSet(day.absent || {});
+    const working = {};
+    for (let k = 0; k < 60; k++) {
+      const n = (day.cells[k] || "").trim();
+      if (n) working[cleanName(n)] = 1;
+    }
+    const restO = off.filter(n => !ab[cleanName(n)] && !working[cleanName(n)]);
+    const restS = sol.filter(n => !ab[cleanName(n)] && !working[cleanName(n)]);
+    const workingCount = Object.keys(working).length;
+    const restTotal = restO.length + restS.length;
+
+    let absTotal = 0;
+    const cards = [];
+    const notes = [];
+    CATS.forEach(c => {
+      const names = parseNames(day.absent ? day.absent[c[0]] : "");
+      absTotal += names.length;
+      if (!names.length) return;
+      cards.push(`<div class="stat-card"><span>📌 ${escHTML(c[1])} (${escHTML(c[2])})</span><b>${names.length} người</b></div>`);
+      notes.push(`<div class="absence-note-row"><b>${escHTML(c[1])} (${escHTML(c[2])}):</b> <span>${names.map(n => escHTML(n)).join(", ")}</span></div>`);
+    });
+    cards.unshift(
+      `<div class="stat-card"><span>🛡️ Đang gác (4 Tổ)</span><b>${workingCount} người</b></div>`,
+      `<div class="stat-card"><span>⛺ Trực cơ động (Nghỉ tại Tổ)</span><b>${restTotal} người</b></div>`
+    );
+
+    const rosterTotal = off.length + sol.length;
+    const total = rosterTotal > 0 ? rosterTotal : (workingCount + restTotal + absTotal);
+    const setText = (id, text) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = text;
+    };
+    setText("viewTotalUnit", total);
+    setText("viewUnitSub",
+      `Biên chế: ${off.length} Đốc gác + ${sol.length} Chiến sĩ | Đang gác: ${workingCount} · Nghỉ tại đơn vị: ${restTotal} · Vắng: ${absTotal}`);
+    const grid = document.getElementById("viewStatGrid");
+    if (grid) grid.innerHTML = cards.join("");
+
+    const chip = (name) => {
+      const tid = getPersonTeamId(name);
+      return `<span class="chip">${escHTML(name)}${tid ? " [Tổ " + tid + "]" : ""}</span>`;
+    };
+    const listO = document.getElementById("viewListO");
+    if (listO) listO.innerHTML = restO.length
+      ? restO.map(chip).join("")
+      : `<span class="empty">${off.length ? "Không có ai." : "Chưa nhập danh sách sĩ quan."}</span>`;
+    const listS = document.getElementById("viewListS");
+    if (listS) listS.innerHTML = restS.length
+      ? restS.map(chip).join("")
+      : `<span class="empty">${sol.length ? "Không có ai." : "Chưa nhập danh sách chiến sĩ."}</span>`;
+    setText("viewCntO", off.length ? `(${restO.length} đồng chí)` : "");
+    setText("viewCntS", sol.length ? `(${restS.length} đồng chí)` : "");
+
+    const notesEl = document.getElementById("viewAbsenceNotes");
+    if (notesEl) {
+      notesEl.innerHTML = notes.length
+        ? notes.join("")
+        : `<div class="absence-note-row"><span class="empty">Không có ai vắng mặt trong ngày này.</span></div>`;
+    }
   }
 
   window.onload = initViewPage;

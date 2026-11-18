@@ -52,7 +52,10 @@
     <div class="widget-tag"><span class="plus">+</span> ĐỘI 3</div>
     <div class="active-module-title">QUẢN LÝ, THÊM MỚI & CHỈNH SỬA HỒ SƠ TÀI KHOẢN CHIẾN SĨ (CHỈ HUY QUẢN LÝ)</div>
   </div>
-  <div><button class="sec" onclick="downloadSampleAccountExcel()">📥 Tải file Excel mẫu nhập hồ sơ Chiến Sĩ</button></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <button class="sec" onclick="downloadSampleAccountExcel()">📥 Tải file Excel mẫu nhập hồ sơ Chiến Sĩ</button>
+    <button class="pri" onclick="downloadAccountListExcel()">📤 Tải danh sách hồ sơ hiện tại</button>
+  </div>
 </div>
 
 <!-- MODAL ĐỔI MẬT KHẨU CHỈ HUY -->
@@ -187,7 +190,6 @@
     <a href="lich-gac.html" class="side-link" id="navView"><span class="side-icon">📄</span><span>Trang hiển thị lịch gác</span></a>
     <a href="cham-cong.html" class="side-link" id="navMonthly"><span class="side-icon">🗓️</span><span>Bảng chấm công tháng</span></a>
     <a href="so-truc.html" class="side-link" id="navLog"><span class="side-icon">🔄</span><span>Đăng ký & Duyệt đổi ca</span></a>
-    <a href="ban-giao.html" class="side-link" id="navHandover"><span class="side-icon">📒</span><span>Sổ bàn giao trực ban</span></a>
     <a href="tim-kiem.html" class="side-link" id="navSearch"><span class="side-icon">🔍</span><span>Tra cứu Chiến sĩ & Ca gác</span></a>
   </aside>
 
@@ -302,7 +304,7 @@
     <!-- DANH SÁCH TÀI KHOẢN Chiến Sĩ TRONG HỆ THỐNG -->
     <section class="card">
       <div class="bar">
-        <h2 style="margin:0;margin-right:auto;">📋 Danh sách Hồ sơ & Tài khoản Chiến Sĩ (<span id="totalAccCount">0</span> đồng chí) — <i>Trỏ chuột vào tên để xem nhanh, bấm vào tên hoặc nút "✏️ Sửa" để thao tác</i></h2>
+        <h2 style="margin:0;margin-right:auto;">📋 Danh sách Hồ sơ & Tài khoản Chiến Sĩ (<span id="totalAccCount">0</span> đồng chí) — <i>Bấm "✏️ Sửa" để sửa trực tiếp trên bảng, sửa xong bấm "💾 Lưu"</i></h2>
         <input type="text" id="filterAccInput" placeholder="🔍 Lọc theo tên, mã số, quê quán, chức vụ..." oninput="renderAccountsTable()" style="min-width:250px;">
         <select id="filterAccRole" onchange="renderAccountsTable()">
           <option value="all">Tất cả (Sĩ quan & Chiến sĩ)</option>
@@ -310,6 +312,7 @@
           <option value="soldier">Chỉ Chiến sĩ (Vọng gác x9-x12)</option>
         </select>
       </div>
+      <div id="accSaveMsg" style="font-size:13px;font-weight:700;color:var(--primary-green);padding:0 12px;min-height:18px;"></div>
       <div class="scroll">
         <table>
           <thead>
@@ -421,6 +424,7 @@
     const home = (hometown || "").trim() || "Chưa cập nhật";
     const rankCode = normalizeRankCode(rank);
     const rankProvided = rank !== undefined && rank !== null;
+    const teamParsed = parseInt(teamId, 10) || 0;
 
     if (!S.personnelAccounts) S.personnelAccounts = [];
     const existingIdx = S.personnelAccounts.findIndex(a =>
@@ -435,7 +439,7 @@
         fullName: fn,
         code: cd,
         roleType: roleType,
-        teamId: parseInt(teamId, 10) || 1,
+        teamId: teamParsed || parseInt(prev.teamId, 10) || getPersonTeamId(fn) || 1,
         position: pos,
         username: uName,
         dob: birth,
@@ -452,7 +456,7 @@
         fullName: fn,
         code: cd,
         roleType: roleType,
-        teamId: parseInt(teamId, 10) || 1,
+        teamId: teamParsed || getPersonTeamId(fn) || 1,
         position: pos,
         username: uName,
         dob: birth,
@@ -632,30 +636,75 @@
         const data = new Uint8Array(e.target.result);
         const wb = XLSX.read(data, { type: "array" });
         const sheet = wb.Sheets[wb.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: "" });
         const issued = [];
 
-        rows.forEach((r, idx) => {
+        // Nhận diện cột theo TIÊU ĐỀ (file mẫu 9 cột), tự động lùi về vị trí cũ
+        // cho các file Excel cũ (Họ tên | Mã số | Chức vụ | Ngày sinh | Quê quán | Mật khẩu).
+        const normHeader = (v) => String(v == null ? "" : v).toLowerCase().replace(/\(\*\)/g, "").replace(/\s+/g, " ").trim();
+        const headerRow = rows.find(r => Array.isArray(r) && r.some(c => normHeader(c)));
+        const map = {};
+        (headerRow || []).forEach((cell, idx) => {
+          const h = normHeader(cell);
+          if (!h) return;
+          if (map.name == null && (h === "họ và tên" || h === "họ tên" || h === "tên")) map.name = idx;
+          else if (map.code == null && (h === "mã số" || h === "mã")) map.code = idx;
+          else if (map.position == null && h.indexOf("chức vụ") >= 0) map.position = idx;
+          else if (map.rank == null && h.indexOf("cấp bậc") >= 0) map.rank = idx;
+          else if (map.group == null && h.indexOf("nhóm") >= 0) map.group = idx;
+          else if (map.dob == null && h.indexOf("ngày sinh") >= 0) map.dob = idx;
+          else if (map.hometown == null && h.indexOf("quê") >= 0) map.hometown = idx;
+          else if (map.username == null && (h.indexOf("tk") >= 0 || h.indexOf("tài khoản") >= 0 || h.indexOf("đăng nhập") >= 0)) map.username = idx;
+          else if (map.password == null && h.indexOf("mật khẩu") >= 0) map.password = idx;
+        });
+        const hasHeader = map.name != null && map.code != null;
+        const firstDataIdx = hasHeader && headerRow ? rows.indexOf(headerRow) + 1 : 0;
+        const cellText = (v) => String(v == null ? "" : v).trim();
+        const cellDob = (v) => {
+          if (v == null || v === "") return "";
+          if (v instanceof Date) return fmtDate(v);
+          if (typeof v === "number" && v > 20000) {
+            const d = new Date(Date.UTC(1899, 11, 30) + Math.round(v) * 86400000);
+            return fmtDate(new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+          }
+          const s = cellText(v);
+          const m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
+          if (m) return `${m[3]}-${pad(+m[2])}-${pad(+m[1])}`;
+          return s;
+        };
+
+        rows.slice(firstDataIdx).forEach((r, idx) => {
           if (!r || !r.length) return;
-          const c0 = String(r[0] || "").trim();
-          const c1 = String(r[1] || "").trim();
-          const c2 = String(r[2] || "").trim();
-          const c3 = String(r[3] || "").trim();
-          const c4 = String(r[4] || "").trim();
-          const c5 = String(r[5] || "").trim();
+          const pick = (key, fallbackIdx) => {
+            const i = map[key] != null ? map[key] : fallbackIdx;
+            if (i == null || i < 0 || i >= r.length) return "";
+            return r[i];
+          };
+          const c0 = cellText(pick("name", 0));
+          if (!c0 || normHeader(c0) === "họ và tên" || normHeader(c0) === "họ tên" || normHeader(c0) === "stt") return;
+          const rawCode = cellText(pick("code", 1));
 
-          if (!c0 || c0.toLowerCase().includes("họ và tên") || c0.toLowerCase() === "stt") return;
+          if ((hasHeader || rawCode) && (hasHeader || !c0.includes("("))) {
+            const posRaw = cellText(pick("position", 2));
+            const rankRaw = map.rank != null ? cellText(pick("rank", -1)) : undefined;
+            const groupRaw = cellText(pick("group", -1));
+            const dobRaw = cellDob(pick("dob", 3));
+            const homeRaw = cellText(pick("hometown", 4));
+            const userRaw = map.username != null ? cellText(pick("username", -1)) : "";
+            const pwRaw = cellText(pick("password", 5)); // để trống -> giữ/ngẫu nhiên
 
-          if (c1 && !c0.includes("(")) {
-            const rt = detectRoleTypeFromText(c0 + " " + c1 + " " + c2, mode);
-            const pos = c2 || (rt === "officer" ? "Sĩ quan Đốc gác" : "Chiến sĩ nghĩa vụ");
-            const dob = c3 || "2004-01-01";
-            const home = c4 || "Chưa cập nhật";
-            const pw = c5; // để trống -> hệ thống sinh mật khẩu ngẫu nhiên
-            const isNew = !accountExistsByNameOrCode(c0, c1);
-            if (addOrUpdateSingleAccount(c0, c1, rt, pos, pw, dob, home)) {
+            let rt = detectRoleTypeFromText(c0 + " " + posRaw + " " + groupRaw, mode);
+            if (/đốc gác|sĩ quan/i.test(groupRaw)) rt = "officer";
+            else if (/chiến sĩ/i.test(groupRaw)) rt = "soldier";
+            let tid = 0;
+            const tm = groupRaw.match(/tổ\s*(\d)/i) || (c0 + " " + posRaw).match(/tổ\s*(\d)/i);
+            if (tm) tid = parseInt(tm[1], 10);
+            const cd = rawCode || ((rt === "officer" ? "SQ" : "CS") + pad(idx + 1));
+            const pos = posRaw || (rt === "officer" ? "Sĩ quan Đốc gác" : "Chiến sĩ nghĩa vụ");
+            const isNew = !accountExistsByNameOrCode(c0, cd);
+            if (addOrUpdateSingleAccount(c0, cd, rt, pos, pwRaw, dobRaw || "2004-01-01", homeRaw, userRaw, tid, rankRaw)) {
               addedCount++;
-              if (isNew && !pw) issued.push(`${cleanName(c0)} (${c1})`);
+              if (isNew && !pwRaw) issued.push(`${cleanName(c0)} (${cd})`);
             }
           } else {
             const parsed = parseLineToAccountObj(c0, mode, idx + 1);
@@ -702,22 +751,90 @@
     event.target.value = "";
   }
 
+  // Bộ cột chuẩn dùng chung cho file Excel mẫu và file tải danh sách hiện tại.
+  const ACCOUNT_EXCEL_HEADERS = [
+    "Họ và tên (*)", "Mã số (*)", "Chức vụ", "Cấp bậc hàm", "Nhóm cắt gác",
+    "Ngày sinh", "Quê quán", "Tên TK đăng nhập", "Mật khẩu"
+  ];
+
+  function accountGroupText(acc) {
+    const team = parseInt(acc.teamId, 10) || getPersonTeamId(acc.fullName) || 1;
+    return `Tổ ${team} - ${acc.roleType === "officer" ? "Đốc gác" : "Chiến sĩ"}`;
+  }
+
+  function accountSheetNotes() {
+    return [
+      ["GHI CHÚ SỬ DỤNG FILE EXCEL HỒ SƠ CHIẾN SĨ"],
+      [""],
+      ["1. Bắt buộc nhập: Họ và tên (*), Mã số (*). Các cột còn lại có thể để trống."],
+      ["2. Cấp bậc hàm: ghi tên cấp bậc (VD: Thượng úy) hoặc mã (VD: U3)."],
+      ["3. Nhóm cắt gác: ghi dạng 'Tổ 1 - Đốc gác' hoặc 'Tổ 2 - Chiến sĩ'."],
+      ["4. Tên TK đăng nhập: để trống = hệ thống tự tạo theo 'Họ tên (Mã số)'."],
+      ["5. Mật khẩu: để trống = hệ thống tạo mật khẩu ngẫu nhiên (riêng file tải danh sách hiện tại luôn để trống vì hệ thống chỉ lưu mã băm)."],
+      ["6. Ngày sinh: ghi dạng YYYY-MM-DD (VD: 2004-02-12)."],
+      ["7. File này có thể dùng lại để nhập vào mục 'Nhập Danh sách Hồ sơ từ File Excel'."]
+    ];
+  }
+
   function downloadSampleAccountExcel() {
     if (!window.XLSX) {
       alert("Thư viện Excel đang tải, vui lòng thử lại sau giây lát.");
       return;
     }
     const sampleData = [
-      ["Họ và tên", "Mã số", "Chức vụ", "Ngày sinh", "Quê quán", "Mật khẩu (để trống = ngẫu nhiên)"],
-      ["Đại úy Nguyễn Văn An", "SQ01", "Đại đội phó - Sĩ quan Đốc gác", "1992-04-15", "Ba Đình, Hà Nội", ""],
-      ["Thượng úy Trần Minh Tuấn", "SQ02", "Trung đội trưởng - Sĩ quan Đốc gác", "1995-08-20", "TP. Hải Dương", ""],
-      ["Bùi Văn Hùng", "CS01", "Chiến sĩ nghĩa vụ", "2004-02-12", "Vụ Bản, Nam Định", ""],
-      ["Đỗ Quang Hải", "CS02", "Chiến sĩ nghĩa vụ", "2004-11-05", "Đông Anh, Hà Nội", ""]
+      ACCOUNT_EXCEL_HEADERS,
+      ["Đại úy Nguyễn Văn An", "SQ01", "Đại đội phó - Sĩ quan Đốc gác", "Đại úy", "Tổ 1 - Đốc gác", "1992-04-15", "Ba Đình, Hà Nội", "", ""],
+      ["Thượng úy Trần Minh Tuấn", "SQ02", "Trung đội trưởng - Sĩ quan Đốc gác", "Thượng úy", "Tổ 2 - Đốc gác", "1995-08-20", "TP. Hải Dương", "", ""],
+      ["Bùi Văn Hùng", "CS01", "Chiến sĩ nghĩa vụ", "Binh nhì", "Tổ 1 - Chiến sĩ", "2004-02-12", "Vụ Bản, Nam Định", "", ""],
+      ["Đỗ Quang Hải", "CS02", "Chiến sĩ nghĩa vụ", "Binh nhì", "Tổ 3 - Chiến sĩ", "2004-11-05", "Đông Anh, Hà Nội", "", ""]
     ];
     const ws = XLSX.utils.aoa_to_sheet(sampleData);
+    ws["!cols"] = [{ wch: 28 }, { wch: 10 }, { wch: 34 }, { wch: 14 }, { wch: 20 }, { wch: 12 }, { wch: 22 }, { wch: 22 }, { wch: 16 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "HoSoQuanNhan");
+    const guide = XLSX.utils.aoa_to_sheet(accountSheetNotes());
+    guide["!cols"] = [{ wch: 110 }];
+    XLSX.utils.book_append_sheet(wb, guide, "GhiChu");
     XLSX.writeFile(wb, "Mau_Nhap_Ho_So_Quan_Nhan_Doi3.xlsx");
+  }
+
+  // Tải danh sách hồ sơ tài khoản chiến sĩ hiện tại (đúng các cột như file mẫu).
+  function downloadAccountListExcel() {
+    if (!window.XLSX) {
+      alert("Thư viện Excel đang tải, vui lòng thử lại sau giây lát.");
+      return;
+    }
+    const q = (document.getElementById("filterAccInput").value || "").trim().toLowerCase();
+    const roleFilter = document.getElementById("filterAccRole").value;
+    const list = (S.personnelAccounts || []).filter(a => {
+      if (roleFilter !== "all" && a.roleType !== roleFilter) return false;
+      const fullStr = `${a.fullName} ${a.code} ${a.position} ${a.username} ${a.hometown || ""}`.toLowerCase();
+      return !q || fullStr.includes(q);
+    });
+    if (!list.length) {
+      alert("Chưa có hồ sơ nào để tải về (kiểm tra bộ lọc hiện tại).");
+      return;
+    }
+    const rows = list.map(a => [
+      a.fullName || "",
+      a.code || "",
+      a.position || "",
+      getRankLabel(getPersonRank(a.fullName)),
+      accountGroupText(a),
+      a.dob || "",
+      a.hometown || "",
+      a.username || formatFullAccountName(a.fullName, a.code),
+      "" // mật khẩu chỉ lưu dạng băm, không thể xuất
+    ]);
+    const ws = XLSX.utils.aoa_to_sheet([ACCOUNT_EXCEL_HEADERS, ...rows]);
+    ws["!cols"] = [{ wch: 28 }, { wch: 10 }, { wch: 34 }, { wch: 14 }, { wch: 20 }, { wch: 12 }, { wch: 22 }, { wch: 22 }, { wch: 16 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "HoSoHienTai");
+    const guide = XLSX.utils.aoa_to_sheet(accountSheetNotes());
+    guide["!cols"] = [{ wch: 110 }];
+    XLSX.utils.book_append_sheet(wb, guide, "GhiChu");
+    XLSX.writeFile(wb, `DanhSach_HoSo_Doi3_${fmtDate(new Date())}.xlsx`);
+    flashAccMsg(`✅ Đã tải ${rows.length} hồ sơ hiện tại ra file Excel.`);
   }
 
   function deleteAccount(id) {
@@ -728,6 +845,106 @@
     syncRosterStringsFromAccounts();
     saveStorage();
     renderAccountsTable();
+  }
+
+  // ===== SỬA TRỰC TIẾP TRÊN BẢNG (nút ✏️ Sửa đổi thành 💾 Lưu) =====
+  // Bấm ✏️ Sửa: các ô của hàng đó chuyển thành ô nhập liệu ngay trên bảng.
+  // Sửa xong bấm 💾 Lưu để ghi lại (không cần mở hộp thoại).
+  const inlineEditingIds = new Set();
+
+  function inlineKey(id) {
+    return "a" + String(id).replace(/[^0-9a-zA-Z]/g, "_");
+  }
+
+  function rankOptionsHtml(roleType, selected) {
+    const list = (typeof RANK_OPTIONS !== "undefined" && RANK_OPTIONS[roleType]) || [];
+    const sel = normalizeRankCode(selected);
+    return `<option value="">-- Chưa xếp --</option>` +
+      list.map(code => `<option value="${code}"${code === sel ? " selected" : ""}>${code} – ${RANK_LABELS[code] || code}</option>`).join("");
+  }
+
+  function startInlineEdit(id) {
+    if (getCurrentRole() !== "commander") return;
+    inlineEditingIds.add(String(id));
+    renderAccountsTable();
+    const el = document.getElementById(`ri-fullName-${inlineKey(id)}`);
+    if (el) el.focus();
+  }
+
+  function cancelInlineEdit(id) {
+    inlineEditingIds.delete(String(id));
+    renderAccountsTable();
+  }
+
+  function refreshInlineRank(key) {
+    const roleEl = document.getElementById(`ri-roleType-${key}`);
+    const rankEl = document.getElementById(`ri-rank-${key}`);
+    if (!roleEl || !rankEl) return;
+    rankEl.innerHTML = rankOptionsHtml(roleEl.value, "");
+  }
+
+  function flashAccMsg(text, ok) {
+    const el = document.getElementById("accSaveMsg");
+    if (!el) return;
+    el.textContent = text || "";
+    el.style.color = ok === false ? "#b71c1c" : "var(--primary-green)";
+    clearTimeout(el._t);
+    if (text) el._t = setTimeout(() => { el.textContent = ""; }, 8000);
+  }
+
+  function saveInlineAccount(id) {
+    if (getCurrentRole() !== "commander") return;
+    const acc = (S.personnelAccounts || []).find(a => String(a.id) === String(id));
+    if (!acc) return;
+    const key = inlineKey(id);
+    const read = (field) => {
+      const el = document.getElementById(`ri-${field}-${key}`);
+      return el ? el.value : "";
+    };
+
+    const newFn = cleanName(read("fullName"));
+    const newCd = (read("code") || "").trim();
+    if (!newFn || !newCd) {
+      alert("⚠️ Họ và tên và Mã số Chiến Sĩ là bắt buộc!");
+      return;
+    }
+
+    const roleType = read("roleType") || acc.roleType || "soldier";
+    const teamId = parseInt(read("teamId"), 10) || 1;
+    const dup = (S.personnelAccounts || []).some(a => String(a.id) !== String(id) && (
+      String(a.code || "").trim().toLowerCase() === newCd.toLowerCase() ||
+      cleanName(a.fullName).toLowerCase() === newFn.toLowerCase()
+    ));
+    if (dup && !confirm(`Đã có hồ sơ khác trùng họ tên hoặc mã số (${newFn} – ${newCd}). Vẫn lưu?`)) return;
+
+    const oldLabel = formatFullAccountName(acc.fullName, acc.code);
+    const oldClean = cleanName(acc.fullName);
+    const newLabel = formatFullAccountName(newFn, newCd);
+
+    acc.fullName = newFn;
+    acc.code = newCd;
+    acc.roleType = roleType;
+    acc.teamId = teamId;
+    acc.position = read("position").trim() || (roleType === "officer" ? "Sĩ quan Đốc gác" : "Chiến sĩ nghĩa vụ");
+    acc.dob = read("dob") || acc.dob || "2004-01-01";
+    acc.hometown = read("hometown").trim() || "Chưa cập nhật";
+    acc.username = read("username").trim() || newLabel;
+    const newPw = read("password").trim();
+    if (newPw) setAccountPassword(acc, newPw);
+    acc.active = true;
+
+    // Cấp bậc hàm: cập nhật theo hồ sơ và chuyển khóa lưu trữ nếu đổi tên.
+    const newRank = normalizeRankCode(read("rank"));
+    if (S.ranks && oldClean) delete S.ranks[oldClean.toLowerCase()];
+    setPersonRank(newFn, newRank);
+
+    // Đồng bộ tên mới sang toàn bộ lịch gác các ngày & danh sách quân số
+    cascadeUpdatePersonnelName(oldLabel, oldClean, newLabel);
+    syncRosterStringsFromAccounts();
+    saveStorage();
+    inlineEditingIds.delete(String(id));
+    renderAccountsTable();
+    flashAccMsg(`✅ Đã lưu thông tin cho ${newLabel}`);
   }
 
   function renderAccountsTable() {
@@ -753,6 +970,38 @@
       const uName = a.username || fullLabel;
       const teamNo = escHTML(a.teamId || 1);
       const rank = getPersonRank(a.fullName);
+      const key = inlineKey(a.id);
+
+      // Đang sửa trực tiếp: hiện ô nhập liệu ngay trên bảng
+      if (inlineEditingIds.has(String(a.id))) {
+        return `<tr class="row-editing">
+          <td>${i + 1}</td>
+          <td><input type="text" id="ri-fullName-${key}" value="${escHTML(a.fullName)}" title="Họ và tên (*)"></td>
+          <td><input type="text" id="ri-code-${key}" value="${escHTML(a.code)}" title="Mã số (*)"></td>
+          <td><input type="text" id="ri-position-${key}" value="${escHTML(a.position || "")}" title="Chức vụ"></td>
+          <td><select id="ri-rank-${key}" title="Cấp bậc hàm">${rankOptionsHtml(a.roleType || "soldier", rank)}</select></td>
+          <td>
+            <div class="inline-edit-stack">
+              <select id="ri-roleType-${key}" onchange="refreshInlineRank('${key}')" title="Nhóm cắt gác">
+                <option value="officer"${a.roleType === "officer" ? " selected" : ""}>⭐ Đốc gác (Sĩ quan)</option>
+                <option value="soldier"${a.roleType !== "officer" ? " selected" : ""}>👤 Chiến sĩ</option>
+              </select>
+              <select id="ri-teamId-${key}" title="Tổ">
+                ${[1, 2, 3, 4].map(t => `<option value="${t}"${(parseInt(a.teamId, 10) || 1) === t ? " selected" : ""}>Tổ ${t}</option>`).join("")}
+              </select>
+            </div>
+          </td>
+          <td><input type="date" id="ri-dob-${key}" value="${escHTML(a.dob || "")}" title="Ngày sinh"></td>
+          <td><input type="text" id="ri-hometown-${key}" value="${escHTML(a.hometown || "")}" title="Quê quán"></td>
+          <td><input type="text" id="ri-username-${key}" value="${escHTML(uName)}" title="Tên TK đăng nhập"></td>
+          <td><input type="password" id="ri-password-${key}" placeholder="Trống = giữ nguyên" autocomplete="new-password" title="Mật khẩu mới"></td>
+          <td style="white-space:nowrap;">
+            <button class="pri row-save-btn" style="padding:4px 10px;font-size:12px;" onclick="saveInlineAccount('${escHTML(String(a.id))}')" title="Lưu thay đổi">💾 Lưu</button>
+            <button class="sec" style="padding:4px 8px;font-size:12px;" onclick="cancelInlineEdit('${escHTML(String(a.id))}')" title="Hủy thay đổi">✖ Hủy</button>
+          </td>
+        </tr>`;
+      }
+
       const rankCell = rank
         ? `<span class="rank-tag" title="${escHTML(formatRankFull(rank))}">${escHTML(rank)}</span><br><span style="font-size:11.5px;color:var(--muted);">${escHTML(getRankLabel(rank))}</span>`
         : `<span style="color:var(--muted);">Chưa xếp</span>`;
@@ -782,9 +1031,9 @@
         <td>${escHTML(a.hometown || "Chưa nhập")}</td>
         <td><code style="background:var(--bg);padding:3px 6px;border-radius:4px;font-weight:bold;color:var(--primary-green);">${escHTML(uName)}</code></td>
         <td><span title="Mật khẩu đã được mã hóa, không hiển thị">••••••</span></td>
-        <td>
+        <td style="white-space:nowrap;">
           <button class="sec" style="padding:4px 8px;font-size:12px;" onclick="openAssignmentById(${Number(a.id)})" title="Giao nhiệm vụ đi làm thay thế">🎯 Giao</button>
-          <button class="pri" style="padding:4px 8px;font-size:12px;" onclick="openEditAccountModal(${Number(a.id)})">✏️ Sửa</button>
+          <button class="pri" style="padding:4px 8px;font-size:12px;" onclick="startInlineEdit('${escHTML(String(a.id))}')" title="Sửa trực tiếp trên bảng">✏️ Sửa</button>
           <button class="warn-btn" style="padding:4px 8px;font-size:12px;" onclick="deleteAccount(${Number(a.id)})">🗑️ Xóa</button>
         </td>
       </tr>`;
