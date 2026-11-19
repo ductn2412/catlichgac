@@ -544,7 +544,7 @@ input.sup {
   position: absolute;
   top: 2px;
   right: 2px;
-  width: 24px;
+  width: 30px;
   padding: 0;
   border: 0;
   background: transparent;
@@ -553,7 +553,11 @@ input.sup {
   font-weight: 700;
   color: var(--primary-green);
   text-align: center;
+  -moz-appearance: textfield;
+  appearance: textfield;
 }
+input.sup::-webkit-outer-spin-button,
+input.sup::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 
 .unit-summary-box {
   background: var(--bg);
@@ -1106,8 +1110,8 @@ td.extra-time-col { width: 92px; }
   }
   .scroll table thead th:first-child { z-index: 3; }
   th, td { padding: 5px 6px; }
-  td input.nm { font-size: 12.5px; padding: 5px 20px 5px 5px; }
-  input.sup { width: 20px; font-size: 10px; }
+  td input.nm { font-size: 12.5px; padding: 5px 24px 5px 5px; }
+  input.sup { width: 24px; font-size: 9.5px; }
   .split-slot-time { width: 54px; font-size: 9.5px; }
   .btn-split-slot { font-size: 9px; padding: 1px 3px; }
   .btn-merge-slot { font-size: 9.5px; padding: 2px 4px; }

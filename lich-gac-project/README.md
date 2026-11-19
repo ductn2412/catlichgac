@@ -16,6 +16,7 @@
 13. **Cắt lịch ngày / tuần / tháng**: Nút "Cắt lịch cả tháng" cắt toàn bộ các ngày còn lại trong tháng hiện tại. Chỉnh sửa lịch chỉ lưu lên cloud khi bấm **💾 Lưu lịch**.
 14. **Quản lý hồ sơ trực tiếp trên bảng**: Bấm **✏️ Sửa** để sửa ngay các ô thông tin trong bảng, bấm **💾 Lưu** để ghi lại. File Excel mẫu và file tải danh sách hồ sơ hiện tại đều có đủ 9 cột: Họ và tên (*), Mã số (*), Chức vụ, Cấp bậc hàm, Nhóm cắt gác, Ngày sinh, Quê quán, Tên TK đăng nhập, Mật khẩu.
 15. **Phần 2 trên trang hiển thị lịch gác**: Người xem thấy đầy đủ tổng quân số đơn vị, danh sách trực cơ động và ghi chú vắng mặt ngay dưới bảng lịch.
+16. **Số mũ công liên tiếp**: Hiển thị cạnh tên trong ô lịch (và trong Excel/PDF). Ngày chỉ làm ca ngày = **0,25 mỗi ca**, tính riêng từng ngày và không cộng dồn sang hôm sau. Ngày có cả ca ngày lẫn ca đêm luôn là **1**. Ngày chỉ làm ca đêm thì nối tiếp chuỗi: **1 → 1,5 → 2 → 2,5…** (mỗi ngày làm tiếp +0,5); nghỉ một ngày thì hôm sau quay lại **1**. Bảng chấm công vẫn tính công theo quy tắc riêng (đủ 3 khung = 1,0 công; 2 khung ngày hoặc 1 khung đêm = 0,5 công).
 
 ---
 

@@ -312,7 +312,7 @@
                   <td><b>Ca ${sh.ca}</b></td>
                   <td><b>${sh.time}</b></td>
                   <td>${sh.isNight ? `<span style="color:#e65100;font-weight:bold;">🌙 Ca đêm (${sh.isNightOnly ? "18h–06h" : "22h–06h"} sáng)</span>` : '<span style="color:var(--primary-green);font-weight:bold;">☀️ Ca ngày</span>'}</td>
-                  <td><b>${sh.position}</b>${sh.streak !== "" && sh.streak != null ? ` <sup class="streak-sup" title="Số ngày làm liên tiếp">${escHTML(String(sh.streak))}</sup>` : ""}</td>
+                  <td><b>${sh.position}</b>${sh.streak !== "" && sh.streak != null ? ` <sup class="streak-sup" title="Số mũ công liên tiếp: ${escHTML(formatStreakText(sh.streak))}">${escHTML(formatStreakText(sh.streak))}</sup>` : ""}</td>
                 </tr>
               `).join("")}
             </tbody>

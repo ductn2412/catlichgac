@@ -21,16 +21,9 @@ function idxOf(day, n) {
   return -1;
 }
 
+// Số mũ hiển thị trên ô lịch: lấy theo quy tắc công liên tiếp (xem getPersonStreak).
 function calculateStreak(n, d) {
-  let c = 0;
-  while (S.days[d]) {
-    const day = S.days[d], k = idxOf(day, n);
-    if (k < 0) break;
-    if (day.streaks && day.streaks[k] != null) return c + day.streaks[k];
-    c++;
-    d = addDay(d, -1);
-  }
-  return c;
+  return getPersonStreak(d, n);
 }
 
 function getChronoIndex(rowIdx) {
@@ -487,9 +480,10 @@ function buildScheduleTableDOM() {
         sup.className = "sup";
         sup.type = "number";
         sup.min = "0";
+        sup.step = "0.25";
         sup.disabled = !isCommander;
-        sup.title = "Số mũ: số ngày làm liên tiếp";
-        sup.setAttribute("aria-label", "Số mũ (số ngày làm liên tiếp)");
+        sup.title = "Số mũ công liên tiếp (ca ngày 0,25/ca · ca đêm nối tiếp +0,5)";
+        sup.setAttribute("aria-label", "Số mũ công liên tiếp");
 
         const k0 = (caIdx * 3 + 0) * 5 + c;
         const k1 = (caIdx * 3 + 1) * 5 + c;
@@ -524,8 +518,10 @@ function buildScheduleTableDOM() {
 
         sup.addEventListener("input", () => {
           const d = getDayData(curDate);
-          if (sup.value === "") delete d.streaks[k0];
-          else d.streaks[k0] = Math.max(0, parseInt(sup.value, 10) || 0);
+          const raw = String(sup.value || "").replace(",", ".").trim();
+          const num = parseFloat(raw);
+          if (raw === "" || !isFinite(num)) delete d.streaks[k0];
+          else d.streaks[k0] = Math.max(0, Math.round(num * 100) / 100);
           saveStorage();
         });
         sup.addEventListener("blur", refresh);
@@ -582,11 +578,23 @@ function buildScheduleTableDOM() {
           sup.className = "sup";
           sup.type = "number";
           sup.min = "0";
+          sup.step = "0.25";
           sup.disabled = !isCommander;
-          sup.title = "Số mũ: số ngày làm liên tiếp";
-          sup.setAttribute("aria-label", "Số mũ (số ngày làm liên tiếp)");
+          sup.title = "Số mũ công liên tiếp (ca ngày 0,25/ca · ca đêm nối tiếp +0,5)";
+          sup.setAttribute("aria-label", "Số mũ công liên tiếp");
 
           const k = (caIdx * 3 + slotIdx) * 5 + c;
+
+          // Ô "mũ" của ca tách khung: cho phép Chỉ huy sửa tay như ô gộp cả ca.
+          sup.addEventListener("input", () => {
+            const d = getDayData(curDate);
+            const raw = String(sup.value || "").replace(",", ".").trim();
+            const num = parseFloat(raw);
+            if (raw === "" || !isFinite(num)) delete d.streaks[k];
+            else d.streaks[k] = Math.max(0, Math.round(num * 100) / 100);
+            saveStorage();
+          });
+          sup.addEventListener("blur", refresh);
 
           const onSplitInput = () => {
             const d = getDayData(curDate);
@@ -2708,7 +2716,7 @@ function refresh() {
       if (isPunishedOn(n, curDate)) continue;
       const key = cleanName(n).toLowerCase();
       if (overNames[key]) continue;
-      const streak = calculateStreak(n, curDate);
+      const streak = consecutiveDutyDays(n, curDate) + 1;
       if (streak > borrowRules.maxConsecutiveDays) {
         overNames[key] = { name: n, streak };
       }

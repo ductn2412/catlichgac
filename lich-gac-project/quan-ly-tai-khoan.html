@@ -1195,7 +1195,7 @@
               ? day.streaks[k]
               : getPersonStreak(dateStr, val);
             if (streak !== "" && streak != null) {
-              content += ` <sup class="streak-sup" title="Số ngày làm liên tiếp (mũ ${streak})">${escHTML(String(streak))}</sup>`;
+              content += ` <sup class="streak-sup" title="Số mũ công liên tiếp: ${escHTML(formatStreakText(streak))}">${escHTML(formatStreakText(streak))}</sup>`;
             }
           }
           if (isTarget) content += ` <small>(đang trực)</small>`;

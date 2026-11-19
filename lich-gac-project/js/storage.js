@@ -1842,28 +1842,94 @@ function renderPersonHoverLinkHTML(personLabel) {
   return `<a href="tim-kiem.html?q=${encodeURIComponent(cleanName(p))}" class="person-hover-link" data-person="${escHTML(p)}" onmouseenter="showPersonnelHoverCard(event, this.dataset.person)" onmousemove="movePersonnelHoverCard(event)" onmouseleave="hidePersonnelHoverCard()"><b>${escHTML(p)}</b></a>`;
 }
 
-// "Số mũ" = số ngày làm liên tiếp của một người tính đến ngày dateStr.
-// Ưu tiên giá trị đã lưu trong day.streaks; nếu chưa có thì tự đếm lùi các ngày.
+// "Số mũ" = bậc công liên tiếp của một người tính đến ngày dateStr.
+// Quy tắc:
+//  - Chỉ làm ca ngày: 0,25 mỗi ca ngày, tính riêng từng ngày (không cộng dồn).
+//  - Ngày có cả ca ngày lẫn ca đêm: luôn tính là 1.
+//  - Ngày chỉ làm ca đêm: nếu hôm trước cũng làm ca đêm thì +0,5
+//    (1 → 1,5 → 2 → 2,5 ...); hôm trước nghỉ hoặc chỉ làm ca ngày thì quay lại 1.
+// Giá trị Chỉ huy nhập tay trong ô "mũ" được ưu tiên cho đúng ngày đó.
+
+// Đếm nhanh số khung giờ ngày/đêm của một người trong ngày.
+// Không tính "số mũ" để tránh đệ quy với getPersonStreak.
+function getPersonShiftStats(dateStr, personName) {
+  const cName = cleanName(personName || "");
+  const out = { isAbsent: false, dayShifts: 0, nightShifts: 0, totalSlots: 0 };
+  const dayData = S.days && S.days[dateStr];
+  if (!dayData || !cName) return out;
+
+  const absentObj = dayData.absent || {};
+  for (const c of CATS) {
+    if (parseNames(absentObj[c[0]]).some(n => cleanName(n) === cName)) {
+      out.isAbsent = true;
+      return out;
+    }
+  }
+  if (!Array.isArray(dayData.cells)) return out;
+
+  for (let ca = 0; ca < 4; ca++) {
+    for (let slot = 0; slot < 3; slot++) {
+      const row = ca * 3 + slot;
+      for (let col = 0; col < 5; col++) {
+        const val = (dayData.cells[row * 5 + col] || "").trim();
+        if (!val || cleanName(val) !== cName) continue;
+        out.totalSlots++;
+        if (isNightShiftForPerson(ca, slot, val)) out.nightShifts++;
+        else out.dayShifts++;
+      }
+    }
+  }
+  return out;
+}
+
+function formatStreakText(v) {
+  return String(v == null ? "" : v).replace(".", ",");
+}
+
+function roundStreakValue(v) {
+  return Math.round((Number(v) || 0) * 100) / 100;
+}
+
 function getPersonStreak(dateStr, personName) {
   const cName = cleanName(personName);
   if (!cName) return "";
-  let d = dateStr;
-  let count = 0;
-  while (S.days[d]) {
-    const day = S.days[d];
-    let idx = -1;
-    if (Array.isArray(day.cells)) {
-      for (let i = 0; i < day.cells.length; i++) {
-        const v = (day.cells[i] || "").trim();
-        if (v && cleanName(v) === cName) { idx = i; break; }
+  const day = S.days && S.days[dateStr];
+  if (!day) return "";
+
+  // Giá trị nhập tay (day.streaks) được ưu tiên.
+  if (day.streaks && Array.isArray(day.cells)) {
+    for (let i = 0; i < day.cells.length; i++) {
+      if (cleanName(day.cells[i]) !== cName) continue;
+      const manual = day.streaks[i];
+      if (manual != null && manual !== "" && isFinite(Number(manual))) {
+        return roundStreakValue(manual);
       }
     }
-    if (idx < 0) break;
-    if (day.streaks && day.streaks[idx] != null) return count + day.streaks[idx];
-    count++;
-    d = addDay(d, -1);
   }
-  return count;
+
+  // Không đi làm ngày này → không hiển thị số mũ.
+  const det = getPersonShiftStats(dateStr, cName);
+  if (!det || !det.totalSlots) return "";
+
+  // Ngày có cả ca ngày lẫn ca đêm: luôn là 1.
+  if (det.dayShifts > 0 && det.nightShifts > 0) return 1;
+
+  if (det.nightShifts > 0) {
+    // Ngày chỉ làm ca đêm: nối tiếp chuỗi nếu hôm trước cũng có ca đêm.
+    const prevDate = addDay(dateStr, -1);
+    const prevDet = (S.days && S.days[prevDate])
+      ? getPersonShiftStats(prevDate, cName)
+      : null;
+    if (prevDet && prevDet.totalSlots > 0 && prevDet.nightShifts > 0) {
+      const prev = getPersonStreak(prevDate, cName);
+      const base = (prev === "" || !isFinite(Number(prev))) ? 1 : Number(prev);
+      return roundStreakValue(base + 0.5);
+    }
+    return 1;
+  }
+
+  // Chỉ làm ca ngày: 0,25 mỗi ca, không cộng dồn sang ngày hôm sau.
+  return roundStreakValue(det.dayShifts * 0.25);
 }
 
 // Tên kèm "số mũ" dùng cho các bảng lịch chỉ đọc (xem lịch, tra cứu...).
@@ -1873,7 +1939,7 @@ function renderPersonWithStreakHTML(personLabel, dateStr) {
   const streak = getPersonStreak(dateStr, p);
   const sup = (streak === "" || streak == null)
     ? ""
-    : `<sup class="streak-sup" title="Số ngày làm liên tiếp (mũ ${escHTML(String(streak))})">${escHTML(String(streak))}</sup>`;
+    : `<sup class="streak-sup" title="Số mũ công liên tiếp: ${escHTML(formatStreakText(streak))}">${escHTML(formatStreakText(streak))}</sup>`;
   const rank = getPersonRank(p);
   const rankTag = rank
     ? `<span class="rank-tag" title="Cấp bậc hàm: ${escHTML(formatRankFull(rank))}">${escHTML(rank)}</span> `

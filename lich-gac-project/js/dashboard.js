@@ -63,7 +63,7 @@ function renderDashboard() {
     const streak = getPersonStreak(dStr, n);
     const sup = (streak === "" || streak == null)
       ? ""
-      : ` <sup class="streak-sup" title="Số ngày làm liên tiếp (mũ ${streak})">${streak}</sup>`;
+      : ` <sup class="streak-sup" title="Số mũ công liên tiếp: ${escHTML(formatStreakText(streak))}">${escHTML(formatStreakText(streak))}</sup>`;
     return escHTML(n) + sup;
   };
   let listHtml = "";
