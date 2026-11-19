@@ -821,10 +821,10 @@ function pickSoldiersForTeam(team, ab, dateStr, excludeFn) {
   const rest = cands.filter(c => c.punished !== 0);
   let i = 0;
   while (picked.length < need && i < rest.length) {
-    const key = `${rest[i].dutyStreak}|${rest[i].recent}|${rest[i].restStreak}`;
+    const key = `${rest[i].dutyStreak}|${rest[i].rankPriority}|${rest[i].recent}|${rest[i].restStreak}`;
     const group = [];
     while (i < rest.length &&
-      `${rest[i].dutyStreak}|${rest[i].recent}|${rest[i].restStreak}` === key) {
+      `${rest[i].dutyStreak}|${rest[i].rankPriority}|${rest[i].recent}|${rest[i].restStreak}` === key) {
       group.push(rest[i]);
       i++;
     }
@@ -921,6 +921,8 @@ function consecutiveRestDays(person, dateStr) {
 // Hồ sơ công bằng của 1 chiến sĩ: ai làm ít ngày liên tiếp / ít ngày gần đây / nghỉ lâu hơn
 // thì được xếp đi làm trước, người đã làm "mũ 2" bị đẩy xuống sau "mũ 1".
 // Cấp bậc hàm: B2 được ưu tiên làm "mũ 2" (xếp đi làm trước), H1 được ưu tiên nghỉ trước.
+// Khi "số mũ" (số ngày làm liên tiếp) bằng nhau, cấp bậc quyết định trước các tiêu chí
+// phụ: B2 đi làm trước, H1 nghỉ trước.
 function rankWorkPriority(person) {
   const rank = typeof getPersonRank === "function" ? getPersonRank(person) : "";
   if (rank === "B2") return 0; // đi làm trước → nhận "mũ 2" khi phải làm liên tiếp
@@ -943,9 +945,9 @@ function soldierFairness(person, dateStr, turn) {
 
 function compareSoldierFairness(a, b) {
   return (a.dutyStreak - b.dutyStreak) ||
+    (a.rankPriority - b.rankPriority) ||
     (a.recent - b.recent) ||
     (b.restStreak - a.restStreak) ||
-    (a.rankPriority - b.rankPriority) ||
     (a.turn - b.turn);
 }
 
@@ -989,8 +991,8 @@ function pickBorrowedSoldier(dateStr, targetTeamId, dayUsed, ab, nightSet, caIdx
   cands.sort((a, b) =>
     (b.surplus - a.surplus) ||
     (a.streak - b.streak) ||
-    (a.recent - b.recent) ||
     (a.rankPriority - b.rankPriority) ||
+    (a.recent - b.recent) ||
     (a.teamId - b.teamId)
   );
   return cands[0] || null;

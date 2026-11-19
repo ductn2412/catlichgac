@@ -255,5 +255,72 @@ history3.forEach(h => {
 });
 check("Ca đêm: A không làm khung ban ngày", nightDayBad.length === 0, nightDayBad.join(","));
 
+// ===== ƯU TIÊN CẤP BẬC: H1 NGHỈ TRƯỚC B2 KHI SỐ MŨ BẰNG NHAU =====
+const RANK_NAMES = ["R1", "R2", "R3", "R4", "R5", "R6", "R7"]
+  .map((p, i) => `${p} Rank (RT0${i + 1})`);
+
+function resetRankScenario(soldiers) {
+  vm.runInContext(`
+    S.days = {};
+    S.nightOnly = "";
+    S.punishments = [];
+    S.ranks = {};
+    S.teams[0].soldiers = ${JSON.stringify(soldiers || RANK_NAMES)};
+  `, ctx);
+}
+function setRanks(names, ranks) {
+  names.forEach((n, i) => ctx.setPersonRank(n, ranks[i] || ""));
+}
+function mkRankDay(dateStr, names) {
+  const day = ctx.getDayData(dateStr);
+  day.cells = Array(60).fill("");
+  (names || []).forEach((n, i) => { day.cells[i + 1] = n; });
+  return day;
+}
+
+// A. 7 chiến sĩ lịch sử giống hệt nhau: 4 B2 + 3 H1 → 4 B2 đi làm, H1 nghỉ.
+resetRankScenario();
+setRanks(RANK_NAMES, ["B2", "B2", "B2", "B2", "H1", "H1", "H1"]);
+const pickA = ctx.pickSoldiersForTeam(ctx.__S().teams[0], {}, "2028-03-01");
+const pickARanks = pickA.map(n => ctx.getPersonRank(n));
+check("Cấp bậc: cùng số mũ → B2 đi làm, H1 nghỉ",
+  pickA.length === 4 && pickARanks.every(r => r === "B2"),
+  pickA.map(n => n.split(" ")[0] + ":" + ctx.getPersonRank(n)).join(","));
+
+// B. Cùng số mũ nhưng B2 đã làm nhiều ngày gần đây hơn H1 → vẫn ưu tiên H1 nghỉ.
+resetRankScenario();
+setRanks(RANK_NAMES, ["B2", "B2", "B2", "B2", "H1", "H1", "H1"]);
+["2028-03-26", "2028-03-27", "2028-03-28", "2028-03-29", "2028-03-30", "2028-03-31"]
+  .forEach(d => mkRankDay(d, []));
+mkRankDay("2028-03-28", RANK_NAMES.slice(0, 4));
+mkRankDay("2028-03-30", RANK_NAMES.slice(0, 4));
+const pickB = ctx.pickSoldiersForTeam(ctx.__S().teams[0], {}, "2028-04-01");
+const pickBRanks = pickB.map(n => ctx.getPersonRank(n));
+check("Cấp bậc: H1 nghỉ dù B2 đã làm nhiều hơn trong 7 ngày",
+  pickB.length === 4 && pickBRanks.every(r => r === "B2"),
+  pickB.map(n => n.split(" ")[0] + ":" + ctx.getPersonRank(n)).join(","));
+
+// C. Số mũ khác nhau: B2 đã làm 2 ngày liên tiếp phải nghỉ, H1 0 ngày đi làm.
+resetRankScenario();
+setRanks(RANK_NAMES, ["B2", "B2", "B2", "H1", "H1", "H1", "H1"]);
+mkRankDay("2028-05-29", RANK_NAMES.slice(0, 3));
+mkRankDay("2028-05-30", RANK_NAMES.slice(0, 3));
+const pickC = ctx.pickSoldiersForTeam(ctx.__S().teams[0], {}, "2028-05-31");
+const pickCRanks = pickC.map(n => ctx.getPersonRank(n));
+check("Cấp bậc không lấn át số mũ: B2 mũ 2 nghỉ, H1 mũ 0 đi làm",
+  pickC.length === 4 && pickCRanks.every(r => r === "H1"),
+  pickC.map(n => n.split(" ")[0] + ":" + ctx.getPersonRank(n)).join(","));
+
+// D. Không có cấp bậc xếp sau B2 nhưng trước H1.
+resetRankScenario();
+setRanks(RANK_NAMES, ["B2", "B2", "", "", "", "H1", "H1"]);
+const pickD = ctx.pickSoldiersForTeam(ctx.__S().teams[0], {}, "2028-06-01");
+const pickDRanks = pickD.map(n => ctx.getPersonRank(n) || "?");
+check("Cấp bậc: thứ tự B2 → chưa cập nhật → H1",
+  pickDRanks.filter(r => r === "B2").length === 2 &&
+  pickDRanks.filter(r => r === "?").length === 2 &&
+  pickDRanks.every(r => r !== "H1"),
+  pickD.map(n => n.split(" ")[0] + ":" + (ctx.getPersonRank(n) || "?")).join(","));
+
 console.log(`\n${pass} pass, ${fail} fail`);
 process.exit(fail ? 1 : 0);

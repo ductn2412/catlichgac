@@ -6,7 +6,7 @@ Chạy toàn bộ bằng cách mở terminal tại thư mục gốc dự án:
 cd tests
 node test-new-features.js     # 40 test  — tính năng mới (vắng mặt, đăng nhập, bảo mật...)
 node test-improvements.js     # 49 test  — cải tiến nghiệp vụ (mượn quân, đổi ca, chấm công...)
-node test-fair-schedule.js    # 13 test  — luật công bằng khi cắt lịch (mũ 1/mũ 2, xoay vọng)
+node test-fair-schedule.js    # 17 test  — luật công bằng khi cắt lịch (mũ 1/mũ 2, xoay vọng, ưu tiên H1/B2)
 node test-assign.js           # 30 test  — validate đổi ca / xung đột ca
 node test-punishment.js       # 11 test  — kỷ luật phạt làm 7 ngày liên tục
 node test-streak.js           # 19 test  — quy tắc "số mũ" (ca ngày 0,25 · ca đêm nối +0,5)
@@ -15,7 +15,7 @@ node test-streak.js           # 19 test  — quy tắc "số mũ" (ca ngày 0,25
 Test chạy trực tiếp bằng `node`, không cần cài thêm thư viện (dùng `vm` để nạp
 `js/config.js`, `js/storage.js`, `js/app.js` vào sandbox).
 
-> Tổng hiện tại: **162 test / 0 fail**. Sau mỗi lần sửa code, chạy lại cả 6 file.
+> Tổng hiện tại: **166 test / 0 fail**. Sau mỗi lần sửa code, chạy lại cả 6 file.
 
 ## Checklist kiểm thử thủ công trước khi phát hành
 
@@ -31,5 +31,6 @@ Test chạy trực tiếp bằng `node`, không cần cài thêm thư viện (d�
 - [ ] Backup → xóa dữ liệu → khôi phục → dữ liệu khớp.
 - [ ] In và xuất Excel/PDF ở trang Lịch gác và Chấm công (có Quốc hiệu, chữ ký).
 - [ ] Số mũ trên lịch: ca ngày 0,25/ca (không cộng dồn), ca đêm nối tiếp 1 → 1,5 → 2, nghỉ 1 ngày quay lại 1; sửa tay được số lẻ và PDF hiển thị đúng.
+- [ ] Cắt lịch: khi các chiến sĩ cùng "số mũ", H1 nghỉ trước B2; người chưa cập nhật cấp bậc xếp giữa B2 và H1.
 - [ ] Mở 2 tab cùng sửa → tab kia tự nạp lại dữ liệu (storage event).
 - [ ] Ngắt mạng → xuất Excel/PDF/Chart vẫn chạy (thư viện nằm trong `vendor/`).
