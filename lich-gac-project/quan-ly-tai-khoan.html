@@ -1192,9 +1192,7 @@
           ].filter(Boolean).join(" ");
           let content = val ? escAssignmentHtml(val) : "—";
           if (val) {
-            const streak = (day.streaks && day.streaks[k] != null)
-              ? day.streaks[k]
-              : getPersonStreak(dateStr, val);
+            const streak = getPersonStreak(dateStr, val);
             if (streak !== "" && streak != null) {
               content += ` <sup class="streak-sup" title="Số mũ công liên tiếp: ${escHTML(formatStreakText(streak))}">${escHTML(formatStreakText(streak))}</sup>`;
             }

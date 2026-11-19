@@ -1419,9 +1419,7 @@ function getPersonDayWorkDetails(dateStr, personName) {
               position: posNames[col],
               col: col,
               cellIndex: cellIdx,
-              streak: (dayData.streaks && dayData.streaks[cellIdx] != null)
-                ? dayData.streaks[cellIdx]
-                : getPersonStreak(dateStr, val)
+              streak: getPersonStreak(dateStr, val)
             });
           }
         }
@@ -1842,13 +1840,22 @@ function renderPersonHoverLinkHTML(personLabel) {
   return `<a href="tim-kiem.html?q=${encodeURIComponent(cleanName(p))}" class="person-hover-link" data-person="${escHTML(p)}" onmouseenter="showPersonnelHoverCard(event, this.dataset.person)" onmousemove="movePersonnelHoverCard(event)" onmouseleave="hidePersonnelHoverCard()"><b>${escHTML(p)}</b></a>`;
 }
 
-// "Số mũ" = bậc công liên tiếp của một người tính đến ngày dateStr.
-// Quy tắc:
-//  - Chỉ làm ca ngày: 0,25 mỗi ca ngày, tính riêng từng ngày (không cộng dồn).
-//  - Ngày có cả ca ngày lẫn ca đêm: luôn tính là 1.
-//  - Ngày chỉ làm ca đêm: nếu hôm trước cũng làm ca đêm thì +0,5
-//    (1 → 1,5 → 2 → 2,5 ...); hôm trước nghỉ hoặc chỉ làm ca ngày thì quay lại 1.
-// Giá trị Chỉ huy nhập tay trong ô "mũ" được ưu tiên cho đúng ngày đó.
+// "Số mũ" = mức công liên tiếp của một người tính đến ngày dateStr.
+// Quy tắc TÍNH THEO TỪNG NGÀY, cộng dồn sang hôm sau nếu vẫn đi làm:
+//  - Ngày đủ 3 khung (hoặc hơn) = 1.
+//  - Ngày 2 khung gồm 1 khung ngày + 1 khung đêm = 1.
+//  - Ngày chỉ làm 1 khung đêm = 0,5.
+//  - Ngày làm 2 khung ngày:
+//      · Chiến sĩ nghĩa vụ: hiển thị 0,25 trên mỗi dòng và NGẮT chuỗi
+//        (hôm sau đi làm lại bắt đầu từ 1).
+//      · Sĩ quan (Đốc gác): cộng 0,5 vào mốc hôm trước và tiếp tục cộng dồn.
+//  - Ngày chỉ làm 1 khung ngày: không hiển thị mũ, giữ mốc để hôm sau cộng tiếp.
+//  - Nghỉ cả ngày (hoặc vắng): không hiển thị mũ, hôm sau quay lại từ đầu.
+// Ví dụ chuỗi 4 ngày (đủ 3 ca → 1 ca đêm → 2 ca ngày → đủ 3 ca):
+//  - Chiến sĩ: 1 → 1,5 → 0,25 → 1.
+//  - Sĩ quan:  1 → 1,5 → 2    → 3.
+// Giá trị Chỉ huy nhập tay trong ô "mũ" được ưu tiên cho đúng ngày đó
+// và trở thành mốc cộng tiếp cho ngày hôm sau.
 
 // Đếm nhanh số khung giờ ngày/đêm của một người trong ngày.
 // Không tính "số mũ" để tránh đệ quy với getPersonStreak.
@@ -1890,46 +1897,98 @@ function roundStreakValue(v) {
   return Math.round((Number(v) || 0) * 100) / 100;
 }
 
-function getPersonStreak(dateStr, personName) {
+// Người thuộc danh sách Đốc gác (sĩ quan) hay Chiến sĩ nghĩa vụ.
+// Dùng để phân biệt quy tắc cộng dồn "2 khung ngày" trong số mũ.
+function isOfficerPerson(personName) {
+  const key = cleanName(personName || "").toLowerCase();
+  if (!key) return false;
+  if (Array.isArray(S.teams)) {
+    for (let i = 0; i < S.teams.length; i++) {
+      if ((S.teams[i].officers || []).some(n => cleanName(n).toLowerCase() === key)) return true;
+    }
+  }
+  if (parseNames(S.officers).some(n => cleanName(n).toLowerCase() === key)) return true;
+  const rank = typeof getPersonRank === "function" ? getPersonRank(personName) : "";
+  return !!rank && rank !== "H1" && rank !== "B2";
+}
+
+// Giá trị "mũ" Chỉ huy đã nhập tay cho ngày này (nếu có).
+// Chỉ áp dụng cho dữ liệu nhập tay MỚI (đánh dấu day.streakManual = true);
+// các giá trị "mũ" cũ từ phiên bản trước (hiểu theo nghĩa cộng dồn khác)
+// được bỏ qua để chuỗi mũ luôn đúng quy tắc tính theo ngày.
+function getManualStreakForDay(day, cName) {
+  if (!day || day.streakManual !== true) return null;
+  if (!day.streaks || !Array.isArray(day.cells)) return null;
+  for (let i = 0; i < day.cells.length; i++) {
+    if (cleanName(day.cells[i]) !== cName) continue;
+    const manual = day.streaks[i];
+    if (manual != null && manual !== "" && isFinite(Number(manual))) {
+      return roundStreakValue(manual);
+    }
+  }
+  return null;
+}
+
+// Trạng thái mũ của 1 ngày: value = mức cộng dồn, show = có hiển thị hay không,
+// breakChain = ngày này ngắt chuỗi (2 khung ngày của chiến sĩ nghĩa vụ).
+function getPersonStreakState(dateStr, personName) {
+  const none = { value: 0, show: false, breakChain: false, worked: false };
   const cName = cleanName(personName);
-  if (!cName) return "";
+  if (!cName) return none;
   const day = S.days && S.days[dateStr];
-  if (!day) return "";
+  if (!day) return none;
 
-  // Giá trị nhập tay (day.streaks) được ưu tiên.
-  if (day.streaks && Array.isArray(day.cells)) {
-    for (let i = 0; i < day.cells.length; i++) {
-      if (cleanName(day.cells[i]) !== cName) continue;
-      const manual = day.streaks[i];
-      if (manual != null && manual !== "" && isFinite(Number(manual))) {
-        return roundStreakValue(manual);
-      }
-    }
-  }
-
-  // Không đi làm ngày này → không hiển thị số mũ.
   const det = getPersonShiftStats(dateStr, cName);
-  if (!det || !det.totalSlots) return "";
+  if (!det || !det.totalSlots) return none;
 
-  // Ngày có cả ca ngày lẫn ca đêm: luôn là 1.
-  if (det.dayShifts > 0 && det.nightShifts > 0) return 1;
+  // Giá trị nhập tay được ưu tiên tuyệt đối cho đúng ngày đó.
+  const manual = getManualStreakForDay(day, cName);
+  if (manual != null) return { value: manual, show: true, breakChain: false, worked: true };
 
-  if (det.nightShifts > 0) {
-    // Ngày chỉ làm ca đêm: nối tiếp chuỗi nếu hôm trước cũng có ca đêm.
-    const prevDate = addDay(dateStr, -1);
-    const prevDet = (S.days && S.days[prevDate])
-      ? getPersonShiftStats(prevDate, cName)
-      : null;
-    if (prevDet && prevDet.totalSlots > 0 && prevDet.nightShifts > 0) {
-      const prev = getPersonStreak(prevDate, cName);
-      const base = (prev === "" || !isFinite(Number(prev))) ? 1 : Number(prev);
-      return roundStreakValue(base + 0.5);
+  // Mốc của hôm trước: chỉ cộng tiếp nếu hôm trước có đi làm và không ngắt chuỗi.
+  let base = 0;
+  const prevDate = addDay(dateStr, -1);
+  const prevDay = S.days && S.days[prevDate];
+  if (prevDay) {
+    const prevDet = getPersonShiftStats(prevDate, cName);
+    if (prevDet && prevDet.totalSlots > 0) {
+      const prev = getPersonStreakState(prevDate, cName);
+      base = prev.breakChain ? 0 : (Number(prev.value) || 0);
     }
-    return 1;
   }
 
-  // Chỉ làm ca ngày: 0,25 mỗi ca, không cộng dồn sang ngày hôm sau.
-  return roundStreakValue(det.dayShifts * 0.25);
+  // Ngày đủ 3 khung trở lên = 1.
+  if (det.totalSlots >= 3) {
+    return { value: roundStreakValue(base + 1), show: true, breakChain: false, worked: true };
+  }
+
+  // 2 khung gồm 1 ngày + 1 đêm = 1.
+  if (det.dayShifts > 0 && det.nightShifts > 0) {
+    return { value: roundStreakValue(base + 1), show: true, breakChain: false, worked: true };
+  }
+
+  // Chỉ làm ca đêm: 1 khung đêm = 0,5; từ 2 khung đêm trở lên = 1.
+  if (det.nightShifts > 0) {
+    const add = det.nightShifts >= 2 ? 1 : 0.5;
+    return { value: roundStreakValue(base + add), show: true, breakChain: false, worked: true };
+  }
+
+  // Chỉ làm ca ngày: 2 khung ngày.
+  if (det.dayShifts >= 2) {
+    if (isOfficerPerson(cName)) {
+      return { value: roundStreakValue(base + 0.5), show: true, breakChain: false, worked: true };
+    }
+    // Chiến sĩ nghĩa vụ: hiển thị 0,25 trên mỗi dòng và ngắt chuỗi.
+    return { value: 0.25, show: true, breakChain: true, worked: true };
+  }
+
+  // Chỉ 1 khung ca ngày: không hiển thị mũ, giữ nguyên mốc để hôm sau cộng tiếp.
+  return { value: roundStreakValue(base), show: false, breakChain: false, worked: true };
+}
+
+function getPersonStreak(dateStr, personName) {
+  const st = getPersonStreakState(dateStr, personName);
+  return st.show ? st.value : "";
 }
 
 // Tên kèm "số mũ" dùng cho các bảng lịch chỉ đọc (xem lịch, tra cứu...).

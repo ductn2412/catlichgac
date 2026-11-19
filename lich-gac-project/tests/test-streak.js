@@ -1,7 +1,12 @@
-// Kiểm thử quy tắc "số mũ công liên tiếp" hiển thị trên lịch gác:
-//  - Chỉ ca ngày: 0,25 mỗi ca, không cộng dồn sang hôm sau.
-//  - Ngày có cả ca ngày lẫn ca đêm: luôn là 1.
-//  - Ngày chỉ ca đêm: nối tiếp +0,5 (1 → 1,5 → 2 → 2,5...), nghỉ thì về 1.
+// Kiểm thử quy tắc "số mũ công liên tiếp" hiển thị trên lịch gác (tính theo TỪNG NGÀY):
+//  - Ngày đủ 3 khung = 1; hôm sau đi làm tiếp thì cộng tiếp (1 → 2 → 3...).
+//  - Ngày chỉ 1 khung đêm = 0,5; hôm sau đi làm tiếp thì cộng tiếp (0,5 → 1 → 1,5...).
+//  - Ngày 2 khung gồm 1 ngày + 1 đêm = 1.
+//  - Ngày 2 khung ngày:
+//      · Chiến sĩ nghĩa vụ: hiển thị 0,25 trên mỗi dòng và ngắt chuỗi (hôm sau về 1).
+//      · Sĩ quan (Đốc gác): cộng 0,5 vào mốc hôm trước (1 → 1,5 → 2 → 3).
+//  - Ngày chỉ 1 khung ngày: không hiển thị mũ.
+//  - Nghỉ / vắng: không hiển thị mũ, hôm sau quay lại từ đầu.
 const fs = require("fs");
 const vm = require("vm");
 const path = require("path");
@@ -64,82 +69,112 @@ function check(name, cond, extra = "") {
 }
 const eq = (a, b) => Math.abs(Number(a) - Number(b)) < 0.0001;
 
-function makeDay(cells) {
-  return { cells, absent: {}, streaks: {}, manualCredits: {}, teamInCa: [1, 2, 3, 4] };
-}
 // 60 ô = 12 dòng (ca 0..3 × slot 0..2) × 5 cột; slot 2 là ca đêm (22h-06h).
-function put(day, ca, slot, col, name) {
-  day.cells[(ca * 3 + slot) * 5 + col] = name;
-}
-
-// Dựng dữ liệu mẫu trong Node rồi nạp vào S.days (tránh lỗi ngày dùng chung)
 const blank = () => Array(60).fill("");
-const mk = (cells) => ({ cells, absent: {}, streaks: {}, manualCredits: {}, teamInCa: [1, 2, 3, 4] });
+const mk = () => ({ cells: blank(), absent: {}, streaks: {}, manualCredits: {}, teamInCa: [1, 2, 3, 4] });
 const cellIdx = (ca, slot, col) => (ca * 3 + slot) * 5 + col;
+const put = (day, ca, slot, col, name) => { day.cells[cellIdx(ca, slot, col)] = name; };
+const fillFullDay = (day, ca, col, name) => {
+  put(day, ca, 0, col, name);
+  put(day, ca, 1, col, name);
+  put(day, ca, 2, col, name);
+};
+
+const DAYS = ["2026-04-01", "2026-04-02", "2026-04-03", "2026-04-04", "2026-04-05", "2026-04-06"];
 const days = {};
-["2026-03-01", "2026-03-02", "2026-03-03", "2026-03-04", "2026-03-05", "2026-03-07"].forEach(d => {
-  days[d] = mk(blank());
+DAYS.forEach(d => { days[d] = mk(); });
+
+// G (chiến sĩ nghĩa vụ) – chuỗi 4 ngày: đủ 3 ca → 1 ca đêm → 2 ca ngày → đủ 3 ca.
+fillFullDay(days["2026-04-01"], 0, 1, "G Chuỗi");
+put(days["2026-04-02"], 0, 2, 1, "G Chuỗi");
+put(days["2026-04-03"], 0, 0, 1, "G Chuỗi");
+put(days["2026-04-03"], 0, 1, 1, "G Chuỗi");
+fillFullDay(days["2026-04-04"], 0, 1, "G Chuỗi");
+
+// H (sĩ quan Đốc gác) – cùng chuỗi 4 ngày.
+fillFullDay(days["2026-04-01"], 1, 0, "H Sĩ quan");
+put(days["2026-04-02"], 1, 2, 0, "H Sĩ quan");
+put(days["2026-04-03"], 1, 0, 0, "H Sĩ quan");
+put(days["2026-04-03"], 1, 1, 0, "H Sĩ quan");
+fillFullDay(days["2026-04-04"], 1, 0, "H Sĩ quan");
+
+// A – chỉ ca đêm 3 ngày liền.
+["2026-04-01", "2026-04-02", "2026-04-03"].forEach(d => {
+  put(days[d], 2, 2, 2, "A Đêm");
 });
-days["2026-03-06"] = mk(blank());
 
-// A: chỉ ca đêm (slot 2) các ngày 01..05, nghỉ 06, làm lại 07.
-["2026-03-01", "2026-03-02", "2026-03-03", "2026-03-04", "2026-03-05", "2026-03-07"].forEach(d => {
-  days[d].cells[cellIdx(0, 2, 1)] = "A Đêm";
+// M – ca đêm, ngày 2 nhập tay mũ = 2, ngày 4 nghỉ, ngày 5 làm lại.
+["2026-04-01", "2026-04-02", "2026-04-03"].forEach(d => {
+  put(days[d], 3, 2, 3, "M Nhập tay");
+});
+days["2026-04-02"].streaks[cellIdx(3, 2, 3)] = 2;
+days["2026-04-02"].streakManual = true;
+put(days["2026-04-05"], 3, 2, 3, "M Nhập tay");
+
+// D – chỉ 1 khung ca ngày duy nhất.
+put(days["2026-04-01"], 0, 0, 4, "D Một ca");
+
+// E – vắng mặt ngày 02/04.
+days["2026-04-02"].absent = { phep: "E Vắng" };
+put(days["2026-04-02"], 2, 0, 4, "E Vắng");
+
+// F – đủ 3 ca 3 ngày liền (1 → 2 → 3).
+["2026-04-01", "2026-04-02", "2026-04-03"].forEach(d => {
+  fillFullDay(days[d], 1, 4, "F Liền");
 });
 
-// B: chỉ ca ngày, 2 khung ngày/ngày, 3 ngày liền.
-["2026-03-01", "2026-03-02", "2026-03-03"].forEach(d => {
-  days[d].cells[cellIdx(1, 0, 2)] = "B Ngày";
-  days[d].cells[cellIdx(1, 1, 2)] = "B Ngày";
-});
-
-// C: cả ngày lẫn đêm (1 ngày + 1 đêm) trong 2 ngày liền → luôn 1.
-["2026-03-01", "2026-03-02"].forEach(d => {
-  days[d].cells[cellIdx(2, 0, 3)] = "C Hỗn hợp";
-  days[d].cells[cellIdx(2, 2, 3)] = "C Hỗn hợp";
-});
-
-// D: chỉ 1 ca ngày duy nhất.
-days["2026-03-01"].cells[cellIdx(3, 0, 4)] = "D Một ca";
-
-// E: vắng mặt ngày 02/03.
-days["2026-03-02"].absent = { phep: "E Vắng" };
-
-// F: nhập tay số mũ = 2 cho A vào ngày 03/03.
-days["2026-03-03"].streaks[cellIdx(0, 2, 1)] = 2;
+// L – "mũ" cũ còn sót trong dữ liệu (không có cờ streakManual) phải bị bỏ qua.
+fillFullDay(days["2026-04-06"], 2, 4, "L Legacy");
+days["2026-04-06"].streaks[cellIdx(2, 0, 4)] = 9;
 
 vm.runInContext("S.days = " + JSON.stringify(days) + "; S.manualCredits = {};", ctx);
+vm.runInContext("S.teams = []; S.officers = 'H Sĩ quan'; S.soldiers = 'G Chuỗi\\nA Đêm\\nM Nhập tay\\nD Một ca\\nE Vắng\\nF Liền';", ctx);
 
-const S = vm.runInContext("S", ctx);
 const streak = (d, n) => vm.runInContext(`getPersonStreak(${JSON.stringify(d)}, ${JSON.stringify(n)})`, ctx);
 
-check("Ca đêm ngày đầu = 1", eq(streak("2026-03-01", "A Đêm"), 1), String(streak("2026-03-01", "A Đêm")));
-check("Ca đêm ngày 2 = 1,5 (nhập tay 2 ở ngày 3 nên kiểm tra trước đó)", eq(streak("2026-03-02", "A Đêm"), 1.5), String(streak("2026-03-02", "A Đêm")));
-check("Nhập tay số mũ = 2 được ưu tiên", eq(streak("2026-03-03", "A Đêm"), 2), String(streak("2026-03-03", "A Đêm")));
-check("Nối tiếp sau mốc nhập tay = 2,5", eq(streak("2026-03-04", "A Đêm"), 2.5), String(streak("2026-03-04", "A Đêm")));
-check("Ngày 5 tiếp tục = 3", eq(streak("2026-03-05", "A Đêm"), 3), String(streak("2026-03-05", "A Đêm")));
-check("Ngày nghỉ không có số mũ", streak("2026-03-06", "A Đêm") === "", JSON.stringify(streak("2026-03-06", "A Đêm")));
-check("Nghỉ 1 ngày → làm lại về 1", eq(streak("2026-03-07", "A Đêm"), 1), String(streak("2026-03-07", "A Đêm")));
+// 1) Chiến sĩ nghĩa vụ: đủ 3 ca → 1 ca đêm → 2 ca ngày → đủ 3 ca = 1 → 1,5 → 0,25 → 1.
+check("CS: ngày đủ 3 ca = 1", eq(streak("2026-04-01", "G Chuỗi"), 1), String(streak("2026-04-01", "G Chuỗi")));
+check("CS: hôm sau ca đêm = 1,5", eq(streak("2026-04-02", "G Chuỗi"), 1.5), String(streak("2026-04-02", "G Chuỗi")));
+check("CS: 2 ca ngày = 0,25", eq(streak("2026-04-03", "G Chuỗi"), 0.25), String(streak("2026-04-03", "G Chuỗi")));
+check("CS: 2 ca ngày ngắt chuỗi, hôm sau về 1", eq(streak("2026-04-04", "G Chuỗi"), 1), String(streak("2026-04-04", "G Chuỗi")));
 
-check("Chỉ ca ngày 2 ca = 0,5", eq(streak("2026-03-01", "B Ngày"), 0.5), String(streak("2026-03-01", "B Ngày")));
-check("Ca ngày không cộng dồn ngày 2 vẫn 0,5", eq(streak("2026-03-02", "B Ngày"), 0.5), String(streak("2026-03-02", "B Ngày")));
-check("Ca ngày không cộng dồn ngày 3 vẫn 0,5", eq(streak("2026-03-03", "B Ngày"), 0.5), String(streak("2026-03-03", "B Ngày")));
-check("Chỉ 1 ca ngày = 0,25", eq(streak("2026-03-01", "D Một ca"), 0.25), String(streak("2026-03-01", "D Một ca")));
+// 2) Sĩ quan: cùng chuỗi = 1 → 1,5 → 2 → 3.
+check("SQ: ngày đủ 3 ca = 1", eq(streak("2026-04-01", "H Sĩ quan"), 1), String(streak("2026-04-01", "H Sĩ quan")));
+check("SQ: hôm sau ca đêm = 1,5", eq(streak("2026-04-02", "H Sĩ quan"), 1.5), String(streak("2026-04-02", "H Sĩ quan")));
+check("SQ: 2 ca ngày cộng 0,5 = 2", eq(streak("2026-04-03", "H Sĩ quan"), 2), String(streak("2026-04-03", "H Sĩ quan")));
+check("SQ: hôm sau đủ 3 ca = 3", eq(streak("2026-04-04", "H Sĩ quan"), 3), String(streak("2026-04-04", "H Sĩ quan")));
 
-check("Ngày có cả ngày + đêm = 1", eq(streak("2026-03-01", "C Hỗn hợp"), 1), String(streak("2026-03-01", "C Hỗn hợp")));
-check("Ngày hỗn hợp thứ 2 vẫn = 1", eq(streak("2026-03-02", "C Hỗn hợp"), 1), String(streak("2026-03-02", "C Hỗn hợp")));
+// 3) Ca đêm liên tiếp: 0,5 → 1 → 1,5.
+check("Ca đêm ngày đầu = 0,5", eq(streak("2026-04-01", "A Đêm"), 0.5), String(streak("2026-04-01", "A Đêm")));
+check("Ca đêm ngày 2 = 1", eq(streak("2026-04-02", "A Đêm"), 1), String(streak("2026-04-02", "A Đêm")));
+check("Ca đêm ngày 3 = 1,5", eq(streak("2026-04-03", "A Đêm"), 1.5), String(streak("2026-04-03", "A Đêm")));
+check("Nghỉ không có số mũ", streak("2026-04-04", "A Đêm") === "", JSON.stringify(streak("2026-04-04", "A Đêm")));
 
-check("Người vắng mặt không có số mũ", streak("2026-03-02", "E Vắng") === "", JSON.stringify(streak("2026-03-02", "E Vắng")));
+// 4) Nhập tay được ưu tiên và làm mốc cộng tiếp.
+check("Nhập tay số mũ = 2 được ưu tiên", eq(streak("2026-04-02", "M Nhập tay"), 2), String(streak("2026-04-02", "M Nhập tay")));
+check("Nối tiếp sau mốc nhập tay = 2,5", eq(streak("2026-04-03", "M Nhập tay"), 2.5), String(streak("2026-04-03", "M Nhập tay")));
+check("Nghỉ 1 ngày rồi làm lại ca đêm về 0,5", eq(streak("2026-04-05", "M Nhập tay"), 0.5), String(streak("2026-04-05", "M Nhập tay")));
 
-// Hàm tính công trong bảng chấm công không bị thay đổi.
-const credit = (d, n) => vm.runInContext(`getPersonDayWorkDetails(${JSON.stringify(d)}, ${JSON.stringify(n)}).credit`, ctx);
-check("Chấm công: người 2 ca ngày = 0,5 công", eq(credit("2026-03-01", "B Ngày"), 0.5), String(credit("2026-03-01", "B Ngày")));
-check("Chấm công: người 1 ca đêm = 0,5 công", eq(credit("2026-03-01", "A Đêm"), 0.5), String(credit("2026-03-01", "A Đêm")));
-check("Chấm công: người hỗn hợp 2 khung = 0,5 công", eq(credit("2026-03-01", "C Hỗn hợp"), 0.5), String(credit("2026-03-01", "C Hỗn hợp")));
+// 5) Đủ 3 ca liên tiếp: 1 → 2 → 3.
+check("Đủ 3 ca ngày 1 = 1", eq(streak("2026-04-01", "F Liền"), 1), String(streak("2026-04-01", "F Liền")));
+check("Đủ 3 ca ngày 2 = 2", eq(streak("2026-04-02", "F Liền"), 2), String(streak("2026-04-02", "F Liền")));
+check("Đủ 3 ca ngày 3 = 3", eq(streak("2026-04-03", "F Liền"), 3), String(streak("2026-04-03", "F Liền")));
 
-// Định dạng hiển thị dấu phẩy.
+// 6) Ngày chỉ 1 khung ca ngày: không hiển thị mũ.
+check("Chỉ 1 khung ca ngày: không hiển thị mũ", streak("2026-04-01", "D Một ca") === "", JSON.stringify(streak("2026-04-01", "D Một ca")));
+check("Người vắng mặt không có số mũ", streak("2026-04-02", "E Vắng") === "", JSON.stringify(streak("2026-04-02", "E Vắng")));
+check("Bỏ qua mũ cũ không có cờ nhập tay", eq(streak("2026-04-06", "L Legacy"), 1), String(streak("2026-04-06", "L Legacy")));
+
+// 7) Định dạng hiển thị dấu phẩy.
 check("formatStreakText dùng dấu phẩy", vm.runInContext("formatStreakText(1.5)", ctx) === "1,5", vm.runInContext("formatStreakText(1.5)", ctx));
 check("formatStreakText 0.25", vm.runInContext("formatStreakText(0.25)", ctx) === "0,25", vm.runInContext("formatStreakText(0.25)", ctx));
+
+// 8) Bảng chấm công không bị thay đổi bởi quy tắc số mũ.
+const credit = (d, n) => vm.runInContext(`getPersonDayWorkDetails(${JSON.stringify(d)}, ${JSON.stringify(n)}).credit`, ctx);
+check("Chấm công: người 2 ca ngày = 0,5 công", eq(credit("2026-04-03", "G Chuỗi"), 0.5), String(credit("2026-04-03", "G Chuỗi")));
+check("Chấm công: người 1 ca đêm = 0,5 công", eq(credit("2026-04-01", "A Đêm"), 0.5), String(credit("2026-04-01", "A Đêm")));
+check("Chấm công: người đủ 3 khung = 1 công", eq(credit("2026-04-01", "F Liền"), 1.0), String(credit("2026-04-01", "F Liền")));
+check("Chấm công: người 2 khung ngày = 0,5 công", eq(credit("2026-04-03", "H Sĩ quan"), 0.5), String(credit("2026-04-03", "H Sĩ quan")));
 
 console.log(`\n${pass} pass, ${fail} fail`);
 process.exit(fail ? 1 : 0);

@@ -16,7 +16,14 @@
 13. **Cắt lịch ngày / tuần / tháng**: Nút "Cắt lịch cả tháng" cắt toàn bộ các ngày còn lại trong tháng hiện tại. Chỉnh sửa lịch chỉ lưu lên cloud khi bấm **💾 Lưu lịch**.
 14. **Quản lý hồ sơ trực tiếp trên bảng**: Bấm **✏️ Sửa** để sửa ngay các ô thông tin trong bảng, bấm **💾 Lưu** để ghi lại. File Excel mẫu và file tải danh sách hồ sơ hiện tại đều có đủ 9 cột: Họ và tên (*), Mã số (*), Chức vụ, Cấp bậc hàm, Nhóm cắt gác, Ngày sinh, Quê quán, Tên TK đăng nhập, Mật khẩu.
 15. **Phần 2 trên trang hiển thị lịch gác**: Người xem thấy đầy đủ tổng quân số đơn vị, danh sách trực cơ động và ghi chú vắng mặt ngay dưới bảng lịch.
-16. **Số mũ công liên tiếp**: Hiển thị cạnh tên trong ô lịch (và trong Excel/PDF). Ngày chỉ làm ca ngày = **0,25 mỗi ca**, tính riêng từng ngày và không cộng dồn sang hôm sau. Ngày có cả ca ngày lẫn ca đêm luôn là **1**. Ngày chỉ làm ca đêm thì nối tiếp chuỗi: **1 → 1,5 → 2 → 2,5…** (mỗi ngày làm tiếp +0,5); nghỉ một ngày thì hôm sau quay lại **1**. Bảng chấm công vẫn tính công theo quy tắc riêng (đủ 3 khung = 1,0 công; 2 khung ngày hoặc 1 khung đêm = 0,5 công).
+16. **Số mũ công liên tiếp**: Hiển thị cạnh tên trong ô lịch (và trong Excel/PDF), tính theo **từng ngày** và cộng dồn sang hôm sau nếu vẫn đi làm:
+    - Ngày đủ **3 khung** = **1** (hôm sau đi làm tiếp: 1 → 2 → 3…).
+    - Ngày chỉ **1 khung ca đêm** = **0,5** (hôm sau đi làm tiếp: 0,5 → 1 → 1,5…).
+    - Ngày **2 khung gồm 1 ngày + 1 đêm** = **1**.
+    - Ngày **2 khung ca ngày**: **chiến sĩ nghĩa vụ** hiển thị **0,25** trên mỗi dòng và **ngắt chuỗi** (hôm sau đi làm lại bắt đầu từ 1: 1 → 1,5 → 0,25 → 1); **sĩ quan (Đốc gác)** cộng **0,5** vào mốc hôm trước và tiếp tục cộng dồn (1 → 1,5 → 2 → 3).
+    - Ngày chỉ **1 khung ca ngày**: **không hiển thị mũ** (giữ mốc để hôm sau cộng tiếp). Nghỉ cả ngày hoặc vắng: không hiển thị mũ, hôm sau quay lại từ đầu.
+    - Giá trị Chỉ huy nhập tay trong ô "mũ" được ưu tiên cho đúng ngày đó và làm mốc cộng tiếp cho hôm sau. Các giá trị "mũ" nhập tay từ bản cũ (trước quy tắc tính theo ngày) được bỏ qua để chuỗi mũ luôn tính đúng.
+    - Bảng chấm công vẫn tính công theo quy tắc riêng (đủ 3 khung = 1,0 công; 2 khung ngày hoặc 1 khung đêm = 0,5 công).
 
 ---
 

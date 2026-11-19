@@ -482,7 +482,7 @@ function buildScheduleTableDOM() {
         sup.min = "0";
         sup.step = "0.25";
         sup.disabled = !isCommander;
-        sup.title = "Số mũ công liên tiếp (ca ngày 0,25/ca · ca đêm nối tiếp +0,5)";
+        sup.title = "Số mũ công liên tiếp (đủ 3 khung = 1 · 1 ca đêm = 0,5 · 2 ca ngày: chiến sĩ 0,25, sĩ quan +0,5)";
         sup.setAttribute("aria-label", "Số mũ công liên tiếp");
 
         const k0 = (caIdx * 3 + 0) * 5 + c;
@@ -520,6 +520,7 @@ function buildScheduleTableDOM() {
           const d = getDayData(curDate);
           const raw = String(sup.value || "").replace(",", ".").trim();
           const num = parseFloat(raw);
+          d.streakManual = true;
           if (raw === "" || !isFinite(num)) delete d.streaks[k0];
           else d.streaks[k0] = Math.max(0, Math.round(num * 100) / 100);
           saveStorage();
@@ -580,7 +581,7 @@ function buildScheduleTableDOM() {
           sup.min = "0";
           sup.step = "0.25";
           sup.disabled = !isCommander;
-          sup.title = "Số mũ công liên tiếp (ca ngày 0,25/ca · ca đêm nối tiếp +0,5)";
+          sup.title = "Số mũ công liên tiếp (đủ 3 khung = 1 · 1 ca đêm = 0,5 · 2 ca ngày: chiến sĩ 0,25, sĩ quan +0,5)";
           sup.setAttribute("aria-label", "Số mũ công liên tiếp");
 
           const k = (caIdx * 3 + slotIdx) * 5 + c;
@@ -590,6 +591,7 @@ function buildScheduleTableDOM() {
             const d = getDayData(curDate);
             const raw = String(sup.value || "").replace(",", ".").trim();
             const num = parseFloat(raw);
+            d.streakManual = true;
             if (raw === "" || !isFinite(num)) delete d.streaks[k];
             else d.streaks[k] = Math.max(0, Math.round(num * 100) / 100);
             saveStorage();
@@ -1354,6 +1356,7 @@ function buildGeneratedDay(dateStr, teamMap, prevDay) {
   day.cells = cells;
   day.teamInCa = teamMap.slice();
   day.streaks = {};
+  day.streakManual = false;
   day.manualCredits = {};
   day.borrowed = borrowed;
   day.overworkSwaps = overworkSwaps;
@@ -2598,7 +2601,7 @@ function refresh() {
     if (SUP[k]) {
       SUP[k].style.visibility = n ? "visible" : "hidden";
       if (document.activeElement !== SUP[k]) {
-        SUP[k].value = n ? (day.streaks[k] != null ? day.streaks[k] : calculateStreak(n, curDate)) : "";
+        SUP[k].value = n ? calculateStreak(n, curDate) : "";
       }
     }
   }

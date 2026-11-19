@@ -364,6 +364,7 @@
 
       day.manualCredits = {};
       day.streaks = {};
+      day.streakManual = false;
       day.teamInCa = detectTeamsInCa(day);
       req.status = "approved";
       req.approvedAt = new Date().toISOString();
