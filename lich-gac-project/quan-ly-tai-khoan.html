@@ -1070,6 +1070,8 @@
     const cn = cleanName(personName).toLowerCase();
     if (!cn) return false;
     if (parseNames(S.officers).some(n => cleanName(n).toLowerCase() === cn)) return true;
+    if ((S.teams || []).some(t => (t.officers || []).some(n => cleanName(n).toLowerCase() === cn))) return true;
+    if (typeof isOfficerPerson === "function" && isOfficerPerson(personName)) return true;
     const acc = (S.personnelAccounts || []).find(a => cleanName(a.fullName).toLowerCase() === cn);
     return !!(acc && acc.roleType === "officer");
   }
@@ -1167,9 +1169,13 @@
       for (let col = 0; col < 5; col++) {
         const idxs = [0, 1, 2].map(s => (ca * 3 + s) * 5 + col);
         const allSelected = idxs.every(k => assignmentSelection.has(k));
-        const allowed = targetIsOfficer ? col === 0 : col > 0;
+        const allowed = targetIsOfficer ? true : col > 0;
         const cls = `assignment-pos-head${allSelected ? " selected" : ""}${allowed ? "" : " assignment-disabled"}`;
-        const title = allowed ? "Bấm để chọn cả 3 khung giờ của vị trí này" : "Không đúng chức danh của đồng chí được giao";
+        const title = allowed
+          ? (targetIsOfficer && col > 0
+            ? "Bấm để chọn cả 3 khung giờ — Sĩ quan đi làm thay vị trí Chiến sĩ (theo lệnh Chỉ huy)"
+            : "Bấm để chọn cả 3 khung giờ của vị trí này")
+          : "Không đúng chức danh của đồng chí được giao";
         html += `<th class="${cls}" ${allowed ? `onclick="selectAssignmentPosition(${ca}, ${col})"` : ""} title="${title}">${ASSIGNMENT_POS_LABELS[col]}</th>`;
       }
       html += `</tr>`;
@@ -1180,7 +1186,7 @@
           const k = (ca * 3 + slot) * 5 + col;
           const val = (day.cells[k] || "").trim();
           const isTarget = !!val && cleanName(val).toLowerCase() === targetClean;
-          const allowed = targetIsOfficer ? col === 0 : col > 0;
+          const allowed = targetIsOfficer ? true : col > 0;
           const selected = assignmentSelection.has(k);
           const mark = day.borrowMarks && day.borrowMarks[k];
           const cls = [
@@ -1199,7 +1205,11 @@
           }
           if (isTarget) content += ` <small>(đang trực)</small>`;
           if (mark && mark.fromTeam) content += ` <span class="assignment-borrowed-tag" title="Mượn từ Tổ ${mark.fromTeam}">(Tổ ${mark.fromTeam})</span>`;
-          const title = allowed ? (val ? "Bấm để chọn thay đồng chí này" : "Bấm để chọn ô trống này") : "Không đúng chức danh của đồng chí được giao";
+          const title = allowed
+            ? (targetIsOfficer && col > 0
+              ? "Bấm để chọn — Sĩ quan đi làm thay vị trí Chiến sĩ (theo lệnh Chỉ huy)"
+              : (val ? "Bấm để chọn thay đồng chí này" : "Bấm để chọn ô trống này"))
+            : "Không đúng chức danh của đồng chí được giao";
           html += `<td class="${cls}" ${allowed ? `onclick="toggleAssignmentSlot(${k})"` : ""} title="${title}">${content}</td>`;
         }
         html += `</tr>`;
@@ -1248,7 +1258,7 @@
       }
       const col = getCellParts(idxs[0]).col;
       if (isOfficer && col !== 0) {
-        errors.push(`Ca ${ca + 1}: ${target} là Sĩ quan nên chỉ được giao vị trí Đốc gác 1.`);
+        notes.push(`Ca ${ca + 1}: ${target} là Sĩ quan đi làm thay vị trí Chiến sĩ nghĩa vụ (hợp lệ theo lệnh Chỉ huy).`);
       }
       if (!isOfficer && col === 0) {
         errors.push(`Ca ${ca + 1}: ${target} là Chiến sĩ nên chỉ được giao vị trí Vọng x9–x12.`);

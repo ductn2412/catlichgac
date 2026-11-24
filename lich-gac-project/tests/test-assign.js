@@ -235,12 +235,28 @@ function check(name, cond, extra = "") {
   check("Giao nhiệm vụ: người chỉ ca đêm nhận khung 22–24", good.ok === true, JSON.stringify(good.errors));
 }
 
-// ---------- Assignment: wrong position by rank ----------
+// ---------- Assignment: officer may substitute a conscript ----------
 {
   const ctx = setupAssignmentCtx();
-  vm.runInContext('openAssignmentModal("SQ A1", "2026-11-12"); toggleAssignmentSlot(' + (0 * 5 + 1) + ');', ctx);
+  const d = "2026-11-12";
+  vm.runInContext('openAssignmentModal("SQ A2", "2026-11-12"); selectAssignmentPosition(0, 1);', ctx);
   const res = vm.runInContext("validateAssignmentSelection()", ctx);
-  check("Giao nhiệm vụ: Sĩ quan không nhận vị trí Vọng", res.ok === false && res.errors.some(e => /Sĩ quan/.test(e)), JSON.stringify(res.errors));
+  check("Giao nhiệm vụ: Sĩ quan được làm thay vị trí Vọng", res.ok === true, JSON.stringify(res.errors));
+  check("Giao nhiệm vụ: có ghi chú sĩ quan làm thay chiến sĩ",
+    res.notes.some(n => /Sĩ quan đi làm thay/.test(n)), JSON.stringify(res.notes));
+  vm.runInContext("confirmAssignment()", ctx);
+  const day = ctx.__S().days[d];
+  const idxs = [0, 1, 2].map(s => (0 * 3 + s) * 5 + 1);
+  check("Giao nhiệm vụ: đã xếp sĩ quan vào đủ 3 khung Vọng", idxs.every(k => day.cells[k] === "SQ A2"), JSON.stringify(idxs.map(k => day.cells[k])));
+}
+
+// ---------- Assignment: soldier still cannot take Đốc gác ----------
+{
+  const ctx = setupAssignmentCtx();
+  vm.runInContext('openAssignmentModal("CS A5", "2026-11-12"); toggleAssignmentSlot(' + (0 * 5 + 0) + ');', ctx);
+  const res = vm.runInContext("validateAssignmentSelection()", ctx);
+  check("Giao nhiệm vụ: Chiến sĩ không nhận vị trí Đốc gác",
+    res.ok === false && res.errors.some(e => /Chiến sĩ/.test(e)), JSON.stringify(res.errors));
 }
 
 // ---------- Assignment: absent person ----------

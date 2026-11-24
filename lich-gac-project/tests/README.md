@@ -5,9 +5,9 @@ Chạy toàn bộ bằng cách mở terminal tại thư mục gốc dự án:
 ```bash
 cd tests
 node test-new-features.js     # 40 test  — tính năng mới (vắng mặt, đăng nhập, bảo mật...)
-node test-improvements.js     # 49 test  — cải tiến nghiệp vụ (mượn quân, đổi ca, chấm công...)
+node test-improvements.js     # 52 test  — cải tiến nghiệp vụ (mượn quân, đổi ca, chấm công, sĩ quan thay chiến sĩ...)
 node test-fair-schedule.js    # 17 test  — luật công bằng khi cắt lịch (mũ 1/mũ 2, xoay vọng, ưu tiên H1/B2)
-node test-assign.js           # 30 test  — validate đổi ca / xung đột ca
+node test-assign.js           # 33 test  — validate đổi ca / xung đột ca / giao nhiệm vụ
 node test-punishment.js       # 11 test  — kỷ luật phạt làm 7 ngày liên tục
 node test-streak.js           # 27 test  — quy tắc "số mũ" theo từng ngày (3 khung = 1, 1 đêm = 0,5, 2 ngày: CS 0,25 / SQ +0,5)
 ```
@@ -15,7 +15,7 @@ node test-streak.js           # 27 test  — quy tắc "số mũ" theo từng ng
 Test chạy trực tiếp bằng `node`, không cần cài thêm thư viện (dùng `vm` để nạp
 `js/config.js`, `js/storage.js`, `js/app.js` vào sandbox).
 
-> Tổng hiện tại: **174 test / 0 fail**. Sau mỗi lần sửa code, chạy lại cả 6 file.
+> Tổng hiện tại: **180 test / 0 fail**. Sau mỗi lần sửa code, chạy lại cả 6 file.
 
 ## Checklist kiểm thử thủ công trước khi phát hành
 
@@ -27,6 +27,7 @@ Test chạy trực tiếp bằng `node`, không cần cài thêm thư viện (d�
 - [ ] Nhập X / 0.5 / P / CT / O / OV / H / NB ở bảng chấm công → không mất người khác.
 - [ ] Sửa biên chế 4 Tổ → không trùng mã; thêm người mới có mã đúng thứ tự.
 - [ ] Xóa/ngưng tài khoản → lịch sử không báo đỏ "sai chức danh".
+- [ ] Sửa tay/giao nhiệm vụ cho Sĩ quan vào vị trí Vọng gác của Chiến sĩ → chỉ cảnh báo vàng "Sĩ quan đi làm thay", không báo đỏ; Chiến sĩ vào cột Đốc gác vẫn báo đỏ.
 - [ ] Gửi / duyệt / từ chối đổi ca → không tạo 2 ca liền giờ, không lẫn Tổ.
 - [ ] Backup → xóa dữ liệu → khôi phục → dữ liệu khớp.
 - [ ] In và xuất Excel/PDF ở trang Lịch gác và Chấm công (có Quốc hiệu, chữ ký).

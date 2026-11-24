@@ -514,7 +514,9 @@ function buildScheduleTableDOM() {
           if ((inp.value || "").trim()) movePersonnelHoverCard(ev);
         });
         inp.addEventListener("mouseleave", () => hidePersonnelHoverCard());
-        attachNameSuggestions(inp, () => parseNames(c === 0 ? S.officers : S.soldiers));
+        attachNameSuggestions(inp, () => c === 0
+          ? parseNames(S.officers)
+          : [...parseNames(S.soldiers), ...parseNames(S.officers)]);
 
         sup.addEventListener("input", () => {
           const d = getDayData(curDate);
@@ -619,7 +621,9 @@ function buildScheduleTableDOM() {
             if ((inp.value || "").trim()) movePersonnelHoverCard(ev);
           });
           inp.addEventListener("mouseleave", () => hidePersonnelHoverCard());
-          attachNameSuggestions(inp, () => parseNames(c === 0 ? S.officers : S.soldiers));
+          attachNameSuggestions(inp, () => c === 0
+            ? parseNames(S.officers)
+            : [...parseNames(S.soldiers), ...parseNames(S.officers)]);
 
           IN[k] = inp;
           SUP[k] = sup;
@@ -2533,7 +2537,7 @@ function refresh() {
     if (badgeEl) badgeEl.textContent = `Tổ ${detectedTeams[ca] || (ca + 1)}`;
   }
 
-  const absIn = [], wrong = [], consecutiveErrors = [], crossTeamNotes = [];
+  const absIn = [], wrong = [], consecutiveErrors = [], crossTeamNotes = [], officerSubNotes = [];
   const workingOfficers = {}, workingSoldiers = {}, allWorking = {};
 
   // ===== Thông tin cảnh báo & mượn quân số của ngày đang xem =====
@@ -2551,6 +2555,7 @@ function refresh() {
     let wg = false;
     let isCon = false;
     let isCrossTeam = false;
+    let isOfficerSub = false;
     let personTeamId = null;
 
     if (n) {
@@ -2561,12 +2566,19 @@ function refresh() {
       if (col === 0) {
         if (!oS[cName] && !oS[n]) {
           wg = true;
-          wrong.push(`${n} (Cột Đốc gác chỉ lấy từ Sĩ quan Đốc gác)`);
+          wrong.push(`${n} (Chiến sĩ không được xếp vào cột Đốc gác)`);
         }
       } else {
         if (!sS[cName] && !sS[n]) {
-          wg = true;
-          wrong.push(`${n} (Vọng gác chỉ lấy từ Chiến sĩ nghĩa vụ)`);
+          if (isOfficerPerson(n)) {
+            // Chỉ huy được phép điều động sĩ quan sang làm thay chiến sĩ nghĩa vụ
+            // (sửa tay trong lịch): chỉ cảnh báo vàng, không phải lỗi đỏ.
+            isOfficerSub = true;
+            officerSubNotes.push(`${n} (Ca ${caIdx + 1})`);
+          } else {
+            wg = true;
+            wrong.push(`${n} (Vọng gác chỉ lấy từ Chiến sĩ nghĩa vụ)`);
+          }
         }
       }
 
@@ -2588,12 +2600,15 @@ function refresh() {
     if (IN[k]) {
       IN[k].classList.toggle("bad", isBad);
       const mark = day.borrowMarks && day.borrowMarks[k];
-      IN[k].classList.toggle("borrowed", !!mark || isCrossTeam);
+      IN[k].classList.toggle("borrowed", !!mark || isCrossTeam || isOfficerSub);
       if (isCrossTeam) {
-        IN[k].title = `Điều động từ Tổ ${personTeamId} sang làm cho Tổ ${expectedTeamId} (theo lệnh Chỉ huy)`;
+        IN[k].title = `Điều động từ Tổ ${personTeamId} sang làm cho Tổ ${expectedTeamId} (theo lệnh Chỉ huy)`
+          + (isOfficerSub ? " · Sĩ quan làm thay vị trí Chiến sĩ" : "");
+      } else if (isOfficerSub) {
+        IN[k].title = "Sĩ quan đi làm thay vị trí Chiến sĩ nghĩa vụ (theo lệnh Chỉ huy)";
       } else if (mark) {
         IN[k].title = `Mượn từ Tổ ${mark.fromTeam}${mark.reason ? " — " + mark.reason : ""}`;
-      } else if (IN[k].title && (IN[k].title.indexOf("Mượn từ Tổ") === 0 || IN[k].title.indexOf("Điều động từ Tổ") === 0)) {
+      } else if (IN[k].title && (IN[k].title.indexOf("Mượn từ Tổ") === 0 || IN[k].title.indexOf("Điều động từ Tổ") === 0 || IN[k].title.indexOf("Sĩ quan đi làm thay") === 0)) {
         IN[k].title = "";
       }
     }
@@ -2664,14 +2679,16 @@ function refresh() {
       hasCriticalError = true;
       consecutiveErrors.push(n);
     }
-    if ((col === 0 && !oS[cName] && !oS[n]) || (col > 0 && !sS[cName] && !sS[n])) {
+    if ((col === 0 && !oS[cName] && !oS[n]) || (col > 0 && !sS[cName] && !sS[n] && !isOfficerPerson(n))) {
       hasCriticalError = true;
     }
   }
 
   if (absIn.length) warnings.push("❌ BÁO ĐỎ: Chiến sĩ đang trong danh sách nghỉ/vắng (phép, ốm, công tác...) vẫn bị xếp gác: " + Array.from(new Set(absIn)).join(", "));
   if (consecutiveErrors.length) warnings.push("❌ BÁO ĐỎ: Có chiến sĩ làm 2 ca liền giờ nhau: " + Array.from(new Set(consecutiveErrors)).join(", "));
-  if (wrong.length) warnings.push("❌ BÁO ĐỎ SAI CHỨC DANH (Đốc gác không thay cho Chiến sĩ và ngược lại): " + Array.from(new Set(wrong)).join(" | "));
+  if (wrong.length) warnings.push("❌ BÁO ĐỎ SAI CHỨC DANH (Cột Đốc gác chỉ lấy từ Sĩ quan Đốc gác): " + Array.from(new Set(wrong)).join(" | "));
+  // Chỉ huy điều động sĩ quan sang làm thay chiến sĩ nghĩa vụ: hợp lệ, chỉ cảnh báo vàng.
+  if (officerSubNotes.length) warnings.push("⚠️ SĨ QUAN ĐI LÀM THAY CHIẾN SĨ NGHĨA VỤ (theo lệnh Chỉ huy — hợp lệ, kiểm tra lại nếu không có chủ ý): " + Array.from(new Set(officerSubNotes)).join(" | "));
   // Điều động liên Tổ do Chỉ huy tự tay gõ: chỉ là cảnh báo vàng, không chặn, không alert.
   if (crossTeamNotes.length) warnings.push("⚠️ ĐIỀU ĐỘNG LIÊN TỔ (Chỉ huy lấy người từ Tổ khác sang làm — hợp lệ, hãy kiểm tra lại nếu không có chủ ý): " + Array.from(new Set(crossTeamNotes)).join(" | "));
 

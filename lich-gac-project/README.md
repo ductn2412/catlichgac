@@ -24,6 +24,7 @@
     - Ngày chỉ **1 khung ca ngày**: **không hiển thị mũ** (giữ mốc để hôm sau cộng tiếp). Nghỉ cả ngày hoặc vắng: không hiển thị mũ, hôm sau quay lại từ đầu.
     - Giá trị Chỉ huy nhập tay trong ô "mũ" được ưu tiên cho đúng ngày đó và làm mốc cộng tiếp cho hôm sau. Các giá trị "mũ" nhập tay từ bản cũ (trước quy tắc tính theo ngày) được bỏ qua để chuỗi mũ luôn tính đúng.
     - Bảng chấm công vẫn tính công theo quy tắc riêng (đủ 3 khung = 1,0 công; 2 khung ngày hoặc 1 khung đêm = 0,5 công).
+17. **Sĩ quan đi làm thay Chiến sĩ nghĩa vụ**: Khi Chỉ huy sửa tay hoặc dùng **🎯 Giao nhiệm vụ** để xếp một Sĩ quan (Đốc gác) vào vị trí Vọng gác của Chiến sĩ, hệ thống cho phép và chỉ hiển thị cảnh báo vàng (ô viền cam, ghi chú "Sĩ quan đi làm thay vị trí Chiến sĩ"), không báo đỏ, không chặn. Chiều ngược lại — Chiến sĩ vào cột Đốc gác — vẫn báo đỏ và bị chặn.
 
 ---
 

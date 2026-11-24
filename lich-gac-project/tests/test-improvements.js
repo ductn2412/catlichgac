@@ -348,5 +348,57 @@ function h2Ctx() {
   check("H2: Tổ chỉ toàn người ca đêm không bị rút", got === null || got.teamId !== 1, JSON.stringify(got));
 }
 
+// ---------- C9: Sĩ quan đi làm thay Chiến sĩ nghĩa vụ ----------
+function officerSubCtx() {
+  const ctx = makeCtx();
+  loadBase(ctx, { role: "commander", withApp: true });
+  const S = ctx.__S();
+  S.teams = [
+    { id: 1, name: "Tổ 1", officers: ["SQ A (SQ01)", "SQ B (SQ02)"], soldiers: ["CS A (CS01)", "CS B (CS02)"] },
+    { id: 2, name: "Tổ 2", officers: [], soldiers: [] },
+    { id: 3, name: "Tổ 3", officers: [], soldiers: [] },
+    { id: 4, name: "Tổ 4", officers: [], soldiers: [] }
+  ];
+  S.officers = "SQ A (SQ01), SQ B (SQ02)";
+  S.soldiers = "CS A (CS01), CS B (CS02)";
+  S.personnelAccounts = [
+    { id: 1, fullName: "SQ A", code: "SQ01", roleType: "officer", teamId: 1 },
+    { id: 2, fullName: "SQ B", code: "SQ02", roleType: "officer", teamId: 1 },
+    { id: 3, fullName: "CS A", code: "CS01", roleType: "soldier", teamId: 1 }
+  ];
+  S.days = {
+    "2026-11-12": {
+      cells: Array(60).fill(""), absent: {}, streaks: {}, manualCredits: {},
+      teamInCa: [1, 1, 1, 1], borrowed: [], borrowMarks: {}
+    }
+  };
+  vm.runInContext("curDate = '2026-11-12'; document.querySelectorAll = () => [];", ctx);
+  vm.runInContext("showRedAlert = (w) => { globalThis.__warnings = w || []; };", ctx);
+  return ctx;
+}
+
+{
+  const ctx = officerSubCtx();
+  const day = ctx.__S().days["2026-11-12"];
+  day.cells[0] = "SQ A (SQ01)";        // Ca 1 · Đốc gác
+  day.cells[1] = "SQ B (SQ02)";        // Ca 1 · Vọng x9 (sĩ quan làm thay)
+  vm.runInContext("refresh();", ctx);
+  const warnings = vm.runInContext("__warnings", ctx);
+  check("C9: sĩ quan thay chiến sĩ không báo đỏ sai chức danh",
+    !warnings.some(w => /SAI CHỨC DANH/.test(w)), JSON.stringify(warnings));
+  check("C9: có cảnh báo vàng sĩ quan đi làm thay chiến sĩ",
+    warnings.some(w => /sĩ quan đi làm thay/i.test(w)), JSON.stringify(warnings));
+}
+
+{
+  const ctx = officerSubCtx();
+  const day = ctx.__S().days["2026-11-12"];
+  day.cells[0] = "CS A (CS01)";        // Chiến sĩ vào cột Đốc gác
+  vm.runInContext("refresh();", ctx);
+  const warnings = vm.runInContext("__warnings", ctx);
+  check("C9: chiến sĩ vào cột Đốc gác vẫn báo đỏ",
+    warnings.some(w => /SAI CHỨC DANH/.test(w) && /Đốc gác/.test(w)), JSON.stringify(warnings));
+}
+
 console.log(`\n=== ${pass} PASS / ${fail} FAIL ===`);
 process.exit(fail ? 1 : 0);
