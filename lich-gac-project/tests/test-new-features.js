@@ -269,5 +269,49 @@ function check(name, cond, extra = "") {
   check("Bảo mật: phát hiện mật khẩu mặc định", vm.runInContext(`isUsingDefaultCommanderPassword()`, ctx) !== "");
 }
 
+// ==================== 8. VẮNG MẶT DÀI NGÀY: HẠN PHÉP ====================
+{
+  const ctx = makeCtx();
+  loadBase(ctx, { withApp: true });
+  vm.runInContext("document.querySelectorAll = () => []; showRedAlert = () => {};", ctx);
+  const S = ctx.__S();
+  S.days = {};
+  S.leavePeriods = [];
+
+  // Đăng ký phép 10 → 12/03
+  vm.runInContext('addLeavePeriod("Trần Văn Hiệp (CS01)", "phep", "2026-03-10", "2026-03-12")', ctx);
+  check("Leave: lưu được khoảng phép", S.leavePeriods.length === 1 && S.leavePeriods[0].end === "2026-03-12", JSON.stringify(S.leavePeriods));
+  check("Leave: hiển thị hạn phép cạnh tên", vm.runInContext('leaveEndSuffix("Trần Văn Hiệp (CS01)", "2026-03-11")', ctx) === " (đến 12/03)");
+  check("Leave: ngoài khoảng phép không có hậu tố", vm.runInContext('leaveEndSuffix("Trần Văn Hiệp (CS01)", "2026-03-13")', ctx) === "");
+  check("Leave: ngày còn phép chưa hết hạn", vm.runInContext('isLeaveExpired("Trần Văn Hiệp (CS01)", "2026-03-12")', ctx) === false);
+  check("Leave: sau ngày hết phép bị coi là hết hạn", vm.runInContext('isLeaveExpired("Trần Văn Hiệp (CS01)", "2026-03-13")', ctx) === true);
+
+  // Người nhập tay không có period phải được giữ
+  const d0 = vm.runInContext('getDayData("2026-03-13")', ctx);
+  d0.absent = { phep: "Trần Văn Hiệp (CS01), Lê Văn Tay (CS09)", congtac: "", om: "", om_tai_vien: "", nghibu: "", hoctap: "", khac: "" };
+  const changed = vm.runInContext('expireLeavePeriodsForDay("2026-03-13", getDayData("2026-03-13"))', ctx);
+  check("Leave: tự xóa tên đã hết phép khỏi ô nghỉ", changed === true && !d0.absent.phep.includes("Trần Văn Hiệp"), JSON.stringify(d0.absent));
+  check("Leave: giữ nguyên người nhập tay không có hạn", d0.absent.phep.includes("Lê Văn Tay (CS09)"), JSON.stringify(d0.absent));
+
+  // Ngày còn trong hạn thì không xóa
+  const d1 = vm.runInContext('getDayData("2026-03-11")', ctx);
+  d1.absent = { phep: "Trần Văn Hiệp (CS01)", congtac: "", om: "", om_tai_vien: "", nghibu: "", hoctap: "", khac: "" };
+  const changed1 = vm.runInContext('expireLeavePeriodsForDay("2026-03-11", getDayData("2026-03-11"))', ctx);
+  check("Leave: trong hạn phép vẫn giữ tên", changed1 === false && d1.absent.phep.includes("Trần Văn Hiệp"), JSON.stringify(d1.absent));
+
+  // Cắt lịch ngày sau khi hết phép: không kế thừa tên đã hết hạn
+  const d2 = vm.runInContext('getDayData("2026-03-12")', ctx);
+  d2.absent = { phep: "Trần Văn Hiệp (CS01)", congtac: "", om: "", om_tai_vien: "", nghibu: "", hoctap: "", khac: "" };
+  d2.absentTouched = true;
+  const tm = vm.runInContext('nextTeamMap(detectTeamsInCa(getDayData("2026-03-12")))', ctx);
+  vm.runInContext(`buildGeneratedDay("2026-03-13", ${JSON.stringify(tm)}, getDayData("2026-03-12"))`, ctx);
+  const d3 = vm.runInContext('getDayData("2026-03-13")', ctx);
+  check("Leave: cắt lịch ngày sau không kế thừa người đã hết phép", !d3.absent.phep.includes("CS01"), JSON.stringify(d3.absent));
+
+  // Xóa period khi người dùng bấm ×
+  vm.runInContext('removeLeavePeriodsFor("Trần Văn Hiệp (CS01)")', ctx);
+  check("Leave: xóa đăng ký khi bỏ tên", S.leavePeriods.length === 0, JSON.stringify(S.leavePeriods));
+}
+
 console.log(`\n===== KẾT QUẢ: ${pass} pass / ${fail} fail =====`);
 process.exit(fail ? 1 : 0);

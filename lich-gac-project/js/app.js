@@ -11,6 +11,8 @@ let nameSuggestPick = null;
 let nameSuggestIndex = -1;
 // Lưu trạng thái ô nào đang được mở rộng để thay người theo khung giờ lẻ (key: "caIdx_colIdx")
 let expandedCells = {};
+// Chế độ của popup chỉnh sửa: "edit" | "day" | "week" | "month"
+let editorMode = null;
 
 function idxOf(day, n) {
   const cName = cleanName(n);
@@ -338,7 +340,8 @@ function createNameChipPicker(container, options) {
       chip.className = "chip chip-removable person-hover-link";
       const text = document.createElement("span");
       const tid = getPersonTeamId(n);
-      text.textContent = tid ? `${n} [Tổ ${tid}]` : n;
+      const suffix = typeof options.getSuffix === "function" ? (options.getSuffix(n) || "") : "";
+      text.textContent = (tid ? `${n} [Tổ ${tid}]` : n) + suffix;
       chip.appendChild(text);
       if (!disabled) {
         const btn = document.createElement("button");
@@ -681,6 +684,8 @@ function applyRolePermissions() {
   if (genWeekBtn) genWeekBtn.style.display = isCommander ? "inline-block" : "none";
   const genMonthBtn = document.getElementById("genMonth");
   if (genMonthBtn) genMonthBtn.style.display = isCommander ? "inline-block" : "none";
+  const mainEditBtn = document.getElementById("mainEditBtn");
+  if (mainEditBtn) mainEditBtn.style.display = isCommander ? "inline-block" : "none";
   if (leaveCard) leaveCard.style.display = isCommander ? "block" : "none";
   if (nightOnlyCard) nightOnlyCard.style.display = isCommander ? "block" : "none";
   if (NIGHT_ONLY_PICKER) NIGHT_ONLY_PICKER.setDisabled(!isCommander);
@@ -1145,6 +1150,8 @@ function buildGeneratedDay(dateStr, teamMap, prevDay) {
   // Danh sách vắng mặt đã nhập được giữ nguyên qua các lần cắt lịch:
   // ngày mới kế thừa danh sách vắng mặt gần nhất cho tới khi người dùng xóa tên.
   applyInheritedAbsence(dateStr, day);
+  // Người đã hết hạn phép dài ngày tự động bị bỏ khỏi danh sách vắng.
+  expireLeavePeriodsForDay(dateStr, day);
   const ab = absSet(day.absent || {});
   const nightSet = getNightOnlySet();
   const rules = getBorrowRules();
@@ -1374,16 +1381,93 @@ function dayHasSchedule(dateStr) {
   return !!(day && Array.isArray(day.cells) && day.cells.some(c => (c || "").trim() !== ""));
 }
 
-function generateSchedule() {
+// ===== POPUP CHỈNH SỬA & CẮT LỊCH =====
+// Màn hình quản lý chỉ đọc; mọi chỉnh sửa lịch + Phần 2 diễn ra trong popup.
+function openEditorModal(mode) {
+  if (getCurrentRole() !== "commander") {
+    alert("Chỉ có Chỉ huy / Trưởng ban mới được chỉnh sửa và cắt lịch!");
+    return;
+  }
+  const modal = document.getElementById("editorModal");
+  if (!modal) return;
+  editorMode = mode || "edit";
+  const targetDate = addDay(curDate, 1);
+  const titleEl = document.getElementById("editorTitle");
+  const subEl = document.getElementById("editorSubtitle");
+  const confirmBtn = document.getElementById("editorConfirmBtn");
+  const msgEl = document.getElementById("editorMsg");
+  if (msgEl) msgEl.textContent = "";
+
+  if (editorMode === "day") {
+    if (titleEl) titleEl.textContent = "✂️ Chỉnh sửa & cắt lịch ngày mai";
+    if (subEl) subEl.textContent = `Đang xem lịch ngày ${vnFormat(curDate)} (${DOW[parseDate(curDate).getDay()]}). ` +
+      `Chỉnh sửa vắng mặt và ca gác, sau đó xác nhận để cắt lịch ngày ${vnFormat(targetDate)}.`;
+    if (confirmBtn) confirmBtn.textContent = `✅ Xác nhận cắt lịch ${vnFormat(targetDate)}`;
+  } else if (editorMode === "week") {
+    const lastDate = addDay(targetDate, 6);
+    if (titleEl) titleEl.textContent = "⚡ Chỉnh sửa & cắt lịch cả tuần";
+    if (subEl) subEl.textContent = `Đang xem lịch ngày ${vnFormat(curDate)} (${DOW[parseDate(curDate).getDay()]}). ` +
+      `Chỉnh sửa vắng mặt và ca gác, sau đó xác nhận để cắt 7 ngày (${vnFormat(targetDate)} → ${vnFormat(lastDate)}).`;
+    if (confirmBtn) confirmBtn.textContent = "✅ Xác nhận cắt lịch 7 ngày";
+  } else if (editorMode === "month") {
+    if (titleEl) titleEl.textContent = "📅 Chỉnh sửa & cắt lịch cả tháng";
+    if (subEl) subEl.textContent = `Đang xem lịch ngày ${vnFormat(curDate)} (${DOW[parseDate(curDate).getDay()]}). ` +
+      `Chỉnh sửa vắng mặt và ca gác, sau đó xác nhận để cắt các ngày còn lại trong tháng.`;
+    if (confirmBtn) confirmBtn.textContent = "✅ Xác nhận cắt lịch cả tháng";
+  } else {
+    if (titleEl) titleEl.textContent = "✏️ Chỉnh sửa lịch & vắng mặt";
+    if (subEl) subEl.textContent = `Chỉnh sửa lịch ngày ${vnFormat(curDate)} (${DOW[parseDate(curDate).getDay()]}), ` +
+      `sau đó bấm Lưu thay đổi.`;
+    if (confirmBtn) confirmBtn.textContent = "✅ Lưu thay đổi";
+  }
+
+  modal.classList.add("show");
+  document.body.classList.add("editor-open");
+  render();
+  const body = modal.querySelector(".editor-modal-body");
+  if (body) body.scrollTop = 0;
+}
+
+function closeEditorModal() {
+  const modal = document.getElementById("editorModal");
+  if (modal) modal.classList.remove("show");
+  document.body.classList.remove("editor-open");
+  editorMode = null;
+}
+
+function confirmCutFromEditor() {
   if (getCurrentRole() !== "commander") {
     alert("Chỉ có Chỉ huy / Trưởng ban mới được cắt lịch!");
     return;
   }
   if (!ensureNoPendingAbsenceEdits()) return;
 
+  if (editorMode === "edit") {
+    saveStorage();
+    render();
+    commitScheduleToCloud();
+    closeEditorModal();
+    alert(`✅ Đã lưu thay đổi lịch ngày ${vnFormat(curDate)}.`);
+    return;
+  }
+
+  let ok = false;
+  if (editorMode === "day") ok = generateSchedule();
+  else if (editorMode === "week") ok = generateWeekSchedule();
+  else if (editorMode === "month") ok = generateMonthSchedule();
+  if (ok) closeEditorModal();
+}
+
+function generateSchedule() {
+  if (getCurrentRole() !== "commander") {
+    alert("Chỉ có Chỉ huy / Trưởng ban mới được cắt lịch!");
+    return false;
+  }
+  if (!ensureNoPendingAbsenceEdits()) return false;
+
   const targetDate = addDay(curDate, 1);
   if (dayHasSchedule(targetDate) && !confirm(`Ngày ${vnFormat(targetDate)} đã có lịch. Cắt lại lịch cho ngày mai?`)) {
-    return;
+    return false;
   }
 
   createSnapshot("Trước khi cắt lịch ngày " + vnFormat(targetDate));
@@ -1410,14 +1494,15 @@ function generateSchedule() {
   }
   alert(msg);
   commitScheduleToCloud();
+  return true;
 }
 
 function generateWeekSchedule() {
   if (getCurrentRole() !== "commander") {
     alert("Chỉ có Chỉ huy / Trưởng ban mới được cắt lịch!");
-    return;
+    return false;
   }
-  if (!ensureNoPendingAbsenceEdits()) return;
+  if (!ensureNoPendingAbsenceEdits()) return false;
 
   const startDate = addDay(curDate, 1);
   const dates = [];
@@ -1425,7 +1510,7 @@ function generateWeekSchedule() {
 
   const existing = dates.filter(dayHasSchedule);
   if (existing.length && !confirm(`Đã có lịch cho ${existing.length} ngày trong 7 ngày tới. Cắt lại toàn bộ 7 ngày?`)) {
-    return;
+    return false;
   }
 
   createSnapshot(`Trước khi cắt lịch tuần (${vnFormat(startDate)} → ${vnFormat(dates[6])})`);
@@ -1462,15 +1547,16 @@ function generateWeekSchedule() {
   }
   alert(msg);
   commitScheduleToCloud();
+  return true;
 }
 
 // Cắt lịch cả tháng (từ ngày mai đến hết tháng hiện tại).
 function generateMonthSchedule() {
   if (getCurrentRole() !== "commander") {
     alert("Chỉ có Chỉ huy / Trưởng ban mới được cắt lịch!");
-    return;
+    return false;
   }
-  if (!ensureNoPendingAbsenceEdits()) return;
+  if (!ensureNoPendingAbsenceEdits()) return false;
 
   const [y, m] = curDate.split("-").map(Number);
   const daysInMonth = new Date(y, m, 0).getDate();
@@ -1482,12 +1568,12 @@ function generateMonthSchedule() {
   }
   if (!dates.length) {
     alert("Không còn ngày nào trong tháng để cắt lịch.");
-    return;
+    return false;
   }
 
   const existing = dates.filter(dayHasSchedule);
   if (existing.length && !confirm(`Đã có lịch cho ${existing.length}/${dates.length} ngày trong tháng. Ghi đè toàn bộ?`)) {
-    return;
+    return false;
   }
 
   createSnapshot(`Trước khi cắt lịch tháng ${pad(m)}/${y}`);
@@ -1524,6 +1610,7 @@ function generateMonthSchedule() {
   }
   alert(msg);
   commitScheduleToCloud();
+  return true;
 }
 
 function populateTeamTextareas() {
@@ -2259,6 +2346,8 @@ function confirmAbsenceEdits() {
     }
   });
 
+  // Bỏ khỏi mọi ngày những tên đã hết hạn phép dài ngày trước khi cắt lại.
+  expireLeavePeriodsAllDays();
   const rebuilt = rebuildAutoUpcomingDays();
   const changedDays = propagateAbsenceChange(Array.from(affected));
   S.absenceDraft = {};
@@ -2271,7 +2360,8 @@ function confirmAbsenceEdits() {
   commitScheduleToCloud();
 }
 
-function applyMultiDayAbsence() {  if (getCurrentRole() !== "commander") {
+function applyMultiDayAbsence() {
+  if (getCurrentRole() !== "commander") {
     alert("Chỉ có Chỉ huy mới được đăng ký vắng dài ngày!");
     return;
   }
@@ -2291,30 +2381,37 @@ function applyMultiDayAbsence() {  if (getCurrentRole() !== "commander") {
 
   let d = startStr;
   let countDays = 0;
-  const cName = cleanName(person);
+  const cName = cleanName(person).toLowerCase();
 
   while (d <= endStr && countDays < 120) {
     const dayData = getDayData(d);
     CATS.forEach(c => {
       let list = parseNames(dayData.absent[c[0]]);
-      list = list.filter(n => cleanName(n) !== cName);
+      list = list.filter(n => cleanName(n).toLowerCase() !== cName);
       dayData.absent[c[0]] = list.join(", ");
     });
     let targetList = parseNames(dayData.absent[catKey]);
-    if (!targetList.some(n => cleanName(n) === cName)) {
+    if (!targetList.some(n => cleanName(n).toLowerCase() === cName)) {
       targetList.push(person);
     }
     dayData.absent[catKey] = targetList.join(", ");
     dayData.absentTouched = true;
-    dayData.cells = dayData.cells.map(c => cleanName(c) === cName ? "" : c);
+    dayData.cells = dayData.cells.map(c => cleanName(c).toLowerCase() === cName ? "" : c);
 
     d = addDay(d, 1);
     countDays++;
   }
 
+  // Lưu hạn phép để hiển thị cạnh tên và tự xóa khi hết hạn.
+  addLeavePeriod(person, catKey, startStr, endStr);
+  // Dọn những ngày nằm ngoài khoảng phép (tên cũ còn sót lại).
+  expireLeavePeriodsAllDays();
+
   saveStorage();
   render();
-  alert(`✅ Đã đăng ký vắng mặt cho chiến sĩ "${person}" trong ${countDays} ngày (từ ${vnFormat(startStr)} đến ${vnFormat(endStr)}). Các đồng chí cùng Tổ sẽ tự động thay thế khi cắt lịch!`);
+  alert(`✅ Đã đăng ký vắng mặt cho "${person}" trong ${countDays} ngày ` +
+    `(từ ${vnFormat(startStr)} đến ${vnFormat(endStr)}).\n` +
+    `📌 Tên sẽ hiển thị kèm hạn phép và tự động biến mất khỏi ô nghỉ sau ngày ${vnFormat(endStr)}.`);
 }
 
 function initUI() {
@@ -2349,8 +2446,16 @@ function initUI() {
       placeholder: `Nhập hoặc chọn tên (${c[1]})...`,
       emptyText: "Chưa có ai.",
       getNames: () => parseNames(getDayData(curDate).absent[c[0]]),
+      // Hiển thị hạn phép dài ngày ngay cạnh tên: "Nguyễn Văn A (đến 15/11)".
+      getSuffix: (n) => leaveEndSuffix(n, curDate),
       onChange: (arr) => {
         const d = getDayData(curDate);
+        // Bấm × để bỏ tên: xóa luôn đăng ký vắng dài ngày của người đó.
+        const before = parseNames(d.absent[c[0]]);
+        const afterKeys = new Set(arr.map(n => cleanName(n).toLowerCase()));
+        before.forEach(n => {
+          if (!afterKeys.has(cleanName(n).toLowerCase())) removeLeavePeriodsFor(n);
+        });
         d.absent[c[0]] = arr.join(", ");
         // Đánh dấu ngày đã chỉnh tay + chờ xác nhận: chỉ khi bấm "Xác nhận"
         // thì thay đổi mới được áp dụng và mới cho phép cắt lịch.
@@ -2388,6 +2493,17 @@ function initUI() {
     leaveEnd.value = addDay(curDate, 3);
   }
   attachNameSuggestions(document.getElementById("leavePerson"), getAllPersonNames);
+
+  // Đóng popup khi bấm ra ngoài hoặc nhấn Esc.
+  const editorModalEl = document.getElementById("editorModal");
+  if (editorModalEl) {
+    editorModalEl.addEventListener("click", (e) => {
+      if (e.target === editorModalEl) closeEditorModal();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && editorModalEl.classList.contains("show")) closeEditorModal();
+    });
+  }
 
   buildScheduleTableDOM();
   render();
@@ -2517,8 +2633,192 @@ function refreshRankBadges() {
   renderPunishmentList();
 }
 
+// ===== MÀN HÌNH QUẢN LÝ CHỈ ĐỌC =====
+// Hiển thị lịch đã cắt của ngày đang xem; không cho sửa trực tiếp.
+// Muốn chỉnh sửa phải mở popup (openEditorModal).
+function renderMainView(warnings) {
+  const content = document.getElementById("mainScheduleContent");
+  const summary = document.getElementById("mainSummary");
+  const warnEl = document.getElementById("mainWarn");
+  if (!content) return;
+
+  const day = getDayData(curDate);
+  const detectedTeams = detectTeamsInCa(day);
+  const ab = absSet(day.absent || {});
+  const hasSchedule = dayHasSchedule(curDate);
+
+  const titleEl = document.getElementById("mainViewTitle");
+  if (titleEl) titleEl.textContent = `BẢNG PHÂN CÔNG LỊCH GÁC — ${vnFormat(curDate)}`;
+  const dateEl = document.getElementById("mainViewDate");
+  if (dateEl) dateEl.textContent = `${DOW[parseDate(curDate).getDay()]}, ngày ${vnFormat(curDate)}`;
+
+  if (warnEl) {
+    warnEl.innerHTML = "";
+    (warnings || []).forEach(w => {
+      const div = document.createElement("div");
+      div.textContent = w;
+      warnEl.appendChild(div);
+    });
+  }
+
+  if (!hasSchedule) {
+    content.innerHTML = `<div class="main-view-empty">Ngày ${vnFormat(curDate)} chưa có lịch gác. ` +
+      (getCurrentRole() === "commander"
+        ? `Bấm <b>“Cắt lịch ngày mai”</b> hoặc <b>“Sửa lịch / vắng mặt”</b> để bắt đầu.`
+        : `Vui lòng liên hệ Chỉ huy.`) +
+      `</div>`;
+    if (summary) summary.innerHTML = "";
+    return;
+  }
+
+  const hasAnySplit = CA.some((slots, caIdx) => {
+    for (let c = 0; c < 5; c++) {
+      const p0 = (day.cells[(caIdx * 3 + 0) * 5 + c] || "").trim();
+      const p1 = (day.cells[(caIdx * 3 + 1) * 5 + c] || "").trim();
+      const p2 = (day.cells[(caIdx * 3 + 2) * 5 + c] || "").trim();
+      if (cleanName(p0) !== cleanName(p1) || cleanName(p0) !== cleanName(p2)) return true;
+    }
+    return false;
+  });
+
+  const officerSet = new Set(parseNames(S.officers).map(n => cleanName(n).toLowerCase()));
+  const soldierSet = new Set(parseNames(S.soldiers).map(n => cleanName(n).toLowerCase()));
+
+  function personCell(person, k) {
+    const name = (person || "").trim();
+    if (!name) return `<span class="main-empty">—</span>`;
+    const cName = cleanName(name);
+    const col = k % 5;
+    const caIdx = Math.floor(Math.floor(k / 5) / 3);
+    const expectedTeamId = detectedTeams[caIdx];
+    const personTeamId = getPersonTeamId(name);
+    const isBad = !!(ab[cName] || ab[name] || hasConsecutiveShift(day, name, k));
+    const isOfficerSub = col > 0 && officerSet.has(cName.toLowerCase()) && !soldierSet.has(cName.toLowerCase());
+    const isCrossTeam = !!(personTeamId && expectedTeamId && personTeamId !== expectedTeamId);
+    const borrowed = !!(day.borrowMarks && day.borrowMarks[k]) || isCrossTeam || isOfficerSub;
+    let cls = "main-person";
+    if (isBad) cls += " bad";
+    else if (borrowed) cls += " borrowed";
+    let title = "";
+    if (isBad) title = "Cảnh báo: người này đang vắng hoặc làm trùng ca liền giờ";
+    else if (isCrossTeam) title = `Điều động từ Tổ ${personTeamId} sang Ca ${caIdx + 1} của Tổ ${expectedTeamId}`;
+    else if (isOfficerSub) title = "Sĩ quan đi làm thay vị trí Chiến sĩ nghĩa vụ";
+    else if (borrowed) title = "Mượn quân số từ Tổ khác";
+    return `<span class="${cls}"${title ? ` title="${escHTML(title)}"` : ""}>${renderPersonWithStreakHTML(name, curDate)}</span>`;
+  }
+
+  let html = `<div class="scroll main-view-scroll"><table class="main-view-table"><thead><tr>`;
+  html += `<th class="ca-head">${hasAnySplit ? "Ca / Tổ trực" : "Ca / Khung giờ"}</th>`;
+  if (hasAnySplit) html += `<th class="slot-time extra-time-col">Khung giờ</th>`;
+  html += `<th><b>Đốc gác 1</b>Sĩ quan</th>` +
+    `<th><b>Vọng gác x9</b>Chiến sĩ nghĩa vụ</th>` +
+    `<th><b>Vọng gác x10</b>Chiến sĩ nghĩa vụ</th>` +
+    `<th><b>Vọng gác x11</b>Chiến sĩ nghĩa vụ</th>` +
+    `<th><b>Vọng gác x12</b>Chiến sĩ nghĩa vụ</th></tr></thead><tbody>`;
+
+  CA.forEach((slots, caIdx) => {
+    const teamId = detectedTeams[caIdx] || (caIdx + 1);
+    let caHasAnySplit = false;
+    for (let c = 0; c < 5; c++) {
+      const p0 = (day.cells[(caIdx * 3 + 0) * 5 + c] || "").trim();
+      const p1 = (day.cells[(caIdx * 3 + 1) * 5 + c] || "").trim();
+      const p2 = (day.cells[(caIdx * 3 + 2) * 5 + c] || "").trim();
+      if (cleanName(p0) !== cleanName(p1) || cleanName(p0) !== cleanName(p2)) { caHasAnySplit = true; break; }
+    }
+    const caLabelHtml = `<strong>Ca ${caIdx + 1}</strong><div class="main-team">Tổ ${teamId}</div>`;
+    const caTimeLinesHtml = `<div class="ca-time-lines">${slots.map(s => `<div class="ca-time-line">${s}</div>`).join("")}</div>`;
+    const extraTimeCellHtml = `<td class="slot-time extra-time-col"><div class="extra-time-list">${slots.map(s => `<div class="extra-time-line">${s}</div>`).join("")}</div></td>`;
+
+    if (!caHasAnySplit) {
+      html += `<tr>`;
+      html += `<td class="ca-title ca-merged">${caLabelHtml}${hasAnySplit ? "" : caTimeLinesHtml}</td>`;
+      if (hasAnySplit) html += extraTimeCellHtml;
+      for (let c = 0; c < 5; c++) {
+        const k = (caIdx * 3) * 5 + c;
+        html += `<td>${personCell(day.cells[k], k)}</td>`;
+      }
+      html += `</tr>`;
+    } else {
+      slots.forEach((timeStr, slotIdx) => {
+        const rowIdx = caIdx * 3 + slotIdx;
+        html += `<tr>`;
+        if (slotIdx === 0) html += `<td rowspan="3" class="ca-title ca-merged">${caLabelHtml}</td>`;
+        if (hasAnySplit) html += `<td class="slot-time extra-time-col">${timeStr}</td>`;
+        else html += `<td class="slot-time">${timeStr}</td>`;
+        for (let c = 0; c < 5; c++) {
+          const p0 = (day.cells[(caIdx * 3 + 0) * 5 + c] || "").trim();
+          const p1 = (day.cells[(caIdx * 3 + 1) * 5 + c] || "").trim();
+          const p2 = (day.cells[(caIdx * 3 + 2) * 5 + c] || "").trim();
+          const isSame = cleanName(p0) === cleanName(p1) && cleanName(p0) === cleanName(p2);
+          const k = rowIdx * 5 + c;
+          if (isSame) {
+            if (slotIdx === 0) html += `<td rowspan="3">${personCell(p0, (caIdx * 3) * 5 + c)}</td>`;
+          } else {
+            html += `<td class="main-split-cell">${personCell(day.cells[k], k)}</td>`;
+          }
+        }
+        html += `</tr>`;
+      });
+    }
+  });
+  html += `</tbody></table></div>`;
+  content.innerHTML = html;
+
+  if (!summary) return;
+  const off = parseNames(S.officers);
+  const sol = parseNames(S.soldiers);
+  const working = {};
+  for (let k = 0; k < 60; k++) {
+    const n = (day.cells[k] || "").trim();
+    if (n) working[cleanName(n)] = 1;
+  }
+  const restO = off.filter(n => !ab[cleanName(n)] && !working[cleanName(n)]);
+  const restS = sol.filter(n => !ab[cleanName(n)] && !working[cleanName(n)]);
+  const gacTotal = Object.keys(working).length;
+  const restTotal = restO.length + restS.length;
+
+  let absTotal = 0;
+  const absLines = [];
+  CATS.forEach(c => {
+    const names = parseNames(day.absent[c[0]]);
+    if (!names.length) return;
+    absTotal += names.length;
+    absLines.push(`<div class="absence-line"><b>${escHTML(c[1])} (${escHTML(c[2])}):</b> ` +
+      names.map(n => escHTML(n) + escHTML(leaveEndSuffix(n, curDate))).join(", ") + `</div>`);
+  });
+
+  const chip = (name) => {
+    const tid = getPersonTeamId(name);
+    return `<span class="chip person-hover-link" data-person="${escHTML(name)}" ` +
+      `onmouseenter="showPersonnelHoverCard(event, this.dataset.person)" ` +
+      `onmousemove="movePersonnelHoverCard(event)" onmouseleave="hidePersonnelHoverCard()">` +
+      `${escHTML(name)}${tid ? " [Tổ " + tid + "]" : ""}</span>`;
+  };
+
+  summary.innerHTML =
+    `<div class="unit-summary-box" style="margin-bottom:0;">` +
+    `<div class="unit-total-header"><span>* TỔNG QUÂN SỐ TOÀN ĐƠN VỊ: <strong>${off.length + sol.length}</strong> đồng chí</span>` +
+    `<span class="unit-sub">Đang gác: ${gacTotal} · Nghỉ tại đơn vị: ${restTotal} · Vắng: ${absTotal}</span></div>` +
+    `<div class="stat-grid" style="margin-top:8px;">` +
+    `<div class="stat-card"><span>🛡️ Đang gác (4 Tổ)</span><b>${gacTotal} người</b></div>` +
+    `<div class="stat-card"><span>⛺ Trực cơ động (Nghỉ tại Tổ)</span><b>${restTotal} người</b></div>` +
+    `</div>` +
+    `<div class="rest-lists">` +
+    `<div class="rest-block"><div class="ph">Sĩ quan Đốc gác (${restO.length})</div><div class="chips">` +
+    (restO.length ? restO.map(chip).join("") : `<span class="empty">Không có ai.</span>`) + `</div></div>` +
+    `<div class="rest-block"><div class="ph">Chiến sĩ nghĩa vụ (${restS.length})</div><div class="chips">` +
+    (restS.length ? restS.map(chip).join("") : `<span class="empty">Không có ai.</span>`) + `</div></div>` +
+    `</div>` +
+    (absLines.length
+      ? `<div class="absence-notes" style="margin-top:10px;">${absLines.join("")}</div>`
+      : `<div class="absence-line" style="margin-top:10px;"><span class="empty">Không có ai vắng mặt trong ngày này.</span></div>`) +
+    `</div>`;
+}
+
 function refresh() {
   const day = getDayData(curDate);
+  // Người đã hết hạn phép dài ngày tự động biến mất khỏi ô nghỉ.
+  if (expireLeavePeriodsForDay(curDate, day)) saveStorage();
   if (document.getElementById("body")) refreshRankBadges();
   const off = parseNames(S.officers);
   const sol = parseNames(S.soldiers);
@@ -2807,6 +3107,7 @@ function refresh() {
 
   updateHistoryDropdown();
   updateAbsenceConfirmBar();
+  renderMainView(warnings);
 }
 
 function render() {

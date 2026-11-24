@@ -25,6 +25,8 @@
     - Giá trị Chỉ huy nhập tay trong ô "mũ" được ưu tiên cho đúng ngày đó và làm mốc cộng tiếp cho hôm sau. Các giá trị "mũ" nhập tay từ bản cũ (trước quy tắc tính theo ngày) được bỏ qua để chuỗi mũ luôn tính đúng.
     - Bảng chấm công vẫn tính công theo quy tắc riêng (đủ 3 khung = 1,0 công; 2 khung ngày hoặc 1 khung đêm = 0,5 công).
 17. **Sĩ quan đi làm thay Chiến sĩ nghĩa vụ**: Khi Chỉ huy sửa tay hoặc dùng **🎯 Giao nhiệm vụ** để xếp một Sĩ quan (Đốc gác) vào vị trí Vọng gác của Chiến sĩ, hệ thống cho phép và chỉ hiển thị cảnh báo vàng (ô viền cam, ghi chú "Sĩ quan đi làm thay vị trí Chiến sĩ"), không báo đỏ, không chặn. Chiều ngược lại — Chiến sĩ vào cột Đốc gác — vẫn báo đỏ và bị chặn.
+18. **Popup chỉnh sửa & cắt lịch**: Trang Quản lý lập lịch chỉ hiển thị lịch đã cắt ở **chế độ chỉ đọc** (kèm tổng quân số, trực cơ động, vắng mặt). Bấm **Cắt lịch ngày mai / cả tuần / cả tháng** để mở popup phủ lên màn hình; trong popup có thể chỉnh sửa bảng lịch và **Phần 2** (đăng ký vắng mặt, tổng quân số, trực cơ động) rồi xác nhận mới cắt. Muốn sửa lịch đã cắt, bấm **✏️ Sửa lịch / vắng mặt** để mở lại popup.
+19. **Hạn phép vắng dài ngày**: Khi đăng ký vắng dài ngày (Từ ngày – Đến ngày), tên hiển thị kèm hạn phép **`(đến dd/mm)`** ngay cạnh tên. Qua ngày hết phép, tên **tự động biến mất** khỏi ô nghỉ; người nhập tay không có hạn phép vẫn được giữ nguyên.
 
 ---
 
@@ -83,7 +85,7 @@ lich-gac-project/
 
 ```bash
 cd tests
-node test-new-features.js && node test-improvements.js && node test-fair-schedule.js && node test-assign.js && node test-punishment.js
+node test-new-features.js && node test-improvements.js && node test-fair-schedule.js && node test-assign.js && node test-punishment.js && node test-streak.js
 ```
 
 Xem checklist kiểm thử thủ công trong `tests/README.md`.

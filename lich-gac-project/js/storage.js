@@ -13,7 +13,10 @@ let S = {
   // Chế độ cảnh báo & mượn quân số tạm thời giữa các Tổ
   borrowRules: { enabled: true, maxAbsentSoldiers: 3, maxConsecutiveDays: 5 },
   // Kỷ luật: danh sách người bị phạt làm 7 ngày liên tục
-  punishments: []
+  punishments: [],
+  // Vắng mặt dài ngày: [{ person, category, start, end }]
+  // Dùng để hiển thị ngày hết phép cạnh tên và tự xóa tên khi hết phép.
+  leavePeriods: []
 };
 
 // ===== SAO LƯU TỰ ĐỘNG (SNAPSHOT) =====
@@ -625,6 +628,7 @@ function readStorageIntoS() {
       if (!S.ranks || typeof S.ranks !== "object") S.ranks = {};
       if (!S.absenceDraft || typeof S.absenceDraft !== "object") S.absenceDraft = {};
       if (!Array.isArray(S.punishments)) S.punishments = [];
+      normalizeLeavePeriods();
       normalizeBorrowRules();
       if (!S.teams || S.teams.length < 4) S.teams = JSON.parse(JSON.stringify(DEFAULT_TEAMS));
       syncRanksFromAccounts();
@@ -914,6 +918,7 @@ function applyStateFromParsed(parsed) {
   if (typeof S.nightOnly !== "string") S.nightOnly = "";
   if (!S.handoverNotes || typeof S.handoverNotes !== "object" || Array.isArray(S.handoverNotes)) S.handoverNotes = {};
   if (!S.teams || S.teams.length < 4) S.teams = JSON.parse(JSON.stringify(DEFAULT_TEAMS));
+  normalizeLeavePeriods();
   normalizeBorrowRules();
   syncFromTeamsToRosterAndAccounts();
   migrateLegacyPasswords();
@@ -1205,6 +1210,90 @@ function absenceCategoryKeys() {
   return CATS.map(c => c[0]);
 }
 
+// ===== VẮNG MẶT DÀI NGÀY: HẠN PHÉP & TỰ HẾT HẠN =====
+// Mỗi đăng ký dài ngày lưu { person, category, start, end }.
+// Tên hiển thị kèm hạn phép và tự biến mất khỏi ô nghỉ khi đã hết hạn.
+function normalizeLeavePeriods() {
+  if (!Array.isArray(S.leavePeriods)) S.leavePeriods = [];
+  S.leavePeriods = S.leavePeriods.filter(p =>
+    p && p.person && p.start && p.end && p.start <= p.end);
+  return S.leavePeriods;
+}
+
+function getLeavePeriodsFor(person) {
+  const key = cleanName(person).toLowerCase();
+  if (!key) return [];
+  return (Array.isArray(S.leavePeriods) ? S.leavePeriods : [])
+    .filter(p => cleanName(p.person).toLowerCase() === key);
+}
+
+function getLeavePeriodCovering(person, dateStr) {
+  return getLeavePeriodsFor(person).find(p => p.start <= dateStr && dateStr <= p.end) || null;
+}
+
+function getLeaveEndFor(person, dateStr) {
+  const p = getLeavePeriodCovering(person, dateStr);
+  return p ? p.end : "";
+}
+
+// Người đã có đăng ký vắng dài ngày nhưng ngày đang xét nằm ngoài khoảng phép.
+function isLeaveExpired(person, dateStr) {
+  const periods = getLeavePeriodsFor(person);
+  if (!periods.length) return false;
+  return !periods.some(p => p.start <= dateStr && dateStr <= p.end);
+}
+
+function addLeavePeriod(person, category, start, end) {
+  if (!person || !start || !end) return;
+  removeLeavePeriodsFor(person);
+  if (!Array.isArray(S.leavePeriods)) S.leavePeriods = [];
+  S.leavePeriods.push({
+    person: cleanName(person) || person,
+    category: category || "phep",
+    start,
+    end
+  });
+}
+
+function removeLeavePeriodsFor(person) {
+  const key = cleanName(person).toLowerCase();
+  if (!key || !Array.isArray(S.leavePeriods)) return;
+  S.leavePeriods = S.leavePeriods.filter(p => cleanName(p.person).toLowerCase() !== key);
+}
+
+// Xóa khỏi danh sách vắng của một ngày những người đã hết phép.
+// Người nhập tay (không có đăng ký dài ngày) vẫn được giữ nguyên.
+function expireLeavePeriodsForDay(dateStr, day) {
+  if (!day || !day.absent || !Array.isArray(S.leavePeriods) || !S.leavePeriods.length) return false;
+  let changed = false;
+  absenceCategoryKeys().forEach(k => {
+    const names = parseNames(day.absent[k]);
+    const kept = names.filter(n => !isLeaveExpired(n, dateStr));
+    if (kept.length !== names.length) {
+      day.absent[k] = kept.join(", ");
+      changed = true;
+    }
+  });
+  return changed;
+}
+
+function expireLeavePeriodsAllDays() {
+  if (!Array.isArray(S.leavePeriods) || !S.leavePeriods.length) return false;
+  let changed = false;
+  Object.keys(S.days || {}).forEach(d => {
+    if (expireLeavePeriodsForDay(d, S.days[d])) changed = true;
+  });
+  return changed;
+}
+
+// Hậu tố hiển thị cạnh tên: " (đến dd/mm)".
+function leaveEndSuffix(person, dateStr) {
+  const end = getLeaveEndFor(person, dateStr);
+  if (!end) return "";
+  const p = end.split("-");
+  return ` (đến ${p[2]}/${p[1]})`;
+}
+
 function dayHasAnyAbsence(day) {
   if (!day || !day.absent) return false;
   return absenceCategoryKeys().some(k => parseNames(day.absent[k]).length > 0);
@@ -1224,7 +1313,11 @@ function findAbsenceSource(dateStr) {
 // Trả về true nếu có dữ liệu vắng mặt được áp dụng.
 function applyInheritedAbsence(dateStr, targetDay) {
   if (!targetDay) return false;
-  if (targetDay.absentTouched === true) return false;
+  if (targetDay.absentTouched === true) {
+    // Ngày đã chỉnh tay vẫn phải tự bỏ người đã hết phép.
+    expireLeavePeriodsForDay(dateStr, targetDay);
+    return false;
+  }
   const src = findAbsenceSource(dateStr);
   if (!src || !src.day || !src.day.absent) return false;
   // Ngày đã kế thừa đúng bản mới nhất rồi thì không cần làm lại.
@@ -1241,6 +1334,8 @@ function applyInheritedAbsence(dateStr, targetDay) {
   });
   targetDay.absentInheritedFrom = src.date;
   targetDay.absentInheritedSig = srcSig;
+  // Không kế thừa người đã hết phép sang ngày mới.
+  expireLeavePeriodsForDay(dateStr, targetDay);
   return dayHasAnyAbsence(targetDay);
 }
 

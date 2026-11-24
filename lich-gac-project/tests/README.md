@@ -4,7 +4,7 @@ Chạy toàn bộ bằng cách mở terminal tại thư mục gốc dự án:
 
 ```bash
 cd tests
-node test-new-features.js     # 40 test  — tính năng mới (vắng mặt, đăng nhập, bảo mật...)
+node test-new-features.js     # 50 test  — tính năng mới (vắng mặt, hạn phép dài ngày, đăng nhập, bảo mật...)
 node test-improvements.js     # 52 test  — cải tiến nghiệp vụ (mượn quân, đổi ca, chấm công, sĩ quan thay chiến sĩ...)
 node test-fair-schedule.js    # 17 test  — luật công bằng khi cắt lịch (mũ 1/mũ 2, xoay vọng, ưu tiên H1/B2)
 node test-assign.js           # 33 test  — validate đổi ca / xung đột ca / giao nhiệm vụ
@@ -15,7 +15,7 @@ node test-streak.js           # 27 test  — quy tắc "số mũ" theo từng ng
 Test chạy trực tiếp bằng `node`, không cần cài thêm thư viện (dùng `vm` để nạp
 `js/config.js`, `js/storage.js`, `js/app.js` vào sandbox).
 
-> Tổng hiện tại: **180 test / 0 fail**. Sau mỗi lần sửa code, chạy lại cả 6 file.
+> Tổng hiện tại: **190 test / 0 fail**. Sau mỗi lần sửa code, chạy lại cả 6 file.
 
 ## Checklist kiểm thử thủ công trước khi phát hành
 

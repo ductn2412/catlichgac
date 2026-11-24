@@ -114,17 +114,44 @@
         <option value="">-- Lịch sử ngày đã cắt gác --</option>
       </select>
 
-      <button class="pri" id="gen" onclick="generateSchedule()">Cắt lịch ngày mai →</button>
+      <button class="pri" id="gen" onclick="openEditorModal('day')">Cắt lịch ngày mai →</button>
       <button class="pri" id="saveSchedule" onclick="saveScheduleNow()" style="background:#1b5e20;">💾 Lưu lịch</button>
       <span id="saveMsg" style="font-weight:700;font-size:13.5px;"></span>
-      <button class="warn-btn" id="genWeek" onclick="generateWeekSchedule()">⚡ Cắt lịch cả tuần (7 ngày)</button>
-      <button class="warn-btn" id="genMonth" onclick="generateMonthSchedule()">📅 Cắt lịch cả tháng</button>
+      <button class="warn-btn" id="genWeek" onclick="openEditorModal('week')">⚡ Cắt lịch cả tuần (7 ngày)</button>
+      <button class="warn-btn" id="genMonth" onclick="openEditorModal('month')">📅 Cắt lịch cả tháng</button>
       <button class="sec" onclick="exportToExcel(curDate)">Xuất Excel</button>
       <button class="sec" onclick="exportToPDF(curDate)">Xuất PDF</button>
       <button onclick="printSchedule(curDate)">🖨 In lịch</button>
       <span class="now" id="now"></span>
     </div>
 
+    <!-- MÀN HÌNH QUẢN LÝ: CHỈ HIỂN THỊ LỊCH SAU KHI CẮT (CHẾ ĐỘ CHỈ ĐỌC) -->
+    <section class="card main-schedule-card" id="mainScheduleCard">
+      <div class="main-view-head">
+        <div>
+          <h2 id="mainViewTitle">BẢNG PHÂN CÔNG LỊCH GÁC</h2>
+          <div class="main-view-date" id="mainViewDate"></div>
+        </div>
+        <div class="main-view-actions no-print">
+          <button class="pri" id="mainEditBtn" onclick="openEditorModal('edit')" title="Mở popup chỉnh sửa lịch và vắng mặt" style="display:none;">✏️ Sửa lịch / vắng mặt</button>
+        </div>
+      </div>
+      <div class="warn main-view-warn" id="mainWarn"></div>
+      <div id="mainScheduleContent"></div>
+      <div id="mainSummary" class="main-summary"></div>
+    </section>
+
+    <!-- MODAL CHỈNH SỬA & CẮT LỊCH (PHỦ LÊN MÀN HÌNH QUẢN LÝ) -->
+    <div id="editorModal" class="modal-backdrop editor-modal" role="dialog" aria-modal="true" aria-labelledby="editorTitle">
+      <div class="modal-card editor-modal-card">
+        <div class="modal-head editor-modal-head">
+          <div>
+            <h3 id="editorTitle">✂️ Chỉnh sửa &amp; cắt lịch</h3>
+            <div class="editor-subtitle" id="editorSubtitle"></div>
+          </div>
+          <button class="sec" type="button" onclick="closeEditorModal()" title="Đóng">✕</button>
+        </div>
+        <div class="editor-modal-body">
     <div id="print-area">
       <!-- TIÊU ĐỀ BẢN IN CHUẨN BỘ TƯ LỆNH CẢNH VỆ - BỘ CÔNG AN -->
       <div class="military-print-header">
@@ -331,6 +358,17 @@
           <i>Hà Nội, ngày ..... tháng ..... năm 20...</i><br>
           <b>CHỈ HUY ĐỘI 3 DUYỆT</b><br>
           <i>(Ký tên, đóng dấu)</i><div class="signature-space"></div>
+        </div>
+      </div>
+    </div>
+        </div>
+
+        <div class="editor-modal-actions no-print">
+          <span id="editorMsg" class="editor-msg"></span>
+          <div class="editor-actions-btns">
+            <button type="button" class="sec" onclick="closeEditorModal()">Hủy</button>
+            <button type="button" class="pri" id="editorConfirmBtn" onclick="confirmCutFromEditor()">✅ Xác nhận</button>
+          </div>
         </div>
       </div>
     </div>
